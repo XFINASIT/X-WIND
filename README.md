@@ -9,7 +9,7 @@ The X-WIND is AutoCAD embeded software which the Pre/Postprocessor of X-WIND is 
 1) Installed AutoCAD 2020 version above (2020,2021, 2022 and 2023 (most optimal)) and always installed on drive C: directory. 
 2) X-Wind Installer will be uploaded whenever XFINASIT upgrades the X-Wind. The old version will be deleted.
 3) All users can use X-WIND by getting the brief information of free license during installation process. (from XFIASIT: Dr. Ki-Du kim:  kimkd@konkuk.ac.kr,  Dr. Pasin Plodpradit:  P_tuay@hotmail.com).
-4) Full inslallation guilf line is get from https://drive.google.com/file/d/1kB3dybjb96M9AM_HRu5iK2a6aZGn-oV_/view?usp=sharing or www.xfinas.com. 
+4) Full inslallation guild line is get from https://drive.google.com/file/d/1kB3dybjb96M9AM_HRu5iK2a6aZGn-oV_/view?usp=sharing or www.xfinas.com. 
 5) User can get the free license at every 3 Months.
 
 # Documentation
