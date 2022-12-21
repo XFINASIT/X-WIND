@@ -1,0 +1,661 @@
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================
+
+      SUBROUTINE LNKLOOP
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	FORCE AND STIFFNESS
+	ALLOCATABLE RE(:),SE(:),STLD(:),EXDI(:)
+	ALLOCATABLE KEQ(:),KRQ(:)
+
+
+
+      CALL LOCATN('-GSF',KGSF,NUM,NWK ,2) 
+	CALL LOCATN('-LMA',KLMA,NUM,NEQ1,1)  
+
+
+	CALL INTFILL('%NUB',NSN,1,1,0)
+	CALL INTFILL('%NUB',NSF,1,2,0)
+	CALL INTFILL('%NUB',NSC,1,4,0)
+
+
+C	SOLUTION CONTROL ARRAY
+      CALL INTFILL('%SOL',LOPT1,1,1,0)
+      CALL INTFILL('%SOL',LOPT2,1,2,0)
+      CALL INTFILL('%SOL',LOPT3,1,3,0)
+      CALL INTFILL('%SOL',LOPT4,1,4,0)
+      CALL INTFILL('%SOL',LOPT5,1,5,0)
+
+	NNM = 2
+C	------------------------------------
+C	LOOP OVER LINK ELEMENT
+      CALL LOCATN ('+LNK',KLNK,LNKWRK,NELE,2) !CALLING NELE
+C	------------------------------------
+	DO 5000 IEL = 1,NELE
+
+	CALL RELFILL('+LNK',FNEF,6,IEL,0)  !NEF
+	NEF = INT(FNEF)
+	NEK = (NEF*NEF+NEF)/2
+
+	ALLOCATE(RE(NEF),SE(NEK),STLD(NEF),EXDI(NEF))
+	ALLOCATE(KEQ(NEF),KRQ(NEF))
+
+	SE(1:NEK)   = 0.0D0
+	RE(1:NEF)   = 0.0D0
+	EXDI(1:NEF) = 0.0D0
+	STLD(1:NEF) = 0.0D0
+	KEQ(1:NEF)  = 0
+	KRQ(1:NEF)  = 0
+
+
+C	------------------------------------
+C	IF(LOPT2.GT.0) THEN !UPDAT NON-MECHANICAL (BEFOR MECHANICAL)
+C		NOTHING FOR LINK
+C	ENDIF
+C	------------------------------------
+
+C	------------------------------------
+	IF(LOPT1.GT.0) THEN !UPDAT MECHANICAL
+
+	IF(LOPT1.EQ.1) THEN
+	LSTF = 0
+	LFOC = 0
+	LUPD = 1 !UPDATE FLAG
+	LDAP = 0 !DAMPING FLAG
+	CALL LNKCAL(IEL,SE,RE,KRQ,KEQ,LUPD,LSTF,LFOC,LDAP)
+	ENDIF
+	IF(LOPT1.EQ.2) THEN
+	LSTF = 0
+	LFOC = 0
+	LUPD = 2 !UPDATE FLAG
+	LDAP = 0 !DAMPING FLAG
+	CALL LNKCAL(IEL,SE,RE,KRQ,KEQ,LUPD,LSTF,LFOC,LDAP)
+	ENDIF
+
+	ENDIF
+C	------------------------------------
+
+
+C	LSTF  0 = NO COMPUTE OF STIFFNESS   1 = COMPUTE STIFFNESS
+C	LFOC  0 = NO COMPUTE OF ELM FORCE   1 = COMPUTE ELM FORCE
+	LSTF = 0
+	IF(LOPT4.GT.0.OR.LOPT5.GT.0) LSTF = 1
+C	------------------------------------
+	IF(LOPT3.EQ.1) THEN
+C	--------------------------
+C		NOTHING FOR LINK NON-MECHANICAL
+C	--------------------------
+	ENDIF
+C	------------------------------------
+	IF(LOPT3.EQ.2) THEN
+C	--------------------------
+	LFOC = 2
+	LUPD = 0 !UPDATE FLAG
+	LDAP = 0 !DAMPING FLAG
+	CALL LNKCAL(IEL,SE,RE,KRQ,KEQ,LUPD,LSTF,LFOC,LDAP)
+	DO IEF = 1,NEF
+	IEQ  = KRQ(IEF)   !IF2(1:NEF) = ORIGINAL EQAUATION
+	CALL RELFILL('-EIS',RE(IEF),IEQ,1,2)    !STORE MECHANICAL FORCE
+	ENDDO
+C	------------------------------------
+	ENDIF
+C	------------------------------------
+	IF(LOPT3.EQ.3) THEN
+C	--------------------------
+C		NOTHING FOR LINK NON-MECHANICAL
+C	--------------------------
+	LFOC = 2
+	LUPD = 0 !UPDATE FLAG
+	LDAP = 0 !DAMPING FLAG
+	CALL LNKCAL(IEL,SE,RE,KRQ,KEQ,LUPD,LSTF,LFOC,LDAP)
+	DO IEF = 1,NEF
+	IEQ  = KRQ(IEF)   !IF2(1:NEF) = ORIGINAL EQAUATION
+	CALL RELFILL('-EIS',RE(IEF),IEQ,1,2)    !STORE MECHANICAL FORCE
+	ENDDO
+C	------------------------------------
+	ENDIF
+C	------------------------------------
+	IF(LOPT3.EQ.4) THEN
+C	--------------------------
+	LFOC = 2
+	LUPD = 0 !UPDATE FLAG
+	LDAP = 0 !DAMPING FLAG
+	CALL LNKCAL(IEL,SE,RE,KRQ,KEQ,LUPD,LSTF,LFOC,LDAP)
+	DO IEF = 1,NEF
+	IEQ  = KRQ(IEF)   !IF2(1:NEF) = ORIGINAL EQAUATION
+	CALL RELFILL('-EIS',RE(IEF),IEQ,1,2)    !STORE MECHANICAL FORCE
+	ENDDO
+C	------------------------------------
+	ENDIF
+C	------------------------------------
+
+
+	IF(LOPT3.EQ.0.AND.LSTF.GT.0) THEN
+	LFOC = 0
+	LUPD = 0 !UPDATE FLAG
+	LDAP = 0 !DAMPING FLAG
+	CALL LNKCAL(IEL,SE,RE,KRQ,KEQ,LUPD,LSTF,LFOC,LDAP) !STIFFNESS COMPUTATION HERE IF LOPT3 EQ 0
+	ENDIF
+
+
+C	ASSEMBLE OF STIFFNESS
+	IF(LOPT4.GT.0) THEN
+	CALL STIFLAX(KRQ,SE,NEF,NNM)  !TRANSFORMATION DUE TO LOCAL SUPPORT
+	CALL ASBSTF(SE,KEQ,NEF) 
+	ENDIF
+
+C	------------------------------------
+C	FORCE FROM INCREMENTAL PRESCRIBED DISP.
+	IF(LOPT5.GT.0) THEN
+	DO IEF = 1,NEF
+	IEQ  = KRQ(IEF)   !IF2(1:NEF) = ORIGINAL EQAUATION
+	CALL RELFILL('$XDI',EXDI(IEF),IEQ,1,0)  !GETTING HERE INCREMENTAL NODAL PRESCRIBED DISPLACEMENT
+	ENDDO
+	CALL MULTRI(SE,EXDI,STLD,NEF)
+	DO IEF = 1,NEF
+	IEQ  = KRQ(IEF)   !IF2(1:NEF) = ORIGINAL EQAUATION
+	CALL RELFILL('-STL',STLD(IEF),IEQ,1,2)  !STORE FORCE FROM INCREMENTAL NODAL PRESCRIBED DISPLACEMENT
+	ENDDO
+	ENDIF
+C	------------------------------------
+
+	DEALLOCATE(RE,SE,STLD,EXDI)
+	DEALLOCATE(KEQ,KRQ)
+
+C	------------------------------------
+5000	CONTINUE
+C	------------------------------------
+
+
+
+	RETURN
+	END
+
+
+
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================
+      SUBROUTINE LINKCSA
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+
+	DIMENSION ST1(6),ST2(6),FSY(6),GAP(6),HOK(6),EPT(6),DAP(6)
+
+C	FILE FOR PRINTING  NOT=ISO
+	CALL INTFILL('%IOL',NOT,1,3,0)
+
+	CALL FREBUF
+	CALL FREECH
+      CALL FREINT('S',NLKS,1)
+      CALL FREINT('N',NLNK,1)
+
+	IF(NLNK.LE.0) RETURN
+	
+
+C	INPUT OF LINK ELEMENT
+	LNKLEN = 20+40
+      CALL DEFNREL('+LKS',KLKS,LNKLEN,NLKS) 
+	CALL RELZERO('+LKS')
+
+	DO 1000 ILKS = 1,NLKS
+	CALL FREBUF
+	CALL FREECH
+      CALL FREINT('N',N,1)  !NO.
+      CALL FREREL('I',X,1)  !FLAG FOR OPTION TYPE
+      CALL FREREL('L',Y,1)  !FLAG FOR ACCOUNT THE LENGTH 0=NO 1=YES
+      CALL FREREL('B',Z,1)  !FLAG FOR LINEAR OR BILINEAR
+      CALL FREREL('R',R,1)  !ROTATION ANGLE
+
+	CALL RELFILL('+LKS',X,1,N,1)
+	CALL RELFILL('+LKS',Y,2,N,1)
+	CALL RELFILL('+LKS',Z,3,N,1)
+	CALL RELFILL('+LKS',R,4,N,1)
+
+	CALL FREBUF
+	CALL FREECH
+      CALL FREREL('H',HOK,6)  !HOOK
+	CALL FREBUF
+	CALL FREECH
+      CALL FREREL('G',GAP,6)  !GAP
+	CALL FREBUF
+	CALL FREECH
+      CALL FREREL('E',ST1,6)  !E1
+	CALL FREBUF
+	CALL FREECH
+      CALL FREREL('H',ST2,6)  !E2
+	CALL FREBUF
+	CALL FREECH
+      CALL FREREL('Y',FSY,6)  !FY
+	CALL FREBUF
+	CALL FREECH
+      CALL FREREL('D',DAP,6)  !DAMPING VALUE
+
+	DO II = 1,6
+	NUM = 20 + II
+	CALL RELFILL('+LKS',HOK(II),NUM,N,1)
+	NUM = 20 + II + 6
+	CALL RELFILL('+LKS',GAP(II),NUM,N,1)
+	NUM = 20 + II + 6 + 6
+	CALL RELFILL('+LKS',ST1(II),NUM,N,1)
+	NUM = 20 + II + 6 + 6 + 6
+	CALL RELFILL('+LKS',ST2(II),NUM,N,1)
+	NUM = 20 + II + 6 + 6 + 6 + 6
+	CALL RELFILL('+LKS',FSY(II),NUM,N,1)
+	NUM = 20 + II + 6 + 6 + 6 + 6 + 6
+	CALL RELFILL('+LKS',DAP(II),NUM,N,1)
+	ENDDO
+1000	CONTINUE	
+
+
+	NNM  = 2
+	NNF  = 6
+	NEF  = NNM*NNF
+	LINK = 123456
+
+C	DATA + ORI EQUA + UPD EQUA + REA EQUA + ERE DISP + WORK + DAMP WORK
+	LNKWRK = 10+NEF+NEF+NEF+NEF+24+24
+      CALL DEFNREL('+LNK',KLNK,LNKWRK,NLNK) 
+	CALL RELZERO('+LNK')
+
+	DO ILNK = 1,NLNK
+
+
+C	READ WHEN INSTALL
+C	CALL RELFILL('+LNK',  ,1,N,1)  !NOD 1  
+C	CALL RELFILL('+LNK',  ,2,N,1)  !NOD 2  
+C	CALL RELFILL('+LNK',  ,3,N,1)  !MAT SET  
+C	CALL RELFILL('+LNK',  ,4,N,1)  !EXISTING FLAG
+
+	FNNF = FLOAT(NNF)
+	FNEF = FLOAT(NEF)
+	FLNK = FLOAT(LINK)
+	CALL RELFILL('+LNK',FNNF,5,ILNK,1)  !NNF
+	CALL RELFILL('+LNK',FNEF,6,ILNK,1)  !NEF
+	CALL RELFILL('+LNK',FLNK,7,ILNK,1)  !LINK
+	
+	ENDDO
+
+
+
+	RETURN
+	END
+
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================
+
+      SUBROUTINE LNKEQNR(MHT,IEMQ,IEMR)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+
+      DIMENSION MHT(1)
+      DIMENSION IEMQ(1),IEMR(1)
+	DIMENSION LEQN(12)
+
+
+      CALL LOCATN ('+LNK',KLNK,LNKWRK,NELE,2) !CALLING NELE
+C	-----------------------------------------
+C	LOOP OVER TENDON ELEMENT
+C	-----------------------------------------
+	DO 1600 IEL = 1,NELE
+
+
+	CALL RELFILL('+LNK',XIST,4,IEL,0)
+	IXIST = INT(XIST)
+
+	IF (IXIST.EQ. 0) GOTO 1600 !ELEMENT HAS NEVER EXISTED & CURRENTLY REMOVED
+
+	NNM  = 2
+	CALL RELFILL('+LNK',FNNF,5,IEL,0)  !NNF
+	CALL RELFILL('+LNK',FNEF,6,IEL,0)  !NEF
+	CALL RELFILL('+LNK',FLNK,7,IEL,0)  !LINK
+	NNF = INT(FNNF)
+	NEF = INT(FNEF)
+	LINK= INT(FLNK)
+
+C	-----------------------------------------
+C	LOOP OVER ELEMENT DOF
+C	-----------------------------------------
+	LEQN(1:NEF) = 0
+	DO 1000 IEF = 1,NEF
+	NFI = 10 + IEF
+	NUQ = 10 + 12  + IEF                         !UPDATE EQUATION NUMBER
+	NUR = 10 + 12  + 12  + IEF                   !UPDATE REACTION NUMBER
+
+
+	CALL RELFILL('+LNK',FNFI,NFI,IEL,0)
+	J = INT(FNFI)  !ORIGINAL EQUA
+
+	FNUQ  = 0.0D0
+	FNUR  = 0.0D0
+	IF(J.GT.0) THEN
+	FNUQ  = FLOAT(IEMQ(J))
+	FNUR  = FLOAT(IEMR(J))
+	CALL RELFILL('+LNK',FNUQ,NUQ,IEL,1)
+	CALL RELFILL('+LNK',FNUR,NUR,IEL,1)
+	LEQN(IEF) = IEMQ(J)   !TO CALCULATE COLUMN HEIGHT
+	ENDIF
+
+C	-----------------------------------------
+1000	CONTINUE
+C	-----------------------------------------
+
+
+
+C     ------------------------------------
+C     UPDATE COLUMN HEIGHTS [MHT]
+C     ------------------------------------
+      MEQ = 0
+      DO 390  IEF=1,NEF
+      IEQ = LEQN(IEF)
+      IF (IEQ)     310,390,310
+310   IF (MEQ.EQ.0) MEQ = IEQ
+      IF (MEQ-IEQ) 320,390,390
+320	MEQ = IEQ
+390	CONTINUE
+
+      DO 400  IEF=1,NEF
+      IEQ = LEQN(IEF)
+      IF (IEQ.EQ.0) GOTO 400
+      KHT = MEQ-IEQ
+      IF (KHT.GT.MHT(IEQ)) MHT(IEQ) = KHT
+400	CONTINUE
+
+
+
+
+C	-----------------------------------------
+1600	CONTINUE
+C	-----------------------------------------
+
+
+	RETURN
+	END
+
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================
+	SUBROUTINE LNKCAL(IEL,S,RE,KRQ,KEQ,LUP,LSF,LFC,LDP)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     -------------------------------------------------------------
+C     ------------------------------------------------------------- 
+
+
+      DIMENSION EDIS(12)
+      DIMENSION COORD(3,2),S(1),RE(1),KEQ(1),KRQ(1)
+
+	DIMENSION B(6,12),D(6,6),TRANS(12,12),WA(24)
+	DIMENSION S1(12,12),BB(6,12),NIJ(2)
+	DIMENSION VR(3),VS(3),VT(3),RL(12)
+
+	DIMENSION STRAIN(6),STRESS(6)
+
+	DIMENSION UVW(6),FOC(6),STF(6)
+	DIMENSION ST1(6),ST2(6),FSY(6),GAP(6),HOK(6),EPT(6),DAP(6)
+	DIMENSION LAT(6)
+
+	NNM  = 2
+	CALL RELFILL('+LNK',FNNF,5,IEL,0)  !NNF
+	CALL RELFILL('+LNK',FNEF,6,IEL,0)  !NEF
+	CALL RELFILL('+LNK',FLNK,7,IEL,0)  !LINK
+	NNF = INT(FNNF)
+	NEF = INT(FNEF)
+	LINK= INT(FLNK)
+
+	KEQ(1:NEF) = 0
+	KRQ(1:NEF) = 0
+
+	CALL RELFILL('+LNK',XIST,4,IEL,0)
+	IXIST = INT(XIST)
+
+	IF (IXIST.EQ. 0) GOTO 1600 !ELEMENT HAS NEVER EXISTED & CURRENTLY REMOVED
+
+
+
+	CALL RELFILL('+LNK',FI,1,IEL,0)
+	CALL RELFILL('+LNK',FJ,2,IEL,0)
+	CALL RELFILL('+LNK',FM,3,IEL,0)
+	NIJ(1) = INT(FI)
+	NIJ(2) = INT(FJ)
+	MATN   = INT(FM)
+
+C	--------------------------
+C	EXTRACT NODAL COORDINATE
+	CALL INTFILL('%NUB',NSC,1,4,0)
+	DO INM = 1,NNM
+	NOD = NIJ(INM)
+	COORD(1:3,INM) = 0.0D0
+	DO ISC = 1,NSC
+	CALL RELFILL('$XYZ',COORD(ISC,INM),ISC,NOD,0)  !GETTING HERE NODAL COORDINATE
+	ENDDO
+	ENDDO
+
+C	EXTRACT NODAL DISPLACEMENT
+	EDIS(1:NEF) = 0.0D0
+	DO IEF = 1,NEF
+	NUM = 10 + IEF
+	CALL RELFILL('+LNK',FQ,NUM,IEL,0)
+	IEQ = INT(FQ)
+	CALL RELFILL('$XDS',EDIS(IEF),IEQ,1,0)    !GETTING HERE NODAL DISPLACEMENT
+
+	NUM = 10 + IEF
+	CALL RELFILL('+LNK',FQ,NUM,IEL,0) !ORIGINAL EQUATION NUMBER
+	KRQ(IEF) = INT(FQ)
+
+	NUM = 10 + NEF + IEF
+	CALL RELFILL('+LNK',FQ,NUM,IEL,0) !CURRENT EQUATION NUMBER
+	KEQ(IEF) = INT(FQ)
+
+	ENDDO
+C	--------------------------
+
+
+	CALL RELFILL('+LKS',X,1,MATN,0)
+	CALL RELFILL('+LKS',Y,2,MATN,0)
+	CALL RELFILL('+LKS',Z,3,MATN,0)
+	CALL RELFILL('+LKS',R,4,MATN,0)
+	JND = INT(X) !GENRAL OR HOOK OR GAP
+	IND = INT(Z) !BILINEAR
+	LND = INT(Y) !LENGTH ACCOUNT
+	RNG = R
+
+	DO II = 1,6
+	NUM = 20 + II
+	CALL RELFILL('+LKS',HOK(II),NUM,MATN,0)
+	NUM = 20 + II + 6
+	CALL RELFILL('+LKS',GAP(II),NUM,MATN,0)
+	NUM = 20 + II + 6 + 6
+	CALL RELFILL('+LKS',ST1(II),NUM,MATN,0)
+	NUM = 20 + II + 6 + 6 + 6
+	CALL RELFILL('+LKS',ST2(II),NUM,MATN,0)
+	NUM = 20 + II + 6 + 6 + 6 + 6
+	CALL RELFILL('+LKS',FSY(II),NUM,MATN,0)
+	NUM = 20 + II + 6 + 6 + 6 + 6 + 6
+	CALL RELFILL('+LKS',DAP(II),NUM,MATN,0)
+	ENDDO
+
+
+	DO II = 1,24
+	NUM = 10+12+12+12+12+II
+	CALL RELFILL('+LNK',WA(II),NUM,IEL,0)
+	ENDDO
+
+	IF(LDP.EQ.1) THEN
+	IND = 0
+	ST1(1:6) = DAP(1:6)
+	DO II = 1,24
+	NUM = 10+12+12+12+12+24+II
+	CALL RELFILL('+LNK',WA(II),NUM,IEL,0)
+	ENDDO
+	ENDIF
+
+
+C	ERECTION DISP.
+	DO II = 1,12
+	NUM = 10+12+12+12+II
+	CALL RELFILL('+LNK',EDISO,NUM,IEL,0)
+	EDIS(II) = EDIS(II) - EDISO
+	ENDDO
+
+C	-------------------
+C	INITIALIZATION 
+C	-------------------
+	B(1:6,1:12) = 0.0D0
+	D(1:6,1:6 ) = 0.0D0
+
+C	B MATRIX
+	DO I = 1,6
+	J = I + 6
+	B(I,I) = -1.0D0
+	B(I,J) =  1.0D0
+	ENDDO
+
+	VR = 0.0D0
+C	LOCAL VECTOR
+	DO I = 1,3
+	VR(I) = COORD(I,2) - COORD(I,1) 
+	ENDDO
+	CALL SCALEN(VR,VR,ELN,3)
+	IF(ELN.EQ.0) VR(1:3) = [1.0D0,0.0D0,0.0D0]
+	CALL FMVEVR (VR,VS,VT)
+	CALL ROMBAC (VR,VS,VT,RNG)
+
+C	ACCOUNT FOR ELEMENT LENGTH
+	IF(LND.EQ.1) THEN
+	B(3,5)  =  ELN*0.5
+	B(3,11) =  ELN*0.5
+	B(2,6)  = -ELN*0.5
+	B(2,12) = -ELN*0.5
+	ENDIF
+
+C	TRANSFORMATION MATRIX
+	TRANS(1:12,1:12) = 0.0D0
+	TRANS(1+0,1:3) = VR(1:3)
+	TRANS(2+0,1:3) = VS(1:3)
+	TRANS(3+0,1:3) = VT(1:3)
+	TRANS(1+3,4:6) = VR(1:3)
+	TRANS(2+3,4:6) = VS(1:3)
+	TRANS(3+3,4:6) = VT(1:3)
+	TRANS(1+6,7:9) = VR(1:3)
+	TRANS(2+6,7:9) = VS(1:3)
+	TRANS(3+6,7:9) = VT(1:3)
+	TRANS(1+9,10:12) = VR(1:3)
+	TRANS(2+9,10:12) = VS(1:3)
+	TRANS(3+9,10:12) = VT(1:3)	
+
+C	GLOBAL B MATRIX
+	BB = MATMUL(B,TRANS)
+
+	J = 0
+	FOC(1:6) = WA(1+J:6+J)
+	J = J + 6
+	UVW(1:6) = WA(1+J:6+J)
+	J = J + 6
+	EPT(1:6) = WA(1+J:6+J)
+	J = J + 6
+	STF(1:6) = WA(1+J:6+J)
+
+
+C	-------------------
+C	STRAIN
+C	-------------------
+	STRAIN = MATMUL(BB,EDIS)
+
+C	D MATRIX AND STRESS
+	SELECT CASE(JND)
+C	---------------------------
+	CASE(1)
+	LAT(1:6) = 0
+	LAT(1:6) = 1  !ACTIVE ALL COMPONENT
+	CALL ETMOD1(FOC,UVW,STRAIN,STRESS,ST1,ST2,FSY,EPT,STF,
+	1		    GAP,LAT,IND)
+C	---------------------------
+	CASE(2)
+	LAT(1:6) = 0
+	LAT(1)   = 1  !ACTIVE ONLY R COMPONENT
+	CALL ETMOD2(FOC,UVW,STRAIN,STRESS,ST1,ST2,FSY,EPT,STF,
+	1			GAP,HOK,LAT,IND)
+C	---------------------------
+	CASE(3)
+	LAT(1:6) = 0
+	LAT(1)   = 1  !ACTIVE ONLY R COMPONENT
+	CALL ETMOD3(FOC,UVW,STRAIN,STRESS,ST1,ST2,FSY,EPT,STF,
+	1			HOK,LAT,IND)
+C	---------------------------
+	CASE(4)
+	LAT(1:6) = 0
+	LAT(1)   = 1  !ACTIVE ONLY R COMPONENT
+	CALL ETMOD4(FOC,UVW,STRAIN,STRESS,ST1,ST2,FSY,EPT,STF,
+	1		    GAP,LAT,IND)
+C	---------------------------
+	END SELECT
+	
+
+	IF(LUP.LE.0) GOTO 1200
+	
+	J = 0
+	IF(LUP.EQ.1) WA(1+J:6+J) = FOC(1:6) !IF UPDATE
+	J = J + 6
+	IF(LUP.EQ.1) WA(1+J:6+J) = UVW(1:6) !IF UPDATE
+	J = J + 6
+	IF(LUP.EQ.1) WA(1+J:6+J) = EPT(1:6) !IF UPDATE
+	J = J + 6
+	WA(1+J:6+J) = STF(1:6)  !STIFFNESS
+
+1200	CONTINUE
+
+C	RIGIDITY MATRIX
+	DO I = 1,6
+	D(I,I) = STF(I)
+	ENDDO
+
+C	ELEMENT STIFFNESS
+	S1 = MATMUL(TRANSPOSE(BB),MATMUL(D,BB))
+
+C	------------------------
+C	FILL INTO UPPER-TRIANGLE
+C	------------------------
+	IF(LSF.GT.0) THEN  !STIFFNESS
+	K = 0
+	DO I=1,NEF
+	DO J=I,NEF
+	K = K + 1
+	S(K) = S(K) + S1(I,J)
+	ENDDO
+	ENDDO
+	ENDIF
+
+
+C	RESISTING FORCE
+	IF(LFC.GT.0) THEN  
+	RL = MATMUL(TRANSPOSE(BB),FOC)
+	DO I=1,NEF
+	RE(I) = RE(I) + RL(I)
+	ENDDO
+	ENDIF
+
+	IF(LUP.GT.0) THEN  !BACK UP
+	DO II = 1,24
+	NUM = 10+NEF+NEF+NEF+NEF+II
+	IF(LDP.EQ.1) NUM = NUM + 24  !FOR DAMPING CALCULATION
+	CALL RELFILL('+LNK',WA(II),NUM,IEL,1)
+	ENDDO
+	ENDIF
+
+1600	CONTINUE
+
+
+	RETURN
+	END
+
+
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================

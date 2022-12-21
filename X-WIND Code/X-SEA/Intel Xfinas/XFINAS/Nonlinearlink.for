@@ -1,0 +1,212 @@
+C	=====================================================================
+C	START 3D GAP ELEMENT ROUTINES
+C	=====================================================================
+C	CREATED BY SONGSAK NOV2005
+C	=====================================================================
+      SUBROUTINE NONGAP(PROPM,PROPG,NODEX,WGAPD,S,COORD,
+	1                  EDIS,EDISI,RE,MWG,FIN)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     ------------------------------------------------------------
+C     ELEMENT PROPERTIES
+C     ------------------
+C	S(21)		TOTAL STIFFNESS (UPPER-TRIANGLE)
+C     ------------------------------------------------------------- 
+C
+      COMMON /ELEM/ NAME(2),ITYPE,ISTYP,NLOPT,MTMOD,NSINC,ITOLEY,
+     1              NELE,NMPS,NGPS,NMP,NGP,NNM,NEX,NCO,NNF,NWG,NEFC,
+     2              NPT,NWA,NWS,KEG,MEL,NNO,NEF,NELTOT,NMV
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+      COMMON /FTIM/ TIM(20),IDATE,ITIME
+      COMMON /FLAG/ IFPRI,ISPRI,IFPLO,IFREF,IFEIG,ITASK,IFFLAG
+      COMMON /ITER/ RHO,RHOP,RHOPREV,RTOL,ETOL,DLMAX,ALP,
+	1              NSTEP,NPRIN,NDRAW,
+	2			  KONEQ,NIREF,ITOPT,ICONV,NOLIN,KSTEP,
+     3              LIMEQ(2),ITEMAX,NUMREF,NUMITE,ITETOT
+
+      DIMENSION PROPM(5),PROPG(2),EDIS(6),EDISI(6)
+      DIMENSION COORD(6)
+	DIMENSION HN(2,6),DISP(2,1),RE(6)
+	DIMENSION SL(2,2),S1(6,6),S2(6,6),S(21)
+	DIMENSION FIN(NEF)
+	DIMENSION WGAPD(1)
+
+C	-------------------
+C	INITIALIZATION OF SOME VARIABLES
+C	-------------------
+	DO 10 I=1,6
+	DO 10 J=1,6
+	S1(I,J)=0.0
+ 10	CONTINUE
+C	-------------------------
+C	SET VALUES FOR LINEAR STRESS-STRAIN LAW 
+C	INITIALISATION OF INTEGRATION RULE
+C	-------------------------
+	CALL HOKLAW (PROPM,PROPG,1)
+
+	STIFF = PROPG(2) !Stiffness for GAP
+	STIFT = PROPG(3) !Stiffness for Tension
+	DOGAP = PROPG(4) !GAP OPEN DISTANCE
+	DOHOK = PROPG(5) !HOOK OPEN DISTANCE
+	IGOPT = PROPG(6) !OPTION
+	
+C	IGOPT = 0 <-- GAP + TENSION
+C	IGOPT = 1 <-- GAP ONLY
+C	IGOPT = 2 <-- TENSION ONLY
+
+	GAPD = WGAPD(1)
+	HOKD = WGAPD(2)
+
+C	WRITE(*,*) GAPD,MEL
+	
+C	-----------
+C	TO COMPUTE THE LENGTH OF EACH TRUSS BAR
+C	-----------
+	A1=COORD(4)-COORD(1)
+	A2=COORD(5)-COORD(2)
+	A3=COORD(6)-COORD(3)
+	WL=SQRT(A1**2+A2**2+A3**2)
+C	--------------------
+C	TRANSFORMATION MATRIX HN(2*6) FROM GLOBAL TO LOCAL
+C	--------------------
+	HN(1,1)=A1/WL
+	HN(1,2)=A2/WL
+	HN(1,3)=A3/WL
+	HN(1,4)=0.
+	HN(1,5)=0.
+	HN(1,6)=0.
+	HN(2,1)=0.
+	HN(2,2)=0.
+	HN(2,3)=0.
+	HN(2,4)=HN(1,1)
+	HN(2,5)=HN(1,2)
+	HN(2,6)=HN(1,3)
+C	-------------------
+C	GLOBAL NODAL DISPS TO LOCAL NODAL DISPS
+C	-----------------
+	DISP(1,1)=HN(1,1)*EDIS(1)+HN(1,2)*EDIS(2)+HN(1,3)*EDIS(3)
+	DISP(2,1)=HN(1,1)*EDIS(4)+HN(1,2)*EDIS(5)+HN(1,3)*EDIS(6)
+C	---------------
+C	ORIGINAL LENGTH
+C	---------------
+	A10 = (COORD(4)-EDIS(4)) - (COORD(1)-EDIS(1))
+	A20 = (COORD(5)-EDIS(5)) - (COORD(2)-EDIS(2))
+	A30 = (COORD(6)-EDIS(6)) - (COORD(3)-EDIS(3))
+	WL0=SQRT(A10**2+A20**2+A30**2)
+
+C	------------------------
+C	FORM MASS MATRIX
+c	ADDED - JAN2004 - CAMASS
+C	------------------------
+	IF (ITASK.NE.5) GOTO 100
+
+C	  MASS MATRIX
+C	  ------------------
+	DO II = 1,21
+	  S(II) = 0.0
+	ENDDO
+
+	RETURN
+
+C	--------------------
+C	COMPUTE AXIAL FORCE
+C	--------------------
+
+100	DEFRM = (WL-WL0)
+
+	IF(IGOPT.EQ.2) GO TO 400 
+
+	IF(DEFRM.LT.0.0) THEN !<--GAP
+	EFDFM = DEFRM + DOGAP
+	IF(EFDFM.LE.0.0) THEN  !DEFORMATION GREATER THAN OPENING
+	DELTA = EFDFM - GAPD
+	SIGN = DELTA*GAPD
+	IF(SIGN.GE.0.0) THEN !LOAD
+	ETANS = STIFF
+	P = STIFF*EFDFM 
+	ELSE !UNLOAD
+	ETANS = 0.0
+	P = 0.0
+	ENDIF
+	WGAPD(1) = EFDFM
+	ELSEIF(EFDFM.GT.0.0) THEN !DEFORMATION LESS THAN OPENING
+	ETANS = 0.0
+	P = 0.0
+	ENDIF
+	WGAPD(1) = 0.0
+	ENDIF !(DEFRM.LT.0.0)<--GAP
+
+	IF(IGOPT.EQ.1) GO TO 500
+
+400	CONTINUE
+
+	IF(DEFRM.GE.0.0) THEN  !<--HOOK
+	EFDFM = DEFRM - DOHOK
+	IF(EFDFM.GE.0.0) THEN  !DEFORMATION GREATER THAN OPENING
+	DELTA = EFDFM - HOKD
+	SIGN  = DELTA*HOKD
+	IF(SIGN.GE.0.0) THEN !LOAD
+	ETANS = STIFT
+	P = STIFT*EFDFM 
+	ELSE !UNLOAD
+	ETANS = 0.0
+	P = 0.0
+	ENDIF
+	WGAPD(2) = EFDFM
+	ELSEIF(EFDFM.LT.0.0) THEN !DEFORMATION LESS THAN OPENING
+	ETANS = 0.0
+	P = 0.0
+	ENDIF
+	WGAPD(2) = 0.0
+	ENDIF !(DEFRM.GT.0.0)<--HOOK
+
+500	CONTINUE
+
+C	----------------------
+C	COMPUTE LINEAR STIFFNESS SL(2*2) IN LOCAL COORDIANTES 
+C	----------------------
+	SL(1,1)=1.
+	SL(1,2)=-1.
+	SL(2,1)=-1.
+	SL(2,2)=1.
+	DO 550 I=1,2
+	DO 550 J=1,2
+	SL(I,J)=SL(I,J)*ETANS
+ 550	CONTINUE
+C	-----------------
+C	TRANSFER LOCAL STIFFNESS TO GLOBAL
+C	-----------------
+	CALL MATRIX3MUL0(HN,SL,HN,S1,6,2,6)
+C	---------------
+C	COMPUTE INTERNAL RESISTING FORCE AND NONLINEAR GLOBAL STIFFNESS
+C	---------------
+	RE(1)=-P*HN(1,1)
+	RE(2)=-P*HN(1,2)
+	RE(3)=-P*HN(1,3)
+	RE(4)=P*HN(2,4)
+	RE(5)=P*HN(2,5)
+	RE(6)=P*HN(2,6)	
+C	---------------
+C	COMPUTE FULL STIFFNESS MATRIX S(21) UPPER-TRIANGLE
+C	---------------
+	KK=1
+	DO 700 I=1,6
+	DO 700 J=I,6
+	S(KK)=S1(I,J)
+	KK=KK+1
+ 700	CONTINUE
+
+
+C	NEXT BLOCK ADDED BY GILSON - JUL2003 (INT FORCE)
+	IF (ITASK.EQ.3) THEN
+	  DO 2000 I = 1,NEF
+	    FIN(I) = RE(I)
+2000	  CONTINUE
+	ENDIF
+
+	RETURN
+	END
+
+
+C	=====================================================================

@@ -1,0 +1,3736 @@
+C	=====================================================================
+C	=====================================================================
+C	=====================================================================
+      SUBROUTINE ITERAT1(W,KSC)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     ---------------------------------------------------------------
+C     MAIN PROGRAM FOR ALL SOLUTIONS SCHEMES
+C	PROGRAMED BY SUNIL 12/04/01
+C	---------------------------------------------------------------
+C	ISOLOP		SOLUTION OPTIONS
+C					1 = LINEAR STATIC
+C					2 = NONLINEAR STATIC
+C					3 = EIGNEVLUE (FREE VIBRATION)
+C					4 = EIGENVLUE (LINEAR BUCKLING)
+C					5 = LINEAR DYNAMIC (DIRECT TIME INTEGRATION)
+C					6 = LINEAR DYNAMIC (VECTOR SUPERPOSITION)
+C					7 = NONLINEAR DYNAMIC (DIRECT TIME INTEGRATION)
+C					8 = NONLINEAR DYMAMIC (VECTOR SUPERPOSITION)
+C					9 = SEISMIC ANALYSIS
+C				   10 = INFLUENCE LINE AND SURFACE ANALYSIS
+C				   11 = DYNAMIC ANALYSIS OF BRIDGE-VEHICLES INTERACTION (new modules)
+C				   12 = ORDINARY BRIDGE LOADING
+C				   13 = AUTOMATIC BRIDGE LOADING
+C				   14 = HEAT TRANSFER ANALYSIS
+C				   15 = SEEPAGE ANALYSIS
+C                    16 = FATIGUE ANALYSIS
+C                    21 = SOIL-PILE INTERACTION
+C     ---------------------------------------------------------------
+      CHARACTER*7 HEAD
+      CHARACTER*4 OPT_OFF
+C
+      COMMON /NUMB/ HED(20),MODEX,NRE,NSN,NEG,NBS,NLS,NLA,
+     +              NSC,NSF,IDOF(9),LCS,ISOLOP,LSYMM,ICONTROLSPEC
+
+      COMMON /LOCA/ LID,LDS,LEL,LDC,LXY,LCH,LNU,LMP,LGP,LMS,LGS,
+     1              LCO,LEX,LLM,LES,LEC,LED,LEI,LEE,LMA,LLF,LLV,
+     2              LRE,LDI,LDL,LDT,LDK,LER,LEV,LTT,LWV,LAR,LBR,
+     3              LVE,LDD,LRT,LBU,LBC,LVL,LAL,LEF,LDU,LPR,LLO,
+	4              LRV,LRT1,LRET,LRET1,LDM,LDPT,LVL1,LMV,LXI,LCM,LCC,
+	5			    LCN,LDIM,LFRE,LSFC,LLOF
+
+      COMMON /ELEM/ NAME(2),ITYPE,ISTYP,NLOPT,MTMOD,NSINC,ITOLEY,
+     1              NELE,NMPS,NGPS,NMP,NGP,NNM,NEX,NCO,NNF,NWG,NEFC,
+     2              NPT,NWA,NWS,KEG,MEL,NNO,NEF,NELTOT,NMV,MTYP,ISECT
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+      COMMON /SOLU/ NEQ,NEQ1,NBLOCK,MK,BM,NWK,NWM,ISTOR,NFAC,
+     +              NRED,KPOSD,DETK,DET1,DAVR,STOL
+      COMMON /DYNA/ CDEN,IMASS
+      COMMON /INCO/ A0,A1,A2,A3,A4,A5,A6,A7,A8,ALFA,BETA,
+	1              A11,A12,ALF,IOPT
+      COMMON /TIME/ DDT,CTIM,NINC
+      COMMON /EIGN/ NSEIG,NROOT,NC,NNC,NITEM,IFSS,SHIFT0,EPS,IEIG,NEIG,
+     +              ISOLV,IVPRT
+      COMMON /ITER/ RHO,RHOP,RHOPREV,RTOL,ETOL,DLMAX,ALP,
+	1              NSTEP,NPRIN,NDRAW,
+	2			  KONEQ,NIREF,ITOPT,ICONV,NOLIN,KSTEP,
+     3              LIMEQ(2),ITEMAX,NUMREF,NUMITE,ITETOT,LIMET
+      COMMON /FTIM/ TIM(20),IDATE,ITIME
+      COMMON /FLAG/ IFPRI,ISPRI,IFPLO,IFREF,IFEIG,ITASK,IFFLAG
+      COMMON /OSPEC/ ISTIME,IOUTSPEC,NFATIGUE
+      COMMON /RESO/ OPRES,STEPSTAT,STEPINCR,STEPEND
+      
+      COMMON/OFFSHORE_CASE/ LGEN,IOFFL,IORI_OFFSHORE
+
+C	NEXT LINE ADDED BY GILSON - MARCH2004 (GRID ANALYSIS)
+	COMMON /MEMO/ MEMA,MEMI,LASTA,LASTI,NELEA,NELEI
+C	THIS COMMON LINE ADDED BY DE SILVA FOR SEEPAGE 30/04/2004
+	COMMON /SEEP/ NTSTEP,KTSTEP,CTIME,DTINC,KFRES
+
+C	ADDED BY SONGSAK APR2006 REACTION	
+	COMMON /REACT/ LRC,LRCT,MFQ,LRID
+	COMMON /SETTM/ NSETT,LSTL             !SETTLEMENT MODULE
+	COMMON /STCAS/ ILC
+      
+      COMMON/FATIGUE_OFFSHORE/ NWAVESCAT, NWINDSCAT  
+      
+C     ADDED BY TOEY JUNE 2015
+      COMMON / SOILRE/ NSOILRETURN
+      
+      COMMON /SOILDYNA/ NSOIL
+      
+      COMMON/COUNT/ICOUNT,NCOUNT
+      
+      COMMON / SOILTEST/ KTOEY
+
+C	==================================================================
+C	CABLE PRETENSION OPTIMIZATION SONGSAK NOV2006
+	COMMON /CB556/ LCPZ,NCABZ,KBOPZ,NCOBZ
+C	-------------------------------------------------------------
+	COMMON /CB557I/ MCSUM,MCFOC,MCDEF,MCMOM,LS557,LF557,LD557,LM557,
+	1			    LR557,NM556
+	COMMON /CB557R/ TPOPZ(10000)
+C	-------------------------------------------------------------
+C	STORE LGID FOR CABLE
+	COMMON /CB558/ LGOPZ
+C	==================================================================
+
+	COMMON /LINEAT/ KTRAF,KEATH,KCSAL,KOFFL,KSPEC,KDESIGN,KFATM,KFATJ,KFATL,KFAST,KOREV,KFTTD,NSUPER !SONGSAK AUG2007 RESPONSE SPECTRUM FOR ISOLOP 1 !SONGSAK AUG2007 RESPONSE SPECTRUM FOR ISOLOP 1
+      !COMMON /TIME/ DDT,CTIM,NINC
+      
+      COMMON /LOCO/ LOP,LOS,LSS,LSS2,LSS3,LHG,LHGN
+      
+      COMMON /HEADER/ HEAD
+      
+C     ADDED BY TOEY DEC 2018 FOR HYDRO STIFFNESS
+      COMMON /HYDRO_CONTROL/ NHYDRO_CONTROL,NHYDO_LOOP
+      
+C     FOR EQ LOAD OF LINK CONSTRAINTS BY BJ      
+      COMMON /NLCASE/ NLCS,LCEQ(1000)
+      
+C     FOR POINTLOAD CASE CONTROL DIAPHRAGM CONSTRATINS BY BJ
+      COMMON /JLCN/ ILCNM(1000),IL2 
+      COMMON /IJEG/ IEG,JEG,JSTYP
+C	==================================================================     
+      
+C     FOR LINK CONSTRAINTS BY BJ
+      COMMON /FLOOR/ IFLOOR,NFLOOR,NSN0,NSNL
+      
+      COMMON /DAPH/ DIAPH(700000),IDIAPH(600000) ! STORAGE FOR CONSTRAINTS BY BJ
+       
+      COMMON /IDCAT/ JCENL,JCENLD,JCO,JCOD,JCXY,JMCO ! REAL INDICATOR FOR DIAPHRAGM CONSTRAINTS BY BJ 
+      
+      COMMON /IDCATI/ JIF,JNUM,JNED,JNEDD,JMAX,JILF,JILFD,JILD,JILDD ! INTEGER INDICATOR FOR DIAPHRAGM CONSTRAINTS BY BJ       
+      COMMON /IEQNUMFLO/ IEQNUM !,ILOC      
+C	==================================================================    
+      
+      COMMON /SMOOTH_OFFSHORE/ OPT_OFF
+      
+      COMMON A(9000000),IA(9000000)
+C	-------------------------------------------------------------------------
+	DIMENSION W(1)!,RRL(NEQ),RT(NEQ),RFO(NEQ)
+
+C	==================================================================
+C	CABLE PRETENSION OPTIMIZATION
+	DIMENSION X556(2*NCABZ),VL556(2*NCABZ),VU556(2*NCABZ)
+	DIMENSION ID556(2*NCOBZ),IC556(2*NCOBZ),DF556(2*NCABZ)
+	DIMENSION AD556(2*NCABZ,NCABZ+NCOBZ),G556(2*NCOBZ),XX556(NCABZ)
+	DIMENSION WK556(5000+10*(NCABZ+NCOBZ)+(NCABZ+NCOBZ)*(NCABZ+NCOBZ))
+	DIMENSION IW556(5000+10*(NCABZ+NCOBZ)+(NCABZ+NCOBZ)*(NCABZ+NCOBZ))
+C	==================================================================
+      
+      
+      DIMENSION TOEYTEST(10),TOEYTESTA(10)
+      DIMENSION B(1000)
+      
+   
+	ALLOCATABLE AA(:),BB(:),CC(:) 
+      
+	ALLOCATABLE RRL(:),RT(:),RFO(:)
+	ALLOCATE(RRL(NEQ),RT(NEQ),RFO(NEQ))
+	
+ !     CALL ELMCONNOD(1511,1) 
+      IMASS = 1
+      
+	CALL MINTFIL('BLOK',NBLOCK,1,1 ,0)
+	CALL MINTFIL('BLOK',MSTOR ,1,2 ,0)
+	
+	
+      IF (KSC.NE.1) THEN
+	WRITE(*,'( X,A33,I10)') 'SIZE IN  A ARRAY. . . . .',LASTA
+	WRITE(*,'( X,A33,I10)') 'SIZE IN IA ARRAY. . . . .',LASTI
+
+	WRITE(*,'(/X,A33,I10)') 'NUMBER OF DOF . . . . . . . . . .',NEQ
+	WRITE(*,'( X,A33,I10)') 'SIZE OF STIFFNESS MATRIX. . . . .',NWK
+	WRITE(*,'( X,A33,I10)') 'SIZE OF MASS MATRIX . . . . . . .',NWM
+	WRITE(*,'(/X,A33,I10)') 'NUMBER OF IN-CORE STORAGE BLOCK .',NBLOCK
+	WRITE(*,'( X,A33,I10/)') 'SIZE OF IN-CORE STORAGE BLOCK . .',MSTOR
+	
+      ENDIF
+      
+	ALLOCATE(AA(MSTOR),BB(MSTOR),CC(MSTOR))
+      
+C     --------------
+C     INITIALISATION
+C     --------------
+      CALL CPU_TIME (TIM1)
+      
+      IF (NSOIL.EQ.1) CALL CHECK_PILE_GROUP
+     
+      
+      NUMITE = 0
+      NUMREF = 0
+      INDPD  = KPOSD
+      KRECO  = 0
+	KSTRA  = NIREF
+	KITE   = 0
+
+C     ---------------------------
+C     FOR CREEP ANALYSIS ONLY
+      IF(ISOLOP.EQ.19) THEN      
+      ICREEP = 1
+      GOTO 100
+      ENDIF
+C     ---------------------------
+C     FOR POINTLOAD CASE CONTROL DIAPHRAGM CONSTRATINS BY BJ
+      IF(ITYPE.EQ.9) JSTYP2 = JSTYP
+      ISHELL = 0
+      JSHELL = 0
+      
+C     ---------------------------
+C     FOR WAVE SPECTRUM
+C     ---------------------------
+      IF(ICONTROLSPEC.EQ.1.AND.KSC.EQ.1)THEN
+      GOTO 301
+      ELSEIF (ICONTROLSPEC.EQ.1.AND.KSC.EQ.0)THEN
+      GOTO 300
+      ENDIF
+      IF (ITYPE.EQ.17) GOTO 150
+C      IF (ITYPE.EQ.17) GOTO 100
+      
+      IF (ISOLOP.EQ.1) CALL SOILMODULE (ISOLOP,"READD")
+      
+	GOTO (100,200,300,400,500,600,700,800,900,1010,2100,100,
+     +      1300,2400,2500,200,2700,2800,100,301,3000),ISOLOP
+
+	
+100   CALL CPU_TIME (TOEY1)
+C      DO 120 ILC=1,LCS	
+
+	KSTEP = 1
+
+!	CALL CLEROUT  !CLEAR OUTPUT DATA ARRAY (XFINAS)
+C     -----------------
+C     SET CONTROL FLAGS
+C     -----------------
+      IFPRI = 0
+      IFPLO = 0
+
+C	INITIALIZE ALL WORKING ARRAY
+	CALL ADWINIT(NEG)
+	CALL LINKWNI
+
+C	CALL CLEARA (A(LDT),NEQ)
+
+C     -----------------------------------------------
+      IF (ICONTROLSPEC.EQ.0)THEN
+	NTIME = 1
+      ELSEIF (ICONTROLSPEC.EQ.1)THEN
+	  !IF (OPRES.EQ.1) 
+        CALL OFFSHSTEP(TIME,ITIME,NTIME,'CALT') !READ TIME DATA FOR OFFSHORE LOAD 
+        !IF (OPRES.EQ.2) CALL SELECTGRAPH (1,NTIME,0,0)
+      ENDIF
+C	DO 120 ITIME = 1,NTIME
+C     -----------------------------------------------
+
+	CALL CLEARA (A(LDI),NEQ)
+      
+      
+      CALL CODETYPE (0,0,0,0,"READD",NOPT)
+
+C     SKIP CALCULATE STIFFNESS 	
+	DO 120 ILC=1,LCS ! LOAD CASE ( IN TOEY WOEK )	
+	
+	DO 120 ITIME = 1,NTIME	
+          
+      KHYDRO = 0d0    ! HYDRODYNAMIC CONTROL (1: OPERATE, 0: NOT OPERATE)
+      IF (KHYDRO.EQ.1) NHYDO_TOTAL = 5000D0 ! CONSIDER HYDROSTIFFNESS
+      IF (KHYDRO.NE.1) NHYDO_TOTAL = 1D0    ! NOT CONSIDER HYDROSTIFFNESS
+      DO 114 NHYDO_LOOP = 1,NHYDO_TOTAL     ! HYDRO STIFFNESS
+     
+      IF (KHYDRO.EQ.1.AND.NHYDRO_CONTROL.EQ.1) EXIT ! HYDRO STIFFNESS
+          
+      IF(ITYPE.EQ.9) THEN         
+      DO JL = 1,IL2
+          ILCN = ILCNM(JL)
+          IF(ILCN.EQ.ILC) THEN
+             JSTYP = 9
+             ISHELL = 1
+             JSHELL = JSHELL + 1
+             GO TO 90
+          ELSE
+             JSTYP = JSTYP2
+             IF(JSHELL.EQ.0) THEN
+              ISHELL = 0
+             ELSE
+              ISHELL = 1
+             ENDIF
+             
+          ENDIF        
+      ENDDO 
+      ENDIF
+      
+C     --------------------------------------	         
+C     FOR EQ LOAD OF LINK CONSTRAINTS BY BJ   
+90      IF(IFLOOR.EQ.3.AND.IEQNUM.EQ.1) THEN 
+          LINKEQ = 0
+          DO ILCS = 1,NLCS
+              IL = LCEQ(ILCS)
+              IF(ILC.EQ.IL) LINKEQ = 1
+          ENDDO
+
+          IF(LINKEQ.EQ.1) THEN
+             CALL NODEADD(A(LXY),DIAPH(JMCO))  
+          ELSEIF(LINKEQ.EQ.0) THEN
+             CALL NODEADD(A(LXY),DIAPH(JCXY))
+          ENDIF   
+      ELSE
+          CALL NODEADD(A(LXY),DIAPH(JCXY))
+      ENDIF
+C     --------------------------------------	                
+      IF(ILC.GT.1.AND.LINKEQ.EQ.0.AND.ISHELL.EQ.0) GO TO 20
+
+C     OPERATE OFFSHORE LOAD CASE  
+20    IF (NHYDO_LOOP.EQ.1.AND.ICOUNT.EQ.0) CALL OFFSHORE_LOAD_CASE_NUMBER (ILC,ILOFF,OPT_OFF,"READ")
+C     ------------------------------------------
+C     FORM TANGENTIAL STIFFNESS MATRIX (IFREF=0)
+C     ------------------------------------------ 
+      IF (NOPT.EQ.0)THEN ! NORMAL CONDITION
+      !IF(ILC.GT.1.AND.LINKEQ.EQ.0.AND.ISHELL.EQ.0) GO TO 102  ! COMMENT 25-11-2020    
+	IFEIG = 1
+	IFREF = 0
+      ISPRI = 1
+      ITASK = 1  
+102	CALL CLEARA (A(LRE),NEQ)
+	CALL CLEARA (A(LDT),NEQ)
+      !IF(ILC.GT.1.AND.LINKEQ.EQ.0.AND.ISHELL.EQ.0) GO TO 103 ! COMMENT 25-11-2020  
+	CALL GRLOOP (IA(LEL),KSC)
+103   CALL MOVE (A(LRE),RFO,NEQ)  !FORCE FROM INITIAL STRESS
+      ELSE                        ! RELATED WITH NONLINEAR SOIL SPRING
+      CALL MOVE (A(LRE),RFO,NEQ)  !FORCE FROM INITIAL STRESS
+      ENDIF
+      
+      NUMREF = NUMREF + 1
+      
+      ! OPT_OFF  = SKIP ; SKIP OFFSHORE LOAD
+      ! OPT_OFF  = CALC ; INCLIDING OFFSHORE LOAD
+C     -------------------------
+C     FORM APPLIED FORCE VECTOR
+      ! LLVC     = LLV+NEQ*(ILC-1)
+      ! LLVC_OFF = LLOF+NEQ*(ILC-1)
+C     -------------------------
+      IF (OPT_OFF.NE."CALC") LLVC     = LLV+NEQ*(ILC-1)   ! DUE TO TOEY WORK 
+      IF (OPT_OFF.EQ."CALC") LLVC     = LLOF+NEQ*(ILOFF-1)  ! DUE TO TOEY WORK
+	LLOC     = LLO+NEQ*(ILC-1)
+      
+C     ---- UPDATE TANGENTIAL STIFFNESS MATRIX (IFREF=0) DUE TO OFFSHORE LOAD ( MOORING LINE ) ----
+      IF (NOPT.EQ.1)THEN
+          
+      CALL OFFSHFORC(A(LDL),ILC,ITIME,NEQ,'VARY','RADD') !VARY OFFSHORE LOAD -- TIME STEP 1
+      CALL OFFSHFORC(A(LDL),ILC,ITIME,NEQ,'CONT','RADD') !CONSTANT OFFSHORE LOAD -- TIME STEP 1
+      
+	IFEIG = 1
+	IFREF = 0
+      ISPRI = 1
+      ITASK = 1
+	CALL CLEARA (A(LRE),NEQ)
+	CALL CLEARA (A(LDT),NEQ)
+	CALL GRLOOP (IA(LEL),KSC)
+      CALL MOVE (A(LRE),RFO,NEQ)  !FORCE FROM INITIAL STRESS
+      ! CLEAR FORCE MATRIX
+      A(LDL:LDL+NEQ) = 0.0D0
+      ENDIF
+C     ---------------------------------------------------------------------------------------------
+	CALL CPU_TIME (TIM1)
+      
+      CALL RHSFOR (A(LLF),A(LLVC),A(LDL),A(LLVC),RT,NEQ,1)
+C	LOAD DUE TO CONSTANT LOAD 
+	CALL VECADD(A(LDL),A(LLOC),A(LDL),1D0,1D0,NEQ)
+C	ADDING THE SETTLEMENT LOAD INTO RHS VECTOR SONGSAK
+	CALL SETLAD(A(LSTL),A(LDL),ILC)
+C	LOAD DUE TO INITIAL STRESS
+	CALL VECADD(A(LDL),RFO,A(LDL),1D0,1D0,NEQ)
+C     LOAD DUE TO OFFSHORE LOAD  SONGSAK NOV2011
+      IF (OPT_OFF.EQ."CALC")THEN
+      CALL OFFSHFORC(A(LDL),ILOFF,ITIME,NEQ,'VARY','RADD') !VARY OFFSHORE LOAD -- TIME STEP 1
+      CALL OFFSHFORC(A(LDL),ILOFF,ITIME,NEQ,'CONT','RADD') !CONSTANT OFFSHORE LOAD -- TIME STEP 1
+      ENDIF
+C     LOAD DUE TO AERO DYNAMIC ( FAST ) MARCH 2015
+      REWIND (550)
+      READ (550,*) IFAST
+      call FASTTOPFORCE_DUMMY (IFAST,KFAST,NODEFAST,NTFASTPARA,NUMCASE,NFASTPARA)
+      IF (KFAST.EQ.2) CALL FASTTOPFORCE (IA(LID),NSF,NODEA,NUMCASE,NFASTPARA,NTFASTPARA,A(LDL),NEQ,ILC,'READ')
+C     LOAD DUE TO SOIL SPRING
+      
+      CALL CPU_TIME (TIM2)
+      TIM(10) = TIM(10) + (TIM2-TIM1)
+
+	
+	ITEST = 0
+	DO IEQ = 1,NEQ
+	IF(A(LDL+IEQ-1).NE.0.0D0) THEN
+	ITEST = 1
+	EXIT
+	ENDIF
+	ENDDO
+	
+C	SKIP IF NO LOAD APPLIED
+	IF(ITEST.EQ.0) GOTO 105
+      
+      ! INERTIAL RELIEF METHOD
+      NINERTIA = 0D0
+      IF (NINERTIA.EQ.1) THEN
+C     ----------------
+C      FORM MASS MATRIX
+C     ----------------
+	IFEIG = 0
+	IFREF = 1
+      ISPRI = 1
+      ITASK = 5
+      CALL GRLOOP (IA(LEL),KSC)
+      !CALL INERTIARELIEF (IA(LMA),A(LDL))
+      GOTO 106
+      ENDIF
+C     ----------------------------------------
+C     TRIANGULARIZE EFFECTIVE STIFFNESS MATRIX
+C     AND SOLVE FOR INCREMENT IN DISPLACEMENT
+C     ----------------------------------------
+	CALL COLSOL (IA(LMA),AA,A(LDK),A(LDL),1,INDPD,'STIF','TEMP') 
+	CALL COLSOL (IA(LMA),AA,A(LDK),A(LDL),2,INDPD,'TEMP','TEMP') 
+     
+106   IF (NSOILRETURN.NE.1) THEN
+      IF (NSOIL.EQ.1) GOTO 20
+      ENDIF
+      
+	FAC = 1.0D0
+	IF(NOLIN.EQ.0)THEN
+	A(LDI:LDI+NEQ-1) = 0.0
+	ENDIF
+	CALL ADDROW(A(LDI),A(LDL),A(LDI),FAC,NEQ)
+	
+
+C     -----------------------------------------------
+C     EQUILIBRIUM ITERATION IF NEED
+C     -----------------------------------------------
+	IF(NOLIN.NE.0) THEN
+      CALL EQUITE (A(LLVC),A(LLOC),A(LLF),A(LRE),
+     1             A(LDI),A(LDL),A(LDT),IA(LID),KSTRA,KITE,AA,'VARY',ILC)
+	ENDIF
+
+
+	FAC = 1.0D0
+	IF(NOLIN.EQ.0)THEN
+	A(LDT:LDT+NEQ-1) = 0.0
+	ENDIF	
+	CALL ADDROW(A(LDT),A(LDI),A(LDT),FAC,NEQ)
+C     -----------------------------------------------
+105	CONTINUE
+C     -----------------------------------------------
+
+C     -----------------------------------------------
+C     CALCULATE AND PRINT NEW DISPLACEMENTS (IFPRI=0)
+C     -----------------------------------------------
+
+	CALL MOVE(A(LDT),A(LDL),NEQ) ! A(LDL) MOVE TO A(LDT)
+	CALL CLEARA (A(LDT),NEQ)     ! A(LDT) = 0.0
+110	CALL NEWDIS (IA(LID),A(LDL),A(LDT),NSF)
+
+C     -----------------------------------------------
+C     -----------------------------------------------
+C      IF (ICONTROLSPEC.EQ.1) CALL OFFSHSTEP(TIME,ITIME,NTIME,'CALL')
+C     ------------------------------------------
+C     CALCULATE AND PRINT STRESSES FOR LAST STEP
+C     ------------------------------------------
+      ITASK = 3
+      IFREF = 1
+      ISPRI = 0
+      CALL GRLOOP (IA(LEL),KSC)
+      IF (IFPR(6).EQ.1) CALL MATOUT (A(LRE),NEQ,1,1,22,'E',
+     1                               15,10,2,'EQUIL LOAD')
+      
+114   CONTINUE ! FOR HYDRO STIFFNESS
+      ! CLEAR EXTERNAL MEMORY FOR HYDRO  STIFFNESS
+      !CALL CLEAR_EXTERNAL
+      
+	CALL RETAKE (IA(LID),A(LLF),A(LDI),A(LDL),A(LDT),A(LDK),
+     1             KRECO,KSTRA,KITE,NSF,AA,ITIME,0)
+	CALL BACKLCS(ILC,'REPC')
+	
+C     PRINT OUT ALL OF LOAD STEP
+      IF (ICONTROLSPEC.EQ.1)THEN ! CHANGE BY TOEY 4/2018
+      IOUTSPEC = ICONTROLSPEC
+	ISTIME  = ITIME
+	!CALL PRNFLAG('ELEM','LINK','GSUP','LSUP','DISP','GSPG','LSPG')
+	!CALL  PRNOUT('STND','PALL','CALL',LCS)
+      ENDIF
+      
+      NSOILRETURN = 0  ! INITALIZE SOIL DATA
+      ICOUNT      = 0  ! INITALIZE SOIL DATA
+      IF (ILC.NE.LCS) KTOEY = 0
+C     PULLOUT LOAD     
+      IF (NSOIL.EQ.1) CALL PULLOUT (ILC)
+	IF(KTOEY.EQ.1) GOTO 123
+      
+C      ENDDO
+C	==============================================
+120   CONTINUE
+C	==============================================
+	
+
+      
+      
+C     ====== FOR TENDON ANALYSIS ======     
+C	---------------------------------------
+150   IF (ITYPE.NE.17) GOTO 113
+      DO 151 ILC=1,LCS
+      KSTEP = 1
+
+	CALL CLEROUT  !CLEAR OUTPUT DATA ARRAY (XFINAS)
+
+C     -----------------
+C     SET CONTROL FLAGS
+C     -----------------
+      IFPRI = 0
+      IFPLO = 0
+
+C	INITIALIZE ALL WORKING ARRAY
+	CALL ADWINIT(NEG)
+	CALL LINKWNI
+
+	CALL CLEARA (A(LDT),NEQ)
+
+C     -----------------------------------------------
+      IF (ICONTROLSPEC.EQ.0)THEN
+	NTIME = 1
+	ELSEIF (ICONTROLSPEC.EQ.1)THEN
+	  IF (OPRES.EQ.1) CALL OFFSHSTEP(TIME,ITIME,NTIME,'CALT') !READ TIME DATA FOR OFFSHORE LOAD 
+        IF (OPRES.EQ.2) CALL SELECTGRAPH (1,NTIME,0,0)
+      ENDIF
+	DO 151 ITIME = 1,NTIME
+C     -----------------------------------------------
+
+	CALL CLEARA (A(LDI),NEQ)
+C     ------------------------------------------
+C     FORM TANGENTIAL STIFFNESS MATRIX (IFREF=0)
+C     ------------------------------------------
+	IFEIG = 1
+	IFREF = 0
+      ISPRI = 1
+      ITASK = 1
+	CALL CLEARA (A(LRE),NEQ)
+	CALL CLEARA (A(LDT),NEQ)
+	CALL GRLOOP (IA(LEL),KSC)
+      CALL MOVE (A(LRE),RFO,NEQ)  !FORCE FROM INITIAL STRESS
+
+C     SKIP CALCULATE STIFFNESS
+      
+      NUMREF = NUMREF + 1
+      
+C     OPERATE OFFSHORE LOAD CASE  
+      CALL OFFSHORE_LOAD_CASE_NUMBER (ILC,ILOFF,OPT_OFF,"READ")
+C     -------------------------
+C     FORM APPLIED FORCE VECTOR
+      ! LLVC     = LLV+NEQ*(ILC-1)
+      ! LLVC_OFF = LLOF+NEQ*(ILC-1)
+C     -------------------------
+      IF (OPT_OFF.NE."CALC") LLVC     = LLV+NEQ*(ILC-1)   ! DUE TO TOEY WORK 
+      IF (OPT_OFF.EQ."CALC") LLVC     = LLOF+NEQ*(ILOFF-1)  ! DUE TO TOEY WORK
+	LLOC = LLO+NEQ*(ILC-1)
+
+	CALL CPU_TIME (TIM1)
+      CALL RHSFOR (A(LLF),A(LLVC),A(LDL),A(LLVC),RT,NEQ,1)
+
+
+C	LOAD DUE TO CONSTANT LOAD 
+	CALL VECADD(A(LDL),A(LLOC),A(LDL),1D0,1D0,NEQ)
+C	ADDING THE SETTLEMENT LOAD INTO RHS VECTOR SONGSAK
+	CALL SETLAD(A(LSTL),A(LDL),ILC)
+C	LOAD DUE TO INITIAL STRESS
+	CALL VECADD(A(LDL),RFO,A(LDL),1D0,1D0,NEQ)
+C     LOAD DUE TO OFFSHORE LOAD  SONGSAK NOV2011
+      CALL OFFSHFORC(A(LDL),ILC,ITIME,NEQ,'VARY','RADD') !VARY OFFSHORE LOAD -- TIME STEP 1
+      CALL OFFSHFORC(A(LDL),ILC,ITIME,NEQ,'CONT','RADD') !CONSTANT OFFSHORE LOAD -- TIME STEP 1
+      
+      
+      
+      CALL CPU_TIME (TIM2)
+      TIM(10) = TIM(10) + (TIM2-TIM1)
+
+	
+	ITEST = 0
+	DO IEQ = 1,NEQ
+	IF(A(LDL+IEQ-1).NE.0.0D0) THEN
+	ITEST = 1
+	EXIT
+	ENDIF
+	ENDDO
+	
+C	SKIP IF NO LOAD APPLIED
+	IF(ITEST.EQ.0) GOTO 152
+
+      
+
+C	WRITE(*,*) A(LDL:LDL+NEQ-1)
+C     ----------------------------------------
+C     TRIANGULARIZE EFFECTIVE STIFFNESS MATRIX
+C     AND SOLVE FOR INCREMENT IN DISPLACEMENT
+C     ----------------------------------------
+	CALL COLSOL (IA(LMA),AA,A(LDK),A(LDL),1,INDPD,'STIF','TEMP') 
+	CALL COLSOL (IA(LMA),AA,A(LDK),A(LDL),2,INDPD,'TEMP','TEMP') 
+
+	FAC = 1.0D0
+	IF(NOLIN.EQ.0)THEN
+	A(LDI:LDI+NEQ-1) = 0.0
+	ENDIF
+	CALL ADDROW(A(LDI),A(LDL),A(LDI),FAC,NEQ)
+	
+
+C     -----------------------------------------------
+C     EQUILIBRIUM ITERATION IF NEED
+C     -----------------------------------------------
+	IF(NOLIN.NE.0) THEN
+      CALL EQUITE (A(LLVC),A(LLOC),A(LLF),A(LRE),
+     1             A(LDI),A(LDL),A(LDT),IA(LID),KSTRA,KITE,AA,'VARY',ILC)
+	ENDIF
+
+
+	FAC = 1.0D0
+	IF(NOLIN.EQ.0)THEN
+	A(LDT:LDT+NEQ-1) = 0.0
+	ENDIF	
+	CALL ADDROW(A(LDT),A(LDI),A(LDT),FAC,NEQ)
+C     -----------------------------------------------
+152   CONTINUE
+
+C     -----------------------------------------------
+C     CALCULATE AND PRINT NEW DISPLACEMENTS (IFPRI=0)
+C     -----------------------------------------------
+
+	CALL MOVE(A(LDT),A(LDL),NEQ) ! A(LDL) MOVE TO A(LDT)
+	CALL CLEARA (A(LDT),NEQ)     ! A(LDT) = 0.0
+	CALL NEWDIS (IA(LID),A(LDL),A(LDT),NSF)
+
+
+C     -----------------------------------------------
+C     -----------------------------------------------
+C      IF (ICONTROLSPEC.EQ.1) CALL OFFSHSTEP(TIME,ITIME,NTIME,'CALL')
+C     ------------------------------------------
+C     CALCULATE AND PRINT STRESSES FOR LAST STEP
+C     ------------------------------------------
+      ITASK = 3
+      IFREF = 1
+      ISPRI = 0
+      CALL GRLOOP (IA(LEL),KSC)
+      IF (IFPR(6).EQ.1) CALL MATOUT (A(LRE),NEQ,1,1,22,'E',
+     1                               15,10,2,'EQUIL LOAD')
+	CALL RETAKE (IA(LID),A(LLF),A(LDI),A(LDL),A(LDT),A(LDK),
+     1             KRECO,KSTRA,KITE,NSF,AA,ITIME,0)
+
+	CALL BACKLCS(ILC,'REPC')
+	
+C     PRINT OUT ALL OF LOAD STEP
+      IF (ICONTROLSPEC.EQ.1)THEN
+      IOUTSPEC = ICONTROLSPEC
+	ISTIME  = ITIME
+	!CALL PRNFLAG('ELEM','LINK','GSUP','LSUP','DISP','GSPG','LSPG')
+	!CALL  PRNOUT('STND','PALL','CALL',LCS)
+	ENDIF
+	
+	IF(KTOEY.EQ.1) GOTO 123
+C      ENDDO
+C	==============================================
+151   CONTINUE
+C	==============================================     
+C     ====== END FOR TENDON ANALYSIS ======            
+      
+      
+C     ====== FATIGUE ANALYSIS =====      
+160   KSTEP = 1
+      IFATIGUECASEOUT = 1D0
+      NFATIGUE = 1D0
+      NTOEY  = 1
+      
+	CALL CLEROUT  !CLEAR OUTPUT DATA ARRAY (XFINAS)
+
+C     -----------------
+C     SET CONTROL FLAGS
+C     -----------------
+      IFPRI = 0
+      IFPLO = 0
+
+C	INITIALIZE ALL WORKING ARRAY
+	CALL ADWINIT(NEG)
+	CALL LINKWNI
+
+C	CALL CLEARA (A(LDT),NEQ)
+
+C     -----------------------------------------------
+      IF (ICONTROLSPEC.EQ.0)THEN
+	NTIME = 1
+	ELSEIF (ICONTROLSPEC.EQ.1)THEN
+	  IF (OPRES.EQ.1) CALL OFFSHSTEP(TIME,ITIME,NTIME,'CALT') !READ TIME DATA FOR OFFSHORE LOAD 
+        IF (OPRES.EQ.2) CALL SELECTGRAPH (1,NTIME,0,0)
+      ENDIF
+C     -----------------------------------------------
+
+	CALL CLEARA (A(LDI),NEQ)
+C     ------------------------------------------
+C     FORM TANGENTIAL STIFFNESS MATRIX (IFREF=0)
+C     ------------------------------------------
+	IFEIG = 1
+	IFREF = 0
+      ISPRI = 1
+      ITASK = 1
+	CALL CLEARA (A(LRE),NEQ)
+	CALL CLEARA (A(LDT),NEQ)
+	CALL GRLOOP (IA(LEL),KSC)
+      
+      DO 163 NFATIGUELOOPOUT = 1,NWAVESCAT   
+C     SKIP CALCULATE STIFFNESS 	
+	DO 163 ILC=1,LCS ! LOAD CASE ( IN TOEY WOEK )	
+	
+	DO 163 ITIME = 1,NTIME	
+
+      CALL MOVE (A(LRE),RFO,NEQ)  !FORCE FROM INITIAL STRESS
+      
+      NUMREF = NUMREF + 1
+      
+C     OPERATE OFFSHORE LOAD CASE  
+      CALL OFFSHORE_LOAD_CASE_NUMBER (ILC,ILOFF,OPT_OFF,"READ")
+C     -------------------------
+C     FORM APPLIED FORCE VECTOR
+      ! LLVC     = LLV+NEQ*(ILC-1)
+      ! LLVC_OFF = LLOF+NEQ*(ILC-1)
+C     -------------------------
+      IF (OPT_OFF.NE."CALC") LLVC     = LLV+NEQ*(ILC-1)   ! DUE TO TOEY WORK 
+      IF (OPT_OFF.EQ."CALC") LLVC     = LLOF+NEQ*(ILOFF-1)  ! DUE TO TOEY WORK
+	LLOC = LLO+NEQ*(ILC-1)
+
+	CALL CPU_TIME (TIM1)
+      CALL RHSFOR (A(LLF),A(LLVC),A(LDL),A(LLVC),RT,NEQ,1)
+
+
+C	LOAD DUE TO CONSTANT LOAD 
+	CALL VECADD(A(LDL),A(LLOC),A(LDL),1D0,1D0,NEQ)
+C	ADDING THE SETTLEMENT LOAD INTO RHS VECTOR SONGSAK
+	CALL SETLAD(A(LSTL),A(LDL),ILC)
+C	LOAD DUE TO INITIAL STRESS
+	CALL VECADD(A(LDL),RFO,A(LDL),1D0,1D0,NEQ)
+C     LOAD DUE TO OFFSHORE LOAD  SONGSAK NOV2011
+      CALL OFFSHFORC(A(LDL),NFATIGUE,ITIME,NEQ,'VARY','RADD') !VARY OFFSHORE LOAD -- TIME STEP 1
+      CALL OFFSHFORC(A(LDL),NFATIGUE,ITIME,NEQ,'CONT','RADD') !CONSTANT OFFSHORE LOAD -- TIME STEP 1
+     
+      NTOEY = NTOEY+1
+      NFATIGUE = NFATIGUE+1
+      
+      
+      CALL CPU_TIME (TIM2)
+      TIM(10) = TIM(10) + (TIM2-TIM1)
+
+	
+	ITEST = 0
+	DO IEQ = 1,NEQ
+	IF(A(LDL+IEQ-1).NE.0.0D0) THEN
+	ITEST = 1
+	EXIT
+	ENDIF
+	ENDDO
+	
+C	SKIP IF NO LOAD APPLIED
+	IF(ITEST.EQ.0) GOTO 161
+
+      
+
+C	WRITE(*,*) A(LDL:LDL+NEQ-1)
+C     ----------------------------------------
+C     TRIANGULARIZE EFFECTIVE STIFFNESS MATRIX
+C     AND SOLVE FOR INCREMENT IN DISPLACEMENT
+C     ----------------------------------------
+	CALL COLSOL (IA(LMA),AA,A(LDK),A(LDL),1,INDPD,'STIF','TEMP') 
+	CALL COLSOL (IA(LMA),AA,A(LDK),A(LDL),2,INDPD,'TEMP','TEMP') 
+
+	FAC = 1.0D0
+	IF(NOLIN.EQ.0)THEN
+	A(LDI:LDI+NEQ-1) = 0.0
+	ENDIF
+	CALL ADDROW(A(LDI),A(LDL),A(LDI),FAC,NEQ)
+	
+
+C     -----------------------------------------------
+C     EQUILIBRIUM ITERATION IF NEED
+C     -----------------------------------------------
+	IF(NOLIN.NE.0) THEN
+      CALL EQUITE (A(LLVC),A(LLOC),A(LLF),A(LRE),
+     1             A(LDI),A(LDL),A(LDT),IA(LID),KSTRA,KITE,AA,'VARY',ILC)
+	ENDIF
+
+
+	FAC = 1.0D0
+	IF(NOLIN.EQ.0)THEN
+	A(LDT:LDT+NEQ-1) = 0.0
+	ENDIF	
+	CALL ADDROW(A(LDT),A(LDI),A(LDT),FAC,NEQ)
+C     -----------------------------------------------
+161	CONTINUE
+C     -----------------------------------------------
+
+C     -----------------------------------------------
+C     CALCULATE AND PRINT NEW DISPLACEMENTS (IFPRI=0)
+C     -----------------------------------------------
+
+	CALL MOVE(A(LDT),A(LDL),NEQ) ! A(LDL) MOVE TO A(LDT)
+	CALL CLEARA (A(LDT),NEQ)     ! A(LDT) = 0.0
+162	CALL NEWDIS (IA(LID),A(LDL),A(LDT),NSF)
+
+
+C     -----------------------------------------------
+C     -----------------------------------------------
+C      IF (ICONTROLSPEC.EQ.1) CALL OFFSHSTEP(TIME,ITIME,NTIME,'CALL')
+C     ------------------------------------------
+C     CALCULATE AND PRINT STRESSES FOR LAST STEP
+C     ------------------------------------------
+      ITASK = 3
+      IFREF = 1
+      ISPRI = 0
+      CALL GRLOOP (IA(LEL),KSC)
+      IF (IFPR(6).EQ.1) CALL MATOUT (A(LRE),NEQ,1,1,22,'E',
+     1                               15,10,2,'EQUIL LOAD')
+	CALL RETAKE (IA(LID),A(LLF),A(LDI),A(LDL),A(LDT),A(LDK),
+     1             KRECO,KSTRA,KITE,NSF,AA,ITIME,NFATIGUELOOPOUT) 
+
+	CALL BACKLCS(ILC,'REPC')
+C     PRINT OUT ALL OF LOAD STEP
+      IF (ICONTROLSPEC.EQ.1)THEN
+      IOUTSPEC = ICONTROLSPEC
+	ISTIME  = ITIME
+	!CALL PRNFLAG('ELEM','LINK','GSUP','LSUP','DISP','GSPG','LSPG')
+	!CALL  PRNOUT('STND','PALL','CALL',LCS)
+      ENDIF
+
+      
+	IF(KTOEY.EQ.1) GOTO 123
+C      ENDDO
+C	==============================================
+163   CONTINUE
+C	==============================================
+
+      
+      GOTO 123
+      
+      
+      
+3000  CALL CPU_TIME (TOEY1)
+C      DO 120 ILC=1,LCS	
+
+	KSTEP = 1
+
+	CALL CLEROUT  !CLEAR OUTPUT DATA ARRAY (XFINAS)
+
+C     -----------------
+C     SET CONTROL FLAGS
+C     -----------------
+      IFPRI = 0
+      IFPLO = 0
+
+C	INITIALIZE ALL WORKING ARRAY
+	CALL ADWINIT(NEG)
+	CALL LINKWNI
+
+C	CALL CLEARA (A(LDT),NEQ)
+
+C     -----------------------------------------------
+      IF (ICONTROLSPEC.EQ.0)THEN
+	NTIME = 1
+	ELSEIF (ICONTROLSPEC.EQ.1)THEN
+	  IF (OPRES.EQ.1) CALL OFFSHSTEP(TIME,ITIME,NTIME,'CALT') !READ TIME DATA FOR OFFSHORE LOAD 
+        IF (OPRES.EQ.2) CALL SELECTGRAPH (1,NTIME,0,0)
+      ENDIF
+C	DO 120 ITIME = 1,NTIME
+C     -----------------------------------------------
+      CALL READSOILDATA ("CALR",NODEOUT,DEFAC,NCODEO,NT,SEBC,NODEIN,ISN,PROPOUT)
+	CALL CLEARA (A(LDI),NEQ)
+      
+      
+      CALL CODETYPE (0,0,0,0,"READD",NOPT)
+
+C     SKIP CALCULATE STIFFNESS 	
+	DO 3020 ILC=1,LCS ! LOAD CASE ( IN TOEY WOEK )	
+          
+	CALL INTIALSOIL ! CLEAR ALL DATA
+      CALL CLEARA (A(LDL),NEQ)
+      CALL CLEARA (A(LSS),NEQ) 
+      
+	DO 3020 ITIME = 1,NTIME	
+      ICOUNT = 0   
+      ISOIL = 1  
+      NSOILRETURN = 0
+          
+      DO 3050 ISOIL = 1,500 ! LOOP SOIL PILE
+      IF (NSOILRETURN.EQ.1) EXIT
+  
+3001  CALL MOVE (A(LRE),RFO,NEQ)  !FORCE FROM INITIAL STRESS
+      
+      NUMREF = NUMREF + 1
+      
+C     OPERATE OFFSHORE LOAD CASE  
+      CALL OFFSHORE_LOAD_CASE_NUMBER (ILC,ILOFF,OPT_OFF,"READ")
+C     -------------------------
+C     FORM APPLIED FORCE VECTOR
+      ! LLVC     = LLV+NEQ*(ILC-1)
+      ! LLVC_OFF = LLOF+NEQ*(ILC-1)
+C     -------------------------
+      IF (OPT_OFF.NE."CALC") LLVC     = LLV+NEQ*(ILC-1)   ! DUE TO TOEY WORK 
+      IF (OPT_OFF.EQ."CALC") LLVC     = LLOF+NEQ*(ILOFF-1)  ! DUE TO TOEY WORK
+	LLOC = LLO+NEQ*(ILC-1)
+      
+	IFEIG = 1
+	IFREF = 0
+      ISPRI = 1
+      ITASK = 1
+	CALL CLEARA (A(LRE),NEQ)
+	CALL CLEARA (A(LDT),NEQ)
+	CALL GRLOOP (IA(LEL),KSC)
+      CALL MOVE (A(LRE),RFO,NEQ)  !FORCE FROM INITIAL STRESS
+      ! CLEAR FORCE MATRIX
+      A(LDL:LDL+NEQ) = 0.0D0
+C     ---------------------------------------------------------------------------------------------
+
+	CALL CPU_TIME (TIM1)
+      CALL RHSFOR (A(LLF),A(LLVC),A(LDL),A(LLVC),RT,NEQ,1)
+
+C	LOAD DUE TO CONSTANT LOAD 
+	CALL VECADD(A(LDL),A(LLOC),A(LDL),1D0,1D0,NEQ)
+C	ADDING THE SETTLEMENT LOAD INTO RHS VECTOR SONGSAK
+	CALL SETLAD(A(LSTL),A(LDL),ILC)
+C	LOAD DUE TO INITIAL STRESS
+	CALL VECADD(A(LDL),RFO,A(LDL),1D0,1D0,NEQ)
+C     LOAD DUE TO OFFSHORE LOAD  SONGSAK NOV2011
+      CALL OFFSHFORC(A(LDL),ILC,ITIME,NEQ,'VARY','RADD') !VARY OFFSHORE LOAD -- TIME STEP 1
+      CALL OFFSHFORC(A(LDL),ILC,ITIME,NEQ,'CONT','RADD') !CONSTANT OFFSHORE LOAD -- TIME STEP 1
+C     LOAD DUE TO AERO DYNAMIC ( FAST ) MARCH 2015
+      REWIND (550)
+      READ (550,*) KIAST
+      call FASTTOPFORCE_DUMMY (IFAST,KFAST,NODEFAST,NTFASTPARA,NUMCASE,NFASTPARA)
+      IF (KFAST.EQ.2) CALL FASTTOPFORCE (IA(LID),NSF,NODEA,NUMCASE,NFASTPARA,NTFASTPARA,A(LDL),NEQ,ILC,'READ')
+C     LOAD DUE TO SOIL SPRING
+      
+      
+      
+      CALL CPU_TIME (TIM2)
+      TIM(10) = TIM(10) + (TIM2-TIM1)
+
+	
+	ITEST = 0
+	DO IEQ = 1,NEQ
+	IF(A(LDL+IEQ-1).NE.0.0D0) THEN
+	ITEST = 1
+	EXIT
+	ENDIF
+	ENDDO
+	
+C	SKIP IF NO LOAD APPLIED
+	IF(ITEST.EQ.0) GOTO 3105
+
+      
+
+C	WRITE(*,*) A(LDL:LDL+NEQ-1)
+C     ----------------------------------------
+C     TRIANGULARIZE EFFECTIVE STIFFNESS MATRIX
+C     AND SOLVE FOR INCREMENT IN DISPLACEMENT
+C     ----------------------------------------
+	CALL COLSOL (IA(LMA),AA,A(LDK),A(LDL),1,INDPD,'STIF','TEMP') 
+	CALL COLSOL (IA(LMA),AA,A(LDK),A(LDL),2,INDPD,'TEMP','TEMP')
+
+	FAC = 1.0D0
+	IF(NOLIN.EQ.0)THEN
+	A(LDI:LDI+NEQ-1) = 0.0
+	ENDIF
+	CALL ADDROW(A(LDI),A(LDL),A(LDI),FAC,NEQ)
+	
+
+C     -----------------------------------------------
+C     EQUILIBRIUM ITERATION IF NEED
+C     -----------------------------------------------
+	IF(NOLIN.NE.0) THEN
+      CALL EQUITE (A(LLVC),A(LLOC),A(LLF),A(LRE),
+     1             A(LDI),A(LDL),A(LDT),IA(LID),KSTRA,KITE,AA,'VARY',ILC)
+	ENDIF
+
+
+	FAC = 1.0D0
+	IF(NOLIN.EQ.0)THEN
+	A(LDT:LDT+NEQ-1) = 0.0
+	ENDIF	
+	CALL ADDROW(A(LDT),A(LDI),A(LDT),FAC,NEQ)
+C     -----------------------------------------------
+3105	CONTINUE
+C     -----------------------------------------------
+
+C     -----------------------------------------------
+C     CALCULATE AND PRINT NEW DISPLACEMENTS (IFPRI=0)
+C     -----------------------------------------------
+
+	CALL MOVE(A(LDT),A(LDL),NEQ) ! A(LDL) MOVE TO A(LDT)
+	CALL CLEARA (A(LDT),NEQ)     ! A(LDT) = 0.0
+3110	CALL NEWDIS (IA(LID),A(LDL),A(LDT),NSF)
+
+
+C     -----------------------------------------------
+C     -----------------------------------------------
+C      IF (ICONTROLSPEC.EQ.1) CALL OFFSHSTEP(TIME,ITIME,NTIME,'CALL')
+C     ------------------------------------------
+C     CALCULATE AND PRINT STRESSES FOR LAST STEP
+C     ------------------------------------------
+      ITASK = 3
+      IFREF = 1
+      ISPRI = 0
+      CALL GRLOOP (IA(LEL),KSC)
+      IF (IFPR(6).EQ.1) CALL MATOUT (A(LRE),NEQ,1,1,22,'E',
+     1                               15,10,2,'EQUIL LOAD')
+3050  CONTINUE
+      
+      
+	CALL RETAKE (IA(LID),A(LLF),A(LDI),A(LDL),A(LDT),A(LDK),
+     1             KRECO,KSTRA,KITE,NSF,AA,ITIME,0)
+
+	CALL BACKLCS(ILC,'REPC')
+	
+C     PRINT OUT ALL OF LOAD STEP
+      IF (ICONTROLSPEC.EQ.1)THEN
+      IOUTSPEC = ICONTROLSPEC
+	ISTIME  = ITIME
+	!CALL PRNFLAG('ELEM','LINK','GSUP','LSUP','DISP','GSPG','LSPG')
+	!CALL  PRNOUT('STND','PALL','CALL',LCS)
+      ENDIF
+      
+C     PULLOUT LOAD     
+      IF (NSOIL.EQ.1) CALL PULLOUT (ILC)
+      IF (NSOIL.EQ.1) CALL PILE_SUPERELEMENT (IA(LMA),ILC)
+      
+	!IF(KTOEY.EQ.1) GOTO 123
+      
+C	==============================================
+3020  CONTINUE
+C	==============================================
+      GOTO 123
+	
+      
+113	IF(KBOPZ.NE.1) GOTO 112
+C	==============================================================================
+C	==============================================================================
+C	START LINEAR CABLE PRETENSION OPTIMIZATION MODULE
+C	SONGSAK NOV2006
+C	------------------------------------------------------------------------------
+
+	WK556 = 0.0D0
+	IW556 = 0
+	ID556 = 0
+	G556  = 0.0D0
+	VL556 = 0.0D0
+	VU556 = 0.0D0
+	X556  = 0.0D0
+C     --------------------- 
+C     SET ADS CONTROL FLAGS
+C     ---------------------
+	INF556 = 0												   !INFO
+	IST556 = 0 !8          									   !ISTART  SEQUENTIAL QUADRATIC PROGRAMING				!AUGMENT LAGRANGE MULTIPLIER METHOD
+	IF(NCOBZ.EQ.0) IST556 = 8
+	IOP556 = 5 !5        									   !IOPT    FEASIBLE DIRECTIONS							!BFGS VARIABLE METRIC METHOD
+	ION556 = 6 !6          									   !IONED   GOLDEN SECTION & POLYNOMIAL INTERPOLATION   !POLYNOMIAL INTERPOLATION (BOUNDS)
+	IPR556 = 1000       									   !IPRINT
+	IGR556 = 0          									   !IGRAD   CALCULATE GRADIANT BY FDM IN ADS
+	NR556  = NCABZ+1             							   !NRA
+	NC556  = NCABZ+NCOBZ         							   !NCOLA
+	NRW556 = 5000+10*(NCABZ+NCOBZ)+(NCABZ+NCOBZ)*(NCABZ+NCOBZ)  !NRWK
+	NRI556 = 5000+10*(NCABZ+NCOBZ)+(NCABZ+NCOBZ)*(NCABZ+NCOBZ)  !NRIWK
+
+
+C	EXPRESS THE CONSTRAINS TYPE
+	CALL CUTCON(ID556,NCOBZ)
+
+C	SETUP THE UPPER AND LOWER BOUND OF CABLE PRETENSION 
+	CALL BNDCON(VL556,VU556,TPOPZ(LF557),IA(LGOPZ),MCFOC,NCABZ)
+
+
+C	GROUPING VARIABLE AND INITIAL CABLE FORCE FROM 1ST ANALYSIS ASSUMED TRUSS BEHAVIOR
+	CALL RECVAR(X556,A(LCPZ+2*NEQ*NCABZ),TPOPZ(LR557),VU556,VL556,
+	1			IA(LGOPZ),NM556,NCABZ,0)
+	
+
+111	ILC = 1   !START OPTIMIZATION LOOP
+	
+	CALL CLEROUT  !CLEAR OUTPUT DATA ARRAY (XFINAS)
+C     -----------------
+C     SET CONTROL FLAGS
+C     -----------------
+      IFPRI = 0
+      IFPLO = 0
+
+C     ------------------------------------------
+C     FORM TANGENTIAL STIFFNESS MATRIX (IFREF=0)
+C     ------------------------------------------
+	IFEIG = 1
+	IFREF = 0
+      ISPRI = 1
+      ITASK = 1
+      CALL CLEARA (A(LRE),NEQ)
+	CALL CLEARA (A(LDT),NEQ)
+	CALL GRLOOP (IA(LEL),KSC)
+	CALL   MOVE (A(LRE),RFO,NEQ)  !FORCE FROM INITIAL STRESS (NOT INCLUDE EFFECT OF CABLE PRETENSION SEE ALSO NEWCABLE.FOR)
+
+
+C	MAIN PROGRAM FOR OPTIMIZATION
+	CALL ADS (INF556,IST556,IOP556,ION556,IPR556,IGR556,NM556,NCOBZ
+     1         ,X556,VL556,VU556,OB556,G556,ID556,NG556,IC556,DF556
+     2		 ,AD556,NR556,NC556,WK556,NRW556,IW556,NRI556) 
+
+C     -----------------------------------------------
+C	CALLING FULL DATA DUE TO GROUPING VARIABLE 
+	CALL RECVAR(X556,A(LCPZ+2*NEQ*NCABZ),TPOPZ(LR557),VU556,VL556,
+	1			IA(LGOPZ),NM556,NCABZ,1)
+
+	CALL MOVE(A(LCPZ+2*NEQ*NCABZ),XX556,NCABZ)
+C     -----------------------------------------------
+	
+      NUMREF = NUMREF + 1
+
+C	FORCE FROM CABLE PRETENSION AFTER PASS THROUGH THE ADS PROGRAM
+	CALL CABLEXF(A(LDL),A(LCPZ),A(LCPZ+2*NEQ*NCABZ),NCABZ,NEQ)
+
+C	LOAD DUE TO INITIAL STRESS
+	CALL VECADD(A(LDL),RFO,A(LDL),1D0,1D0,NEQ)
+C	LOAD DUE TO VARY LOAD
+	CALL VECADD(A(LDL),A(LLV+NEQ*(ILC-1)),A(LDL),1D0,1D0,NEQ)      
+	CALL OFFSHFORC(A(LDL),ILC,1,NEQ,'VARY','RADD') !VARY OFFSHORE LOAD -- TIME STEP 1
+C	LOAD DUE TO CONSTANT LOAD 
+	CALL VECADD(A(LDL),A(LLO+NEQ*(ILC-1)),A(LDL),1D0,1D0,NEQ)
+	CALL OFFSHFORC(A(LDL),ILC,1,NEQ,'CONT','RADD') !CONSTANT OFFSHORE LOAD -- TIME STEP 1
+C	ADDING THE SETTLEMENT LOAD INTO RHS VECTOR SONGSAK
+	CALL SETLAD(A(LSTL),A(LDL),ILC)
+
+C	CALL RHSPRN(IA(LID),A(LDL),IDOF,ISO,NSN,NSF)
+C     ----------------------------------------
+C     TRIANGULARIZE EFFECTIVE STIFFNESS MATRIX
+C     AND SOLVE FOR INCREMENT IN DISPLACEMENT
+C     ----------------------------------------
+	CALL COLSOL (IA(LMA),AA,A(LDK),A(LDL),1,INDPD,'STIF','TEMP')
+
+	CALL COLSOL (IA(LMA),AA,A(LDK),A(LDL),2,INDPD,'TEMP','TEMP')        !GETTING DISPLACEMENT
+
+C     -----------------------------------------------
+C     CALCULATE AND PRINT NEW DISPLACEMENTS (IFPRI=0)
+C     -----------------------------------------------
+	CALL CLEARA (A(LDT),NEQ)
+	CALL NEWDIS (IA(LID),A(LDL),A(LDT),NSF)
+
+C     -----------------------------------------------
+C	OBJECTIVE VALUE
+	CALL OBJECZ(A(LDL),OB556,NEQ,IA(LMA),AA,'STIF')
+
+C	DISPLACEMENT CONSTRAINT (2ND SET)
+	CALL DEFCON(G556,A(LDL),IA(LID),MCSUM,MCDEF,
+	1			TPOPZ(LD557),NCABZ,NCOBZ)
+
+C     ------------------------------------------
+C     CALCULATE AND PRINT STRESSES FOR LAST STEP
+C     ------------------------------------------
+      ITASK = 3
+      IFREF = 1
+      ISPRI = 0
+
+      CALL GRLOOP (IA(LEL),KSC)            !GETTING MEMBER FORCES
+
+C	SUMATION CONSTRAIN OF X-DIRECTION FORCE  (1ST SET)
+	CALL SUMCON(G556,A(LCPZ+NEQ*NCABZ),A(LCPZ+2*NEQ*NCABZ),IA(LID),
+	1			MCSUM,TPOPZ(LS557),IA(LGOPZ),NCABZ,NCOBZ)
+
+C	MEMBER FORCE CONSTRAINT  (3RD SET)
+	CALL MOMCON2(G556,TPOPZ(LM557+4*MCMOM),NCOBZ,MCMOM,MCSUM,MCDEF)
+
+	CALL RETAKE (IA(LID),A(LLF),A(LDI),A(LDL),A(LDT),A(LDK),
+     1             KRECO,KSTRA,KITE,NSF,AA,0)
+
+	CALL PRNOBJ(XX556,OB556,IA(LGOPZ),NCABZ)
+
+C	CHECK THE OPTIMIZATION PROCESS
+	IF(INF556.EQ.0) THEN
+	CALL PRNOBJ(XX556,OB556,IA(LGOPZ),NCABZ)
+	CALL PRNCOZ(G556,TPOPZ(LS557),TPOPZ(LD557),TPOPZ(LM557),
+	1			NCABZ,NCOBZ,MCSUM,MCDEF,MCMOM)
+
+	CALL BACKLCS(ILC,'REPC')
+
+	GOTO 112
+	ENDIF
+
+	GOTO 111
+
+C	==============================================================================
+112	CONTINUE
+C	==============================================================================
+
+
+C	---------------------------------------
+C	MOVING LOAD AND LANE LOAD CASE SONGSAK
+	IF(KTRAF.EQ.1) THEN
+
+	ILC   = 0   !NO LOAD CASE FOR CALLING STIFFNESS  (THIS RELATED TO FIXEND FORCES AND TENDON)
+      IFPRI = 0
+      IFPLO = 0
+	IFEIG = 1
+	IFREF = 0
+      ISPRI = 1
+      ITASK = 1
+	CALL GRLOOP (IA(LEL),KSC)
+C	FACTORIZE STIFFNESS BEFORE USE IN MOVING LOAD ANALYSIS
+	CALL COLSOL (IA(LMA),AA,A(LDK),A(LDL),1,INDPD,'STIF','TEMP')
+
+	CALL INFLCAL(AA)
+	CALL VEHCASE(AA)
+
+	ENDIF
+C	---------------------------------------
+C	---------------------------------------
+
+C	RESPONSE SPECTRUM ANALYSIS
+	IF(KEATH.EQ.1) CALL RESSPE1(1)
+C	IF(KOFFL.EQ.1.AND.KTOEY.EQ.0) THEN
+C      KTOEY = 1
+C	GOTO 100
+C	ENDIF
+
+C	---------------------------------------
+    
+C	CONSTRUCTION STAGE ANALYSIS
+123	IF(KCSAL.EQ.1) CALL CONCOM
+
+C	---------------------------------------
+C	---------------------------------------
+
+C	CREEP ANALYSIS
+	IF(ISOLOP.EQ.19) CALL CONCOM
+
+C	---------------------------------------
+C	---------------------------------------
+C	PRINT OUT ALL OF LOAD STEP
+      !IF (ICONTROLSPEC.EQ.0)THEN
+	CALL PRNFLAG('ELEM','LINK','GSUP','LSUP','DISP','GSPG','LSPG')
+	CALL  PRNOUT('STND','PALL','CALL',LCS)
+      !ENDIF
+       
+C     PULLOUT LOAD     
+C      IF (NSOIL.EQ.1) CALL PULLOUT 
+      
+C	LOAD COMBINATION
+	IF (ICONTROLSPEC.EQ.0) CALL LDCMCALC
+
+
+      RETURN
+
+C     --------------
+C     INITIALISATION
+C     --------------
+C	CALL TIMESTEP
+C	RETURN
+
+	
+200   ILC   = 1      !DEFAULT TO LOAD CASE 1
+	KSTEP = 1
+	CALL CLEROUT   !CLEAR OUTPUT DATA ARRAY (XFINAS)
+
+C     -------------------------
+C     FORM VARY FORCE VECTOR RRL
+C     -------------------------
+      CALL MOVE(A(LLV+NEQ*(ILC-1)),RRL,NEQ) !CALL LOAD VECTOR TO RRL
+	CALL OFFSHFORC(RRL,ILC,1,NEQ,'VARY','RADD') !ADD VARY OFFSHORE LOAD TO RRL -- TIME STEP 1
+	      
+C     -----------------
+C     SET CONTROL FLAGS
+C     -----------------
+      IFPRI = 0
+      IFPLO = 0
+C     ------------------------------------------
+C     FORM TANGENTIAL STIFFNESS MATRIX (IFREF=0)
+C     ------------------------------------------
+	IFEIG = 1
+	IFREF = 0
+      ISPRI = 1
+      ITASK = 1
+
+	CALL CLEARA (A(LRE),NEQ)
+	CALL CLEARA (A(LDT),NEQ)
+	CALL GRLOOP (IA(LEL),KSC) 
+
+      NUMREF = NUMREF + 1
+
+C     -------------------------
+C     FORM CONSTANT FORCE VECTOR RFO
+C     -------------------------
+	CALL MOVE(A(LLO+NEQ*(ILC-1)),RFO,NEQ)
+	CALL OFFSHFORC(RFO,ILC,1,NEQ,'CONT','RADD') !ADD CONSTANT OFFSHORE LOAD TO RFO -- TIME STEP 1
+	
+C	ADDING THE SETTLEMENT LOAD INTO CONSTANT LOAD VECTOR SONGSAK
+	CALL SETLAD (A(LSTL),RFO,ILC)
+
+C     -------------------------
+C     FORM APPLIED FORCE VECTOR
+C     -------------------------
+	CALL CLEARA (A(LDL),NEQ)
+C	LOAD DUE TO CONSTANT LOAD 
+	CALL VECADD (A(LDL),RFO,A(LDL),1D0,1D0,NEQ)
+
+
+	ITEST = 0
+	DO IEQ = 1,NEQ
+	IF(A(LDL+IEQ-1).NE.0.0D0) THEN
+	ITEST = 1
+	EXIT
+	ENDIF
+	ENDDO
+	
+C	SKIP IF NO LOAD APPLIED
+	IF(ITEST.EQ.0) GOTO 205
+
+C     ----------------------------------------
+C     TRIANGULARIZE EFFECTIVE STIFFNESS MATRIX
+C     AND SOLVE FOR INCREMENT IN DISPLACEMENT
+C     ----------------------------------------
+	CALL COLSOL (IA(LMA),AA,A(LDK),A(LDL),1,INDPD,'STIF','TEMP') 
+	CALL COLSOL (IA(LMA),AA,A(LDK),A(LDL),2,INDPD,'TEMP','TEMP') 
+
+C     -----------------------------------------------
+C     EQUILIBRIUM ITERATION IF NEED
+C     -----------------------------------------------
+	CALL CLEARA (A(LDI),NEQ)
+	CALL CLEARA (A(LDT),NEQ)
+
+	FAC = 1.0D0
+	CALL ADDROW(A(LDI),A(LDL),A(LDI),FAC,NEQ)
+
+	CALL CLEARA (RT,NEQ) !FOR ZERO LOAD VECTOR (VARY LOAD DOES NOT INCLUDED HERE)
+      CALL EQUITE (RT,RFO,A(LLF),A(LRE),
+     1             A(LDI),A(LDL),A(LDT),IA(LID),KSTRA,KITE,AA,'CONT',ILC)
+
+	FAC = 1.0D0
+	CALL ADDROW(A(LDT),A(LDI),A(LDT),FAC,NEQ)
+
+	CALL MOVE(A(LDT),A(LDL),NEQ)
+C     -----------------------------------------------
+C     -----------------------------------------------
+
+
+205	CALL CLEARA (A(LDI),NEQ)
+	CALL CLEARA (A(LDT),NEQ)
+C     -----------------------------------------------
+C     CALCULATE AND PRINT NEW DISPLACEMENTS (IFPRI=0)
+C     -----------------------------------------------
+	CALL NEWDIS (IA(LID),A(LDL),A(LDT),NSF)
+
+	CALL RETAKE (IA(LID),A(LLF),A(LDI),A(LDL),A(LDT),A(LDK),
+     1             KRECO,KSTRA,KITE,NSF,AA,0)
+
+C     ---------------------------------------------------------------------------------
+C	CORRECTION OF FIRST LOAD FACTOR DUE TO PRESENT OF CONSTANT LOAD FOR AUTOMATIC OPTION
+	CALL LDFACR (IA(LID),A(LLF),A(LDT))  
+C     ---------------------------------------------------------------------------------
+
+
+250	KSTEP = 0
+      KSTRA = NIREF  !STRATEGY CODE
+      KRECO = 0
+      KPRIN = 0
+      KPLOT = 0
+      NUMITE = 0
+      INDPD = KPOSD
+
+C     ------------------------
+C     LOAD INCREMENTATION LOOP
+C     ------------------------
+1100  KSTEP = KSTEP+1
+      KPRIN = KPRIN+1
+      KPLOT = KPLOT+1
+			
+C     -----------------
+C     SET CONTROL FLAGS
+C     -----------------
+      IFPRI = NPRIN-KPRIN
+      ISPRI = KPRIN-1
+      IFPLO = NDRAW-KPLOT
+      IFEIG = 1
+      NUMREF = 0
+	IFFLAG = 2
+
+      IF (IFPRI.EQ.0) KPRIN = 0
+      IF (IFPLO.EQ.0) KPLOT = 0
+
+      IF (KSTEP.EQ.1) ISPRI = 1
+      IF (KSTEP.EQ.1) IFEIG = 1
+
+C     ---------------------------------------------------------
+C     ENTRY FOR RETAKING A STEP IF CONVERGENCE FAILURE OCCURRED
+C     ---------------------------------------------------------
+1200  REWIND NPLOT
+
+	CALL CLEROUT  !CLEAR OUTPUT DATA ARRAY (XFINAS)
+
+      ITASK = 1
+      IFREF = 1
+      IF (KSTRA.GE.1) IFREF = 0
+      IF (KSTEP.EQ.1) IFREF = 0
+
+	CALL CLEARA (A(LDI),NEQ)     !INITIALIZE CUMULATIVE INCREMENTAL DISPLACEMENT VECTOR
+
+      IF (ICONV.LT.0.AND.KSTRA.NE.1) GOTO 1520  !ICONV.LT.0.AND.KSTRA.NE.1  --->FOR COMBIND AND FULL NEWTON WITH DIVERGENCE OR CONV. FAILURE
+
+C	REFORMING STIFFNESS IN CASE OF STRAT OF LOAD STEP OR CONVERGENCE ACHIEVE
+C     ---------------------------------------------------------
+C     CALCULATE EQUILIBRIUM LOADS CORRESPONDING TO DISPLACEMENT
+C     FIELD AT STEP K-1
+C     FIND NEW TANGENTIAL STIFFNESS MATRIX (IFREF=0)
+C     ---------------------------------------------------------
+	CALL CLEARA (A(LRE),NEQ)
+	CALL GRLOOP (IA(LEL),KSC)  !CALLING STIFFNESS AND INTERNAL FORCE
+
+      IF (IFPR(6).EQ.1) CALL MATOUT (A(LRE),NEQ,1,1,22,'E',
+     1                               15,10,2,'EQUIL LOAD')
+
+      IF (NSTEP.EQ.0) GOTO 1500
+C     ---------------------------------------------------------
+C     FIND CURRENT LOAD VECTOR FOR STEP KSTEP
+C     SUBTRACT EQUILIBRIUM LOADS TO GET INCREMENTAL LOAD VECTOR
+C     ---------------------------------------------------------
+1400  CALL CPU_TIME (TIM1)
+
+	CALL CLEARA (A(LDL),NEQ)						   !INITIALIZE RHS LOAD VECTOR
+      CALL VECADD (RRL,A(LDL),A(LDL),RHO,DINORM,NEQ)  !EXTERNAL LOAD VECTOR A(LDL) = A(LLV) = RRL
+      
+	IF (ITYPE.NE.5) GOTO 1480
+	IF (NLOPT.EQ.1) GOTO 1480
+C	CALL MOTRAN (IA(LID),A(LDT),A(LDI),A(LDL),NSF)     !ALGORITHM FOR NON-CONSERVATIVE NODAL MOMENT
+
+1480	CALL LOADUP (IA(LID),A(LLF),A(LRE),A(LDL),A(LDK),0,NSF)                  !DETERMINE INITIAL LOAD FACTOR RHO AND FACTORED LOAD A(LDL) = A(LDL)*RHO
+
+C	LOAD DUE TO CONSTANT LOAD 
+	CALL VECADD (A(LDL),RFO,A(LDL),RHO,DINORM,NEQ)
+	
+C	INTERNAL RESISTING LOAD + LOAD FROM INITIAL STRESS
+      CALL VECADD (A(LDL),A(LRE),A(LDL),RHO,DINORM,NEQ)  !A(LDL)-A(LRE)
+
+1490  IF (IFPR(6).EQ.1) CALL MATOUT (A(LDL),NEQ,1,1,22,'E',
+     1                               15,10,2,'LOAD VECT.')
+
+      CALL CPU_TIME (TIM2)
+      TIM(10) = TIM(10) + (TIM2-TIM1)
+
+C     -----------------------------------------------------
+C     TRIANGULARIZE EFFECTIVE STIFFNESS MATRIX IF (IFREF=0)
+C     AND SOLVE FOR INCREMENT IN DISPLACEMENT
+C     -----------------------------------------------------
+      IF (IFREF.GT.0) GOTO 1520
+      NUMREF = NUMREF+1
+1500	IF (NSTEP.EQ.0) RETURN
+
+	CALL COLSOL (IA(LMA),AA,A(LDK),A(LDL),1,INDPD,'STIF','TEMP')
+
+1520	CALL COLSOL (IA(LMA),AA,A(LDK),A(LDL),2,INDPD,'TEMP','TEMP')      !SOLVE FOR DISPLACEMENT AND STORE IN A(LDL)
+C     -----------------------------------------------------
+C     -----------------------------------------------------
+
+      IF (ITOPT.EQ.1) GOTO 1530										  !GOTO 1530 FOR LOAD CONTROL
+C	FOR DISPLACEMENT CONTROL, AUTOMATIC CONTROL
+	CALL CLEARA (A(LRE),NEQ)
+	CALL VECADD (RRL,A(LRE),A(LRE),RHO,DINORM,NEQ)				  !REFERENCE LOAD VECTOR STORE IN A(LRE) (DUE TO VARY LOAD)  RRL
+C	CALL VECADD (A(LRE),RFO,A(LRE),RHO,DINORM,NEQ)					!REFERENCE LOAD VECTOR STORE IN A(LRE) (DUE TO CONT LOAD)
+	CALL COLSOL (IA(LMA),AA,A(LDK),A(LRE),2,INDPD,'TEMP','TEMP')      !DISPLACEMENT FORM REFERENCE LOAD AND STORE IN A(LRE)
+	CALL LOADUP (IA(LID),A(LLF),A(LRE),A(LDL),A(LDK),1,NSF)           !DETERMINE LOAD FACTOR RHO
+
+1530  CALL VECADD (A(LDI),A(LDL),A(LDI),RHO,DINORM,NEQ)                 !CUMULATIVE INCREMENTAL DISPLACEMENT
+
+1560  IF (IFPR(7).EQ.1) CALL MATOUT (A(LDL),NEQ,1,1,22,'E',
+     +                               15,10,2,'DISPLACEM.')
+C     -------------------------------------------
+C     PERFORM EQUILIBRIUM ITERATIONS IF KSTRA<4
+C     -------------------------------------------
+      IF (ICONV.GE.0) NUMITE = 0
+      ICONV = 0
+
+      IF (KSTRA.GE.4) GOTO 1650
+
+      CALL EQUITE (RRL,RFO,A(LLF),A(LRE),
+     1             A(LDI),A(LDL),A(LDT),IA(LID),KSTRA,KITE,AA,'VARY',ILC)
+
+1650  CALL RETAKE (IA(LID),A(LLF),A(LDI),A(LDL),A(LDT),A(LDK),
+     1             KRECO,KSTRA,KITE,NSF,AA,ILC,0)
+
+      IF (ICONV.LT.0) GOTO 1200
+
+	IF (IFFLAG.EQ.1.AND.KSTEP.LT.NSTEP) GOTO 1200
+
+
+	IF (ITYPE .NE. 5 .OR. ITYPE .NE. 9) GOTO 1700
+	IF (NLOPT .EQ. 1) GOTO 1700
+	CALL ADDROT (IA(LID),A(LDT),A(LDI),A(LDL),NSF,ISO)
+C     -----------------------------------------------
+C     CALCULATE AND PRINT NEW DISPLACEMENTS (IFPRI=0)
+C     -----------------------------------------------
+1700  CALL NEWDIS (IA(LID),A(LDI),A(LDT),NSF)
+
+
+C	NEW OUTPUT SONGSAK JUL2007
+	CALL PRNFLAG('NONE','NONE','NONE','NONE','DISP','NONE','NONE')
+	CALL PRNOUT('STND','PONE','NONE',KSTEP)
+
+	IF(KSTEP.GT.1) THEN
+	CALL PRNFLAG('ELEM','LINK','GSUP','LSUP','NONE','GSPG','LSPG')
+	CALL PRNOUT('STND','PONE','NONE',KSTEP-1)
+	ENDIF
+
+      IF (KSTEP.LT.NSTEP) GOTO 1100
+
+	IF (IFFLAG.EQ.1.AND.KSTEP.GE.NSTEP) RETURN
+
+C     ------------------------------------------
+C     CALCULATE AND PRINT STRESSES FOR LAST STEP
+C     SOLVE INITIAL EIGENVALUE PROBLEM (IEIG>0)
+C     ------------------------------------------
+      IFREF = 1
+      ISPRI = 0
+      IFEIG = 1
+      IF (IEIG.GT.0 .AND. KSTEP.LE.1) IFEIG = 0
+      ITASK = 3
+	IF (NSTEP.GT.1) KSTEP = KSTEP+1
+
+      CALL GRLOOP (IA(LEL),KSC)
+
+C	SONGSAK NEW OUTPUT JUL2007
+	IF(KSTEP.GT.1) THEN
+	CALL PRNFLAG('ELEM','LINK','GSUP','LSUP','NONE','GSPG','LSPG')
+	CALL PRNOUT('STND','PONE','NONE',KSTEP-1)
+	ENDIF
+
+      IF (IFEIG.NE.0) RETURN
+
+      RETURN
+
+C	----------------------------------------------
+C	----------------------------------------------
+C	FREE VIBRATION ANALYSIS
+C	----------------------------------------------
+C	----------------------------------------------
+300	KSTEP = 1
+
+	ILC   = 0   !NO LOAD CASE FOR FREQUENZY ANALYSIS  (THIS RELATED TO FIXEND FORCES AND TENDON)	
+C     -----------------
+C     SET CONTROL FLAGS
+C     -----------------
+      IFPRI = 0
+      IFPLO = 0
+
+C     ----------------
+C     FORM MASS MATRIX
+C     ----------------
+	IFEIG = 0
+	IFREF = 1
+      ISPRI = 1
+      ITASK = 5
+      CALL GRLOOP (IA(LEL),KSC)
+
+C     ------------------------------------------
+C     FORM TANGENTIAL STIFFNESS MATRIX (IFREF=0)
+C     ------------------------------------------
+	IFEIG = 1
+	IFREF = 0
+      ISPRI = 1
+      ITASK = 1
+      CALL GRLOOP (IA(LEL),KSC)
+
+      NUMREF = NUMREF + 1
+C     -------------------------------------
+C     SOLVE EIGEN VALUES FOR FREE VIBRATION
+C     -------------------------------------
+      AA = 0.
+      BB = 0.
+	IF (ISOLV.EQ.1) THEN
+	  CALL STABIL(AA,BB,'STIF','MASS')
+	  CALL MPFCAL(IA(LMA),IA(LID),A(LER),A(LEV),A(LDIM),
+	1			    A(LFRE),NROOT,NITEM,BB,'MASS',KSC)
+	ELSEIF (ISOLV.EQ.2) THEN
+        CALL LANC(W,IA(LID),IA(LMA),N11,N10,AA,BB,'STIF','MASS')
+	  CALL MPFCAL(IA(LMA),IA(LID),W(N10),W(N11),A(LDIM),
+	1			   A(LFRE),NROOT,NITEM,BB,'MASS',KSC)
+	ELSEIF (ISOLV.EQ.5) THEN  !Complex eigenvector solver
+        RETURN
+	ENDIF
+	
+	CALL MODPRN  !PRINT EIGENVALUE AND MODE SHAPE
+      
+      ! ISOLOP = 16 ! FATIGUE FREQUENCY DOMAIN
+      IF (ICONTROLSPEC.EQ.1.AND.ISOLOP.EQ.1) GOTO 100
+      IF (ICONTROLSPEC.EQ.1.AND.ISOLOP.EQ.5.OR.ISOLOP.EQ.16) GOTO 500 
+      
+      RETURN
+      
+C	----------------------------------------------
+C	----------------------------------------------
+C	RESPONSE SPECTRAL ANALYSIS
+C	----------------------------------------------
+C	----------------------------------------------
+301	KSTEP = 1
+
+	ILC   = 0   !NO LOAD CASE FOR FREQUENZY ANALYSIS  (THIS RELATED TO FIXEND FORCES AND TENDON)	
+C     -----------------
+C     SET CONTROL FLAGS
+C     -----------------
+      IFPRI = 0
+      IFPLO = 0
+
+C     ----------------
+C     FORM MASS MATRIX
+C     ----------------
+	IFEIG = 0
+	IFREF = 1
+      ISPRI = 1
+      ITASK = 5
+      CALL GRLOOP (IA(LEL),KSC)
+
+C     ------------------------------------------
+C     FORM TANGENTIAL STIFFNESS MATRIX (IFREF=0)
+C     ------------------------------------------
+	IFEIG = 1
+	IFREF = 0
+      ISPRI = 1
+      ITASK = 1
+      CALL GRLOOP (IA(LEL),KSC)
+
+      NUMREF = NUMREF + 1
+C     -------------------------------------
+C     SOLVE EIGEN VALUES FOR FREE VIBRATION
+C     -------------------------------------
+
+	IF (ISOLV.EQ.1) THEN
+	  CALL STABIL(AA,BB,'STIF','MASS')
+	  CALL MPFCAL(IA(LMA),IA(LID),A(LER),A(LEV),A(LDIM),
+	1			    A(LFRE),NROOT,NITEM,BB,'MASS',KSC)
+	ELSEIF (ISOLV.EQ.2) THEN
+        CALL LANC(W,IA(LID),IA(LMA),N11,N10,AA,BB,'STIF','MASS')
+	  CALL MPFCAL(IA(LMA),IA(LID),W(N10),W(N11),A(LDIM),
+	1			   A(LFRE),NROOT,NITEM,BB,'MASS',KSC)
+	ELSEIF (ISOLV.EQ.5) THEN  !Complex eigenvector solver
+        RETURN
+	ENDIF
+	
+C	CALL MODPRN  !PRINT EIGENVALUE AND MODE SHAPE
+      DEALLOCATE  (AA,BB,CC) 
+      DEALLOCATE (RRL,RT,RFO)
+      RETURN
+      
+C	-----------------------
+C	BUCKLING ANALYSIS
+C     SET CONTROL FLAGS
+C     -----------------
+400   KSTEP  = 1     
+      NUMREF = 0
+      IFEIG  = 1
+      ITASK  = 1
+      IFREF  = 0
+	ISPRI  = 1
+	ILC    = 1
+
+C	----------
+C	INITIALIZE
+C	----------
+	CALL CLEARA (A(LRE),NEQ)
+	CALL CLEARA (A(LDT),NEQ)
+	CALL CLEARA (A(LDI),NEQ)
+
+C	-------------------------------------------
+C	STIFFNESS AND RHS LOAD FROM INITIAL STRESS
+C	-------------------------------------------
+      CALL GRLOOP (IA(LEL),KSC)
+	CALL   MOVE (A(LRE),RFO,NEQ)  !FORCE FROM INITIAL STRESS
+
+C     -------------------
+C     CALCULATE RHS LOADS
+C     -------------------
+
+	CALL CPU_TIME (TIM1)
+
+C	LOAD DUE TO INITIAL STRESS
+	CALL MOVE(RFO,A(LDL),NEQ)
+     
+      DO ILC = 1,LGEN
+C	LOAD DUE TO VARY LOAD
+	CALL VECADD(A(LDL),A(LLV+NEQ*(ILC-1)),A(LDL),1D0,1D0,NEQ)
+C	LOAD DUE TO CONSTANT LOAD 
+	CALL VECADD(A(LDL),A(LLO+NEQ*(ILC-1)),A(LDL),1D0,1D0,NEQ)
+C	ADDING THE SETTLEMENT LOAD INTO RHS VECTOR SONGSAK
+	CALL SETLAD(A(LSTL),A(LDL),ILC)
+      ENDDO
+      ILC = 1D0
+
+	CALL LOADUP (IA(LID),A(LLF),A(LRE),A(LDL),A(LDK),0,NSF)
+
+      CALL CPU_TIME (TIM2)
+      TIM(10) = TIM(10) + (TIM2-TIM1)
+
+      NUMREF = NUMREF+1
+
+C     ----------------------
+C     CALCULATE DISPLACEMENT
+C     ----------------------
+	CALL COLSOL (IA(LMA),AA,A(LDK),A(LDL),1,INDPD,'STIF','TEMP')
+	CALL COLSOL (IA(LMA),AA,A(LDK),A(LDL),2,INDPD,'TEMP','TEMP')
+
+	CALL CLEARA (A(LDT),NEQ)
+C     -----------------------------------
+C     ACCUMULATE DISPLACEMENTS (IFPRI=0)
+C     -----------------------------------
+	CALL CLEROUT  !CLEAR OUTPUT DATA ARRAY (XFINAS)
+	CALL NEWDIS (IA(LID),A(LDL),A(LDT),NSF)
+
+C     ------------
+C     PRINT OUTJOB
+C     ------------
+      CALL RETAKE (IA(LID),A(LLF),A(LDI),A(LDL),A(LDT),A(LDK),
+     1             KRECO,KSTRA,KITE,NSF,AA,0)
+
+C     ---------------------------
+C     ASSEBLY GEOMETRIC STIFFNESS
+C     ---------------------------
+      IFREF = 1
+	IFEIG = 0
+      ITASK = 3
+	ISPRI = 0
+      CALL GRLOOP (IA(LEL),KSC)  !GEOMETRIC STIFFNESS
+
+C	------------------------------------------------
+C	------------------------------------------------
+	IF (ISOLV.EQ.1) CALL STABIL(AA,BB,'STIF','STIG')
+
+	IF (ISOLV.EQ.2)
+     + CALL LANC(W,IA(LID),IA(LMA),N11,N10,AA,BB,'STIF','STIG')
+C	------------------------------------------------
+
+	CALL MODPRN  !PRINT EIGENVALUE AND MODE SHAPE
+
+      RETURN
+
+C	--------------------------------------------------
+C	LINEAR DYNAMICS BY DIRECT TIME INTEGRATION METHODS
+C	Changed to subroutine LNDTIM, Sep 5,2003 by NguyenDV
+C	--------------------------------------------------
+  500	CONTINUE
+	ILC   = 1   !DEFAULT TO LOAD CASE 1
+      
+	IF(KFTTD.NE.1.AND.KFTTD.NE.2) CALL LNDTIM(AA,BB,CC) ! LINEAR DYNAMIC
+      IF(KFTTD.EQ.1.OR.KFTTD.EQ.2)  THEN
+      WRITE (*,*) "FATIGUE ANALYSIS NOT AVAILABLE IN THIS VERSION"
+      STOP
+      ENDIF
+      !ENDFATIGUE CHANA FOR FATIGUE TIME DOMAIN
+      
+      RETURN
+
+C	------------------------------------------
+C	LINEAR DYNAMICS USING VECTOR SUPERPOSITION
+C	 21-10-2002 & Jan,2003
+C	------------------------------------------	
+  600	CONTINUE
+	ILC   = 1   !DEFAULT TO LOAD CASE 1
+	
+	CALL LNDSUP(W,AA,BB,CC)
+      RETURN
+
+C	--------------------------------------------------------
+C	NONLINEAR DINAMICS USING DIRECT TIME INTEGRATION METHODS
+C	--------------------------------------------------------
+  700	CONTINUE
+	ILC   = 1   !DEFAULT TO LOAD CASE 1
+		
+	CALL NLDYNA(W,AA,BB,CC)
+	RETURN
+
+C	----------------------------------------------------------
+C	NONLINEAR DINAMICS SUPERPOSITION OF EIGEN OR LD-RITZ BASIS
+C	----------------------------------------------------------	
+  800	CONTINUE
+      RETURN
+
+C	----------------------------------
+C	SEISMIC ANALYSIS (VARIOUS OPTIONS)
+C	----------------------------------
+  900	CONTINUE
+	RETURN
+
+C	--------------------------------
+C	INFLUENCE LINE ANALYSIS FOR BEAM
+C	Added by NguyenDV-April/03
+C	--------------------------------
+1010	CONTINUE  
+	RETURN
+
+C	-----------------------------------------------
+C	DYNAMIC ANALYSIS OF MOVING LOAD (TRAIN/BRIDGE):
+C	Added 21June2004 by NguyenDV
+C	-----------------------------------------------
+ 2100	CONTINUE
+	ILC   = 0   !NO LOAD CASE FOR BRIDGE TRAIN INTERACTION  (THIS RELATED TO FIXEND FORCES AND TENDON)
+		
+	CALL DMMAIN(AA,BB,CC)
+	RETURN
+
+C	-------------------------------------------------
+C	AUTOMATIC BRIDGE LOAD ANALYSIS
+C	NEXT BLOCK ADDED BY GILSON - DEC2003 (LOAD CASES)
+C	-------------------------------------------------
+1300	CONTINUE  
+      RETURN
+C
+C	--------------------------------------------------------
+C	HEAT TRANSFER MODULE
+C	--------------------------------------------------------
+2400	CONTINUE
+	
+	DO 220 ILC=1,LCS
+	
+	CALL CLEARA(A(LDT),NEQ)
+	CALL INTLAD(IA(LID),A(LDT),ILC)
+	KSTEP = 0
+C     -----------------
+C     SET CONTROL FLAGS
+C     -----------------
+      IFPRI = 0
+      IFPLO = 0
+
+	
+C	INITIALIZE LOCAL VARIABLES
+	KITE  = 0
+	CTIME = 0.0D0
+	ITMAX = NTSTEP
+
+2120	KITE  = KITE + 1
+
+	KSTEP = KITE
+C     FORM TANGENTIAL STIFFNESS MATRIX (IFREF=0)
+	IFEIG = 1
+	IFREF = 0
+      ISPRI = 1
+      ITASK = 2
+	CALL CLEARA (A(LRE),NEQ)
+      CALL GRLOOP (IA(LEL),KSC)
+
+C     FORM APPLIED FORCE VECTOR
+C     -------------------------
+	CALL CPU_TIME (TIM1)
+      
+C     OPERATE OFFSHORE LOAD CASE  
+      CALL OFFSHORE_LOAD_CASE_NUMBER (ILC,ILOFF,OPT_OFF,"READ")
+C     -------------------------
+C     FORM APPLIED FORCE VECTOR
+      ! LLVC     = LLV+NEQ*(ILC-1)
+      ! LLVC_OFF = LLOF+NEQ*(ILC-1)
+C     -------------------------
+      IF (OPT_OFF.NE."CALC") LLVC     = LLV+NEQ*(ILC-1)   ! DUE TO TOEY WORK 
+      IF (OPT_OFF.EQ."CALC") LLVC     = LLOF+NEQ*(ILOFF-1)  ! DUE TO TOEY WORK
+      
+	KSTEP = 1
+      CALL RHSFOR (A(LLF),A(LLVC),A(LDL),
+	1             A(LLV+NEQ*(ILC-1)),RT,NEQ,1)
+
+C	LOAD DUE TO CONSTANT LOAD 
+	CALL VECADD(A(LDL),A(LLO+NEQ*(ILC-1)),A(LDL),1D0,1D0,NEQ)
+C	ADDING THE SETTLEMENT LOAD INTO RHS VECTOR SONGSAK
+	CALL SETLAD(A(LSTL),A(LDL),ILC)
+C	LOAD DUE TO INITIAL STRESS
+	CALL VECADD(A(LDL),A(LRE),A(LDL),1D0,1D0,NEQ)
+
+
+	CTIME = CTIME + DTINC
+
+      CALL CPU_TIME (TIM2)
+
+      TIM(10) = TIM(10) + (TIM2-TIM1)
+
+
+	CALL AZFILL (IA(LID),IA(LMA),A(LDL),ILC,AA,'STIF','TEMP')
+C     ----------------------------------------
+C     TRIANGULARIZE EFFECTIVE STIFFNESS MATRIX
+C     ----------------------------------------
+	CALL COLSOL (IA(LMA),AA,A(LDK),A(LDL),1,INDPD,'STIF','TEMP')
+C	----------------------------------------
+C	SOLVE FOR DISPLACEMENT
+C	----------------------------------------
+	CALL COLSOL (IA(LMA),AA,A(LDK),A(LDL),2,INDPD,'TEMP','TEMP')
+
+	CALL CLEARA (A(LDT),NEQ)
+C     -----------------------------------------------
+C     CALCULATE AND PRINT NEW DISPLACEMENTS (IFPRI=0)
+C     -----------------------------------------------	
+	CALL CLEROUT  !CLEAR OUTPUT DATA ARRAY (XFINAS)
+
+	KSTEP = KITE
+	CALL NEWDIS (IA(LID),A(LDL),A(LDT),NSF)
+
+	CALL RETAKE (IA(LID),A(LLF),A(LDI),A(LDL),A(LDT),A(LDK),
+     1             KRECO,KSTRA,KITE,NSF,AA,0)
+
+	IF(KITE.LT.ITMAX) GOTO 2120
+
+
+	IFEIG = 1
+	ITASK = 3
+	IFREF = 1
+	ISPRI = 0
+	CALL GRLOOP (IA(LEL),KSC)
+
+	CALL PRNFLAG('ELEM','LINK','GSUP','LSUP','DISP','GSPG','LSPG')
+	CALL  PRNOUT('STND','PONE','NONE',ILC)
+
+
+220	CONTINUE
+
+
+	RETURN
+C
+C	--------------------------------------------------------
+C	SEEPAGE ANALYSIS
+C	--------------------------------------------------------
+2500	CONTINUE
+
+	DO 2580 ILC=1,LCS
+	
+	CALL CLEARA(A(LDT),NEQ)
+	CALL INTLAD(IA(LID),A(LDT),ILC)
+	KSTEP = 0
+C     -----------------
+C     SET CONTROL FLAGS
+C     -----------------
+      IFPRI = 0
+      IFPLO = 0
+
+	
+C	INITIALIZE LOCAL VARIABLES
+	KITE  = 0
+	CTIME = 0.0D0
+	ITMAX = NTSTEP
+
+2520	KITE  = KITE + 1
+
+	KSTEP = KITE
+C     FORM TANGENTIAL STIFFNESS MATRIX (IFREF=0)
+	IFEIG = 1
+	IFREF = 0
+      ISPRI = 1
+      ITASK = 2
+	CALL CLEARA (A(LRE),NEQ)
+      CALL GRLOOP (IA(LEL),KSC)
+
+	CALL CPU_TIME (TIM1)
+      
+      CALL OFFSHORE_LOAD_CASE_NUMBER (ILC,ILOFF,OPT_OFF,"READ")
+C     -------------------------
+C     FORM APPLIED FORCE VECTOR
+      ! LLVC     = LLV+NEQ*(ILC-1)
+      ! LLVC_OFF = LLOF+NEQ*(ILC-1)
+C     -------------------------
+      IF (OPT_OFF.NE."CALC") LLVC     = LLV+NEQ*(ILC-1)   ! DUE TO TOEY WORK 
+      IF (OPT_OFF.EQ."CALC") LLVC     = LLOF+NEQ*(ILOFF-1)  ! DUE TO TOEY WORK
+      
+      
+	KSTEP = 1
+      CALL RHSFOR (A(LLF),A(LLVC),A(LDL),
+	1             A(LLV+NEQ*(ILC-1)),RT,NEQ,1)
+
+C	LOAD DUE TO CONSTANT LOAD 
+	CALL VECADD(A(LDL),A(LLO+NEQ*(ILC-1)),A(LDL),1D0,1D0,NEQ)
+C	ADDING THE SETTLEMENT LOAD INTO RHS VECTOR SONGSAK
+	CALL SETLAD(A(LSTL),A(LDL),ILC)
+C	LOAD DUE TO INITIAL STRESS
+	CALL VECADD(A(LDL),A(LRE),A(LDL),1D0,1D0,NEQ)
+
+
+	CTIME = CTIME + DTINC
+
+      CALL CPU_TIME (TIM2)
+
+      TIM(10) = TIM(10) + (TIM2-TIM1)
+
+
+	CALL AZFILL (IA(LID),IA(LMA),A(LDL),ILC,AA,'STIF','TEMP')
+C     ----------------------------------------
+C     TRIANGULARIZE EFFECTIVE STIFFNESS MATRIX
+C     ----------------------------------------
+	CALL COLSOL (IA(LMA),AA,A(LDK),A(LDL),1,INDPD,'STIF','TEMP')
+C	----------------------------------------
+C	SOLVE FOR DISPLACEMENT
+C	----------------------------------------
+	CALL COLSOL (IA(LMA),AA,A(LDK),A(LDL),2,INDPD,'TEMP','TEMP')
+
+	CALL CLEARA (A(LDT),NEQ)
+C     -----------------------------------------------
+C     CALCULATE AND PRINT NEW DISPLACEMENTS (IFPRI=0)
+C     -----------------------------------------------	
+	CALL CLEROUT  !CLEAR OUTPUT DATA ARRAY (XFINAS)
+
+	KSTEP = KITE
+	CALL NEWDIS (IA(LID),A(LDL),A(LDT),NSF)
+
+	CALL RETAKE (IA(LID),A(LLF),A(LDI),A(LDL),A(LDT),A(LDK),
+     1             KRECO,KSTRA,KITE,NSF,AA,0)
+
+	IF(KITE.LT.ITMAX) GOTO 2520
+
+
+	IFEIG = 1
+	ITASK = 3
+	IFREF = 1
+	ISPRI = 0
+	CALL GRLOOP (IA(LEL),KSC)
+
+C	ADJUST POTENTIAL VALUE FOR FREE SURFACE ITERATION OPTION (UNCONFINED)
+	IF(KFRES.EQ.1) CALL DISOUT_UNCONF(IA(LID),A(LXY),A(LDT))
+
+
+	CALL PRNFLAG('ELEM','LINK','GSUP','LSUP','DISP','GSPG','LSPG')
+	CALL  PRNOUT('STND','PONE','NONE',ILC)
+
+
+2580	CONTINUE
+
+
+	RETURN
+C	--------------------------------------------------------
+C	--------------------------------------------------------
+
+
+2700	CONTINUE
+
+	RETURN
+
+
+2800  CONTINUE
+      
+	
+	ILC   = 1   !DEFAULT TO LOAD CASE 1
+C	CONSOLIDATION SACHARUCK DEC2006
+	CALL NONCONSO(W,AA)
+	RETURN
+
+
+
+1000	FORMAT (1H#,32X,16(1H*)/1H#,32X,1H*,14X,1H*/1H#,
+     1  32X,16H* JOB PROGRESS */1H#,32X,1H*,14X,1H*/1H#,32X,16(1H*)/
+     2  1H#,8X,'TIME',9X,'RHO',8X,'DISP',8X,'VELO',8X,'ACCE')
+
+      END
+C
+C=====================================================================
+      SUBROUTINE GRLOOP (LEST,KSC)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	SUNIL 01/05/12 MODIFIED COMPLETELY
+C     -----------------------------------------------------------------
+C     LOOPS OVER NUMBER OF ELEMENT GROUPS, READS AND WRITES ELEMENT
+C	INFORMATION (TAPE NELEM) AND ASSEMBLES GLOBAL STIFFNESS,
+C	GEOMETRIC STIFFNESS OR MASS MATRIX, AND COMPUTE STERSSES
+C	-----------------------------------------------------------------
+C	COMPLETELY MODIFIED BY SUNIL 13/04/01
+C	-----------------------------------------------------------------
+C     LEST(2*NEG) = LENGTHS OF ELEMENT BLOCK INFORMATION (ARRAY A & IA)
+C     -----------------------------------------------------------------
+      COMMON /NUMB/ HED(20),MODEX,NRE,NSN,NEG,NBS,NLS,NLA,
+     1              NSC,NSF,IDOF(9),LCS,ISOLOP,LSYMM,ICONTROLSPEC
+      COMMON /ELEM/ NAME(2),ITYPE,ISTYP,NLOPT,MTMOD,NSINC,ITOLEY,
+     1              NELE,NMPS,NGPS,NMP,NGP,NNM,NEX,NCO,NNF,NWG,NEFC,
+     2              NPT,NWA,NWS,KEG,MEL,NNO,NEF,NELTOT,NMV,MTYP,ISECT
+      COMMON /LOCA/ LID,LDS,LEL,LDC,LXY,LCH,LNU,LMP,LGP,LMS,LGS,
+     1              LCO,LEX,LLM,LES,LEC,LED,LEI,LEE,LMA,LLF,LLV,
+     2              LRE,LDI,LDL,LDT,LDK,LER,LEV,LTT,LWV,LAR,LBR,
+     3              LVE,LDD,LRT,LBU,LBC,LVL,LAL,LEF,LDU,LPR,LLO,
+	4              LRV,LRT1,LRET,LRET1,LDM,LDPT,LVL1,LMV,LXI,LCM,LCC,
+	5			    LCN,LDIM,LFRE,LSFC,LLOF
+
+      COMMON /LOCO/ LOP,LOS,LSS,LSS2,LSS3,LHG,LHGN
+      COMMON /OFFS/ NOPS,NHIGE
+
+      COMMON /FTIM/ TIM(20),IDATE,ITIME
+      
+C----	Next Common Block added 13Nov03 by NguyenDV 
+      COMMON /LOCD/ LSC
+
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+      COMMON /SOLU/ NEQ,NEQ1,NBLOCK,MK,BM,NWK,NWM,ISTOR,NFAC,
+     +              NRED,KPOSD,DETK,DET1,DAVR,STOL
+      COMMON /ITER/ RHO,RHOP,RHOPREV,RTOL,ETOL,DLMAX,ALP,
+	1              NSTEP,NPRIN,NDRAW,
+	2			  KONEQ,NIREF,ITOPT,ICONV,NOLIN,KSTEP,
+     3              LIMEQ(2),ITEMAX,NUMREF,NUMITE,ITETOT,LIMET
+      COMMON /DYNA/ CDEN,IMASS
+      COMMON /EIGN/ NSEIG,NROOT,NC,NNC,NITEM,IFSS,SHIFT0,EPS,IEIG,NEIG,
+     +              ISOLV,IVPRT
+      COMMON /FLAG/ IFPRI,ISPRI,IFPLO,IFREF,IFEIG,ITASK,IFFLAG
+      
+      COMMON A(9000000),IA(9000000)
+
+
+	COMMON /GiDEle/ LGID 
+C
+C	==================================================================
+C	ADDED BY SONGSAK APR2006 REACTION	
+	COMMON /REACT/ LRC,LRCT,MFQ,LRID
+C	==================================================================
+	COMMON /SETTM/ NSETT,LSTL             !SETTLEMENT MODULE
+C	==================================================================
+C	NEW SPRING SUPPORT SONGSAK JUL2006
+	COMMON /SPBC/ NSS,NLSS
+C	==================================================================
+C	CABLE PRETENSION OPTIMIZATION
+	COMMON /CB556/ LCPZ,NCABZ,KBOPZ,NCOBZ
+C	==================================================================
+C	CABLE PRETENSION OPTMIZATION SONGSAK NOV2006 STORE GID ELEMENT NUMBER
+	COMMON /CB558/ LGOPZ
+C	==================================================================
+C	COMMON BLOCK FOR HEAT SONGSAK MAR2007
+	COMMON /SHEAT/ NHAEF,LHEAT1,LHEAT2,LHEAT3,LHEAT4
+C	==================================================================
+C	MOVING LOAD PRINTING FLAG SONGSAK JUL2007
+	COMMON /LANPRIN/  LAN_PRN,ILPL,MLANE,NPL,LAN_OPT
+C	==================================================================
+C     FOR LINK CONSTRAINTS BY BJ
+      COMMON /FLOOR/ IFLOOR,NFLOOR,NSN0,NSNL
+      COMMON /TALTA/ TAS
+C	==================================================================
+C     FOR POINTLOAD CASE CONTROL DIAPHRAGM CONSTRATINS BY BJ
+      COMMON /JLCN/ ILCNM(1000),IL2 
+      COMMON /IJEG/ IEG,JEG,JSTYP
+
+C	==================================================================   
+      
+      COMMON /SOILDYNA/ NSOIL
+      DIMENSION LEST(1)
+
+C     FOR PERFORMANCE MONITORING
+      TIME45 = 0.0
+      TIME46 = 0.0
+      TIME47 = 0.0
+      TIME48 = 0.0      
+
+C     TOTAL MASS FOR EACH ELEMENT GROUP
+      CALL DEFNREL('TWGH',KTWGH,1,NEG)
+	CALL RELZERO('TWGH')
+	
+
+	ZERO = 0.0D0
+
+	CALL CPU_TIME(TIME1)
+C	WRITE(*,*) 'KAK1',NEQ,NWK,NWM
+C     --------------
+C     INITIALISATION
+C     --------------
+	CALL CLEARA (A(LRCT),MFQ)                      !REACTION SONGSAK APR2006
+
+	CALL MINTFIL('BLOK',0     ,1,3 ,1)	   !INITIALIZE NUMBER OF LINE TO WRITE FOR STIFFNESS ASSEMBLY
+C	---------------------------------------------------------------------------
+	IF(NEQ*LCS.GT.1500000) THEN                   !SETTLEMENT SONGSAK JUN2006
+	WRITE(*,*) 'MEMORY EXCEED ALLOWABLE IN SETTLEMENT ARRAY'
+	STOP
+	ENDIF
+
+	IF (IFREF.EQ.0) CALL CLEARA (A(LSTL),NEQ*LCS)  !CLEAR SETTLEMENT FORCE VECTOR
+
+C	---------------------------------------------------------------------------
+      IF (ITASK.GE.3) GOTO 50
+C	---------------------------------------------------------------------------
+
+	IF (IFREF.EQ.0) THEN		!CLEAR STIFFNESS MATRIX	
+	CALL MCALFIL(KEREC,'ETIF')
+	A(LDK:LDK+NEQ-1) = 0.0D0    !CLEAR DIAGONAL
+	REWIND(KEREC)	
+      ENDIF
+      
+C      NSOIL = 1
+      !CALL ADDSTIFFNESS
+      IF (NSOIL.EQ.1)THEN    
+      CALL SOIL_PILE_INTERACTION (A(LSS),A(LSS2),A(LSS3),A(LES),IA(LID),IA(LMA),A(LDL),"ITER") 
+      ENDIF
+      CALL ADDSPISTIFF(IA(LID),IA(LMA),A(LSS),A(LSS2),A(LSS3))
+
+C	---------------------------------------------------------------------------
+	IF(NSS.GT.0.OR.NLSS.GT.0) THEN                              !SPRING SUPPORT SONGSAK JUL2006
+	CALL FOCSPIG(IA(LID),A(LSS),A(LDT),A(LDI),A(LRE),ITASK,NEQ,
+	1			 A(LSS2),A(LSS3))
+	CALL ADDSPIG(IA(LID),IA(LMA),A(LSS),A(LSS2),A(LSS3))		
+      ENDIF
+      
+
+C	---------------------------------------------------------------------------
+      GOTO 100
+C	---------------------------------------------------------------------------
+50	CONTINUE
+
+
+	IF(IFEIG.EQ.0) THEN			!CLEAR MASS OR DAMP MATRIX					
+	CALL MCALFIL(KEREC,'ETIF')
+	REWIND(KEREC)	
+	ENDIF
+
+C	---------------------------------------------------------------------------
+C	DIRECT ADD NODAL DAMPER TO DIAGONAL TERM IN DAMPER MATRIX SONGSAK NOV2006
+	IF (ITASK.EQ.6) CALL ADDDAMP(IA(LID),IA(LMA),A(LSS),A(LSC)) 
+C	---------------------------------------------------------------------------
+
+C     --------------------------------------------------
+C	FOR LINK ELEMENT
+C     --------------------------------------------------
+100	ILKPN = 1  !LINK PRINTING FLAG   0=PRINT  1=NO PRINT
+	IF(ISPRI.EQ.0) ILKPN = 0
+	CALL LINKELM(A(LRE),A(LRCT),A(LSTL),ILKPN) !GENERAL LINK ELEMENT SONGSAK JUN2007 WITH UPDATE WORKING ARRAY
+C     FOR LINK CONSTRAINTS BY BJ            
+      TAS = 0.0 !
+C     --------------------------------------------------
+C     LOOP OVER ELEMENT GROUPS, READ ELEMENT INFORMATION
+C     --------------------------------------------------
+ 110  DO 900  IEG=1,NEG
+
+      KEG	   = IEG
+	NELEMI = 10+IEG
+	NELEMA = 30+IEG
+      
+      !CLOSE (NELEMA)
+      OPEN (NELEMA,FORM='UNFORMATTED',STATUS='SCRATCH')
+	REWIND (NELEMI)
+      REWIND (NELEMA)
+      READ (NELEMI) IA(LNU:LNU + LEST(IEG    )-1)
+      READ (NELEMA)  A(LMP:LMP + LEST(IEG+NEG)-1)  
+      
+      IF (A(LMP).LE.0.001D0)THEN
+      REWIND (NELEMA)
+      READ (NELEMA)  A(LMP:LMP + LEST(IEG+NEG)-1)  
+      ENDIF
+      
+
+C	==============================================================
+	CALL ADWBAK(IEG,'CAL')  !CALL WORKING ARRAY FROM BACK UP FILE
+C	==============================================================
+      
+      CALL MOVLEV (2)
+
+C     ----------------------------------------------------------
+C     LOOP OVER NUMBER OF ELEMENTS IN THIS GROUP
+C     WRITE ELEM. INFO. ONTO TAPE NELEMI AND NELEMA (IF MTMOD>2)
+C     ----------------------------------------------------------
+
+ 200	CALL EASCOM(IEG,2) !FOR EAS METHOD SONGSAK MAR2006
+
+C	-----------------------------------------------
+C	STORE GID CABLE ELEMENT NUMBER FOR OPTIMIZATION SONGSAK NOV2006
+	IF(ITYPE.EQ.2.AND.ISTYP.EQ.4) THEN
+	DO ICABZ = 1,NCABZ
+	IA(LGOPZ+ICABZ-1) = IA(LGID+ICABZ-1) 
+	ENDDO
+      ENDIF
+C	-----------------------------------------------	
+      CALL CPU_TIME(TIME41)
+      
+!      IF(ISTYP.EQ.13.AND.ITASK.NE.5) THEN !SUPER ELEMENT
+!C     FOR ELLOOP OF SUPER ELEMENT BY BJ
+!      CALL SUPELLOOP (A(LMP),A(LGP),A(LOP),IA(LHG),IA(LMS),IA(LGS),
+!	1			 IA(LOS),IA(LHGN),IA(LEX),IA(LLM),A(LRE),
+!	2			 A(LDL),A(LDT),A(LES),A(LEC),A(LED),A(LEI),
+!     3			 A(LEE),A(LMV),IA(LXI),NMP,NGP,NEX,NWA,
+!     4	         IA(LRC),A(LRCT),MFQ,A(LSTL),IA(LRID),
+!     5			 A(LCPZ),A(LCPZ+NEQ*NCABZ),A(LCPZ+2*NEQ*NCABZ),
+!     6           A(LHEAT1),A(LHEAT4),IA(LSFC))      
+!      ELSE
+      CALL ELLOOP (A(LMP),A(LGP),A(LOP),IA(LHG),IA(LMS),IA(LGS),
+	1			 IA(LOS),IA(LHGN),IA(LEX),IA(LLM),A(LRE),
+	2			 A(LDL),A(LDT),A(LES),A(LEC),A(LED),A(LEI),
+     3			 A(LEE),A(LMV),IA(LXI),NMP,NGP,NEX,NWA,
+     4	         IA(LRC),A(LRCT),MFQ,A(LSTL),IA(LRID),
+     5			 A(LCPZ),A(LCPZ+NEQ*NCABZ),A(LCPZ+2*NEQ*NCABZ),
+     6           A(LHEAT1),A(LHEAT4),IA(LSFC))
+!      ENDIF
+      
+      CALL CPU_TIME(TIME42)
+      TIME45 = TIME45 + (TIME42-TIME41)
+      
+      
+ 500  IF (ITASK.GT.1) GOTO 900
+
+      CLOSE (NELEMA)
+      OPEN (NELEMA,FORM='UNFORMATTED',STATUS='SCRATCH')
+      REWIND (NELEMI)
+      REWIND (NELEMA)
+C	WRITE (NELEMI) (IA(ILNU),ILNU=LNU,LNU+LEST(IEG)-1)
+C	WRITE (NELEMA) ( A(ILNU),ILNU=LMP,LMP+LEST(IEG+NEG)-1)
+      WRITE (NELEMI) IA(LNU:LNU + LEST(IEG    )-1)
+      WRITE (NELEMA)  A(LMP:LMP + LEST(IEG+NEG)-1)
+      
+      !REWIND (NELEMA)
+      !READ (NELEMA) A(LMP:LMP + LEST(IEG+NEG)-1)
+      
+C	==============================================================
+	CALL ADWBAK(IEG,'BAK')  !BACK UP WORKING ARRAY FOR ITASK = 1
+C	==============================================================
+C
+ 900  CONTINUE
+
+C     TOTAL MASS OF ELEMENT GROUP
+C      DO IEG = 1,NEG
+C      CALL RELFILL('TWGH',GMASS,1,IEG,0)
+C      WRITE(*,*) IEG,GMASS,GMASS*9.806
+C      ENDDO
+      
+C     --------------------------------------------------------------
+	IF(ISPRI.EQ.0) THEN
+
+C	SPRING SUPPORT FORCE OUTPUT SONGSAK JUL2006
+	CALL SPGOUT(IA(LID),A(LSS),A(LDT),A(LDI),NEQ,A(LSS2),A(LSS3))
+	CALL SPLOUT(IA(LID),A(LSS),A(LDT),A(LDI),NEQ,A(LSS2),A(LSS3))
+
+C	REACTION 
+	IF(LAN_PRN.EQ.1) CALL LANFIXF4(A(LRCT))                 !ADJUST THE REACTION OF NODAL LANE
+	CALL RCTOUT(IA(LDS),A(LDC),IA(LRID),A(LRCT),NSN,NSF)
+
+C	CALL KAKOUT(IA(LRID),A(LRCT))
+
+	ENDIF
+C     --------------------------------------------------------------
+
+	CALL CPU_TIME(TIME2)
+CC	WRITE(*,'(X,A30,E12.4)') 
+C	1	'TIME FOR ELEMENT GROUP. . . .',TIME2-TIME1
+C      
+C	WRITE(*,'(X,A30,E12.4)') 
+CC	1	'TIME FOR ALL ELEMENT LOOP . .',TIME45
+
+C	ITASK
+C	ITASK=1 MATERIAL STIFFNESS (IFREF=0) AND CALCULATE FORCE FROM INITIAL STRESS
+C	ITASK=2 DURING EQUILIBRIUM ITERATION WORKING WITH STRESS AND FORM TANGENT STIFFNESS (IFREF=0)
+C	ITASK=3 WORK OUTOF STRESS AND GEOMETRIC STIFFNESS (IFEIG=0)
+C	ITASK=4 GEOMETRIC STIFFNESS ONLY (IFEIG=0)
+C	ITASK=5 MASS MATRIX (IFEIG=0) 
+C	ITASK=6 DAMP MATRIX (IFEIG=0) 
+
+      CALL CPU_TIME (TIM1)
+
+	SELECTCASE(ITASK)
+	CASE(1)
+      IF (IFREF.EQ.0) CALL ASSEMB(IA(LMA),NEQ,'STIF',KSC)
+	CASE(2)
+      IF (IFREF.EQ.0) CALL ASSEMB(IA(LMA),NEQ,'STIF',KSC)
+	CASE(3)
+      IF (IFEIG.EQ.0) CALL ASSEMB(IA(LMA),NEQ,'STIG',KSC)
+	CASE(4)
+      IF (IFEIG.EQ.0) CALL ASSEMB(IA(LMA),NEQ,'STIG',KSC)
+	CASE(5)
+	IF (IFEIG.EQ.0) CALL ADDMASS(A(LCM),IA(LMA),NEQ,'MASS') !ADD NODAL MASS
+      IF (IFEIG.EQ.0) CALL ASSEMB(IA(LMA),NEQ,'MASS',KSC)
+	CASE(6)
+	IF (IFEIG.EQ.0) CALL ADDMASS(A(LCC),IA(LMA),NEQ,'DAMP') !ADD NODAL DAMPER
+      IF (IFEIG.EQ.0) CALL ASSEMB(IA(LMA),NEQ,'DAMP',KSC)
+      ENDSELECT
+      
+      CALL CPU_TIME (TIM2)
+      TIM(13) = TIM(13) + TIM2-TIM1
+      
+C      REWIND(309)
+C      CALL MESTIF(LM,S,105,NEF,'REL')
+
+C     --------------------------------------------------------------
+C     WRITE STIFFNESS MATRIX ONTO TAPE, IF
+C     1. INITIAL TANGENTIAL SOLUTION IS PERFOMED (ITASK=1)
+C     2. STIFFNESS IS REFORMED (IFREF=0)
+C     3. GEOMENTRIC STIFFNESS (ITASK>3)
+C     4. DAMPING MATRIX IS WRITTEN (ITASK=6)-NguyenDV added 15Nov03 
+C     --------------------------------------------------------------
+
+      GOTO (910,990,920,920,990,990),ITASK
+
+C	NORMAL STIFFNESS
+ 910  GOTO 990
+
+C	GEOMETRIC STIFFNESS
+ 920  IF (IFEIG.NE.0)  GOTO 990
+	CALL MDSALL('STIG',-1.0D0) !MULTIPLY -1.0 TO GEOMETRIC STIFF
+	GOTO 990
+
+C
+ 990  CONTINUE
+ 
+ 
+	CALL DELTREL('TWGH')
+	
+	
+	RETURN
+      END
+C	====================================================================
+C	=====================================================================
+      SUBROUTINE ELLOOP (PROPM,PROPG,PROPO,IPINS,MTSET,IGSET,IOSET,IHSET,
+     1           NODEX,LM,RE,DISLI,DISP,S,COORD,EDIS,EDISI,ELOD,
+     2           AMV,IAX,MMP,MGP,MEX,MWA,LMRCT,REAC,
+     3		   MFQ,SETIF,IDRCT,CABFZ,CABFX,CABFF,TAMBT,TCHET,ISFAC)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+      CHARACTER*4 OPT_OFF
+C     ----------------------------------------------------------------
+C     SETS UP ELEMENT LOOP
+C	----------------------------------------------------------------
+C     CALLS ELCORD TO SET ELEMENT DISPLACEMENTS AND CO-ORDINATES
+C     CALLS MODULE TO CALCULATE EQ.LOADS AND STIFFNESS MATRIX(IFREF=0)
+C     CALLS ADDBAN TO ASSEMBLE NEW TANGENTIAL STIFFNESS (IFREF=0)
+C     CALLS ELPRIN TO PRINT STRESSES (IFPRI=0)
+C	----------------------------------------------------------------
+C     FOR INPUT AND OUTPUT VARIABLES SEE ROUTINE LOCATI
+C     ----------------------------------------------------------------
+      COMMON /LOCA/ LID,LDS,LEL,LDC,LXY,LCH,LNU,LMP,LGP,LMS,LGS,
+     1              LCO,LEX,LLM,LES,LEC,LED,LEI,LEE,LMA,LLF,LLV,
+     2              LRE,LDI,LDL,LDT,LDK,LER,LEV,LTT,LWV,LAR,LBR,
+     3              LVE,LDD,LRT,LBU,LBC,LVL,LAL,LEF,LDU,LPR,LLO,
+	4              LRV,LRT1,LRET,LRET1,LDM,LDPT,LVL1,LMV,LXI,LCM,LCC,
+	5			    LCN,LDIM,LFRE,LSFC,LLOF
+
+      COMMON /NUMB/ HED(20),MODEX,NRE,NSN,NEG,NBS,NLS,NLA,
+     +              NSC,NSF,IDOF(9),LCS,ISOLOP,LSYMM,ICONTROLSPEC
+      COMMON /ELEM/ NAME(2),ITYPE,ISTYP,NLOPT,MTMOD,NSINC,ITOLEY,
+     1              NELE,NMPS,NGPS,NMP,NGP,NNM,NEX,NCO,NNF,NWG,NEFC,
+     2              NPT,NWA,NWS,KEG,MEL,NNO,NEF,NELTOT,NMV,MTYP,ISECT
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+      COMMON /SOLU/ NEQ,NEQ1,NBLOCK,MK,BM,NWK,NWM,ISTOR,NFAC,
+     +              NRED,KPOSD,DETK,DET1,DAVR,STOL
+      COMMON /ITER/ RHO,RHOP,RHOPREV,RTOL,ETOL,DLMAX,ALP,
+	1              NSTEP,NPRIN,NDRAW,
+	2			  KONEQ,NIREF,ITOPT,ICONV,NOLIN,KSTEP,
+     3              LIMEQ(2),ITEMAX,NUMREF,NUMITE,ITETOT,LIMET
+      COMMON /DYNA/ CDEN,IMASS
+      COMMON /FTIM/ TIM(20),IDATE,ITIME
+
+      COMMON /FLAG/ IFPRI,ISPRI,IFPLO,IFREF,IFEIG,ITASK,IFFLAG
+
+	COMMON /SEEP/  NTSTEP,KTSTEP,CTIME,DTINC,KFRES
+
+	COMMON /GAUS/  GLOC(10,10),GWT(10,10),NGR,NGS,NGT
+      COMMON A(9000000),IA(9000000)
+C
+	COMMON /GiDEle/ LGID 
+
+C	COMMON BLOCK FOR EAS SONGSAK FEB2006
+	COMMON /MMENH/ MM,MM1,MM2,NDIMC
+
+
+C	LOADCASE
+	COMMON /STCAS/ ILC
+
+C	==================================================================
+C	CABLE PRETENSION OPTIMIZATION
+	COMMON /CB556/ LCPZ,NCABZ,KBOPZ,NCOBZ
+C	==================================================================
+C	-------------------------------------------------------------
+	COMMON /CB557I/ MCSUM,MCFOC,MCDEF,MCMOM,LS557,LF557,LD557,LM557,
+	1			    LR557,NM556
+	COMMON /CB557R/ TPOPZ(10000)
+C	-------------------------------------------------------------
+C	CONSOLIDATION SACHARUCK DEC2006
+	COMMON /CONSO/ NCONSO
+
+C	COMMON BLOCK FOR HEAT SONGSAK MAR2007
+	COMMON /SHEAT/ NHAEF,LHEAT1,LHEAT2,LHEAT3,LHEAT4
+C	==================================================================
+C	COMMON BLOCK FOR TEND SONGSAK APR2009 
+	COMMON /TENDON/ NTEND,LTDN
+C	==================================================================
+C     FOR POINTLOAD CASE CONTROL DIAPHRAGM CONSTRATINS BY BJ
+      COMMON /JLCN/ ILCNM(1000),IL2 
+      COMMON /IJEG/ IEG,JEG,JSTYP
+
+C	MOVING LOAD PRINTING FLAG SONGSAK JUL2007
+	COMMON /LANPRIN/  LAN_PRN,ILPL,MLANE,NPL,LAN_OPT
+      
+C     MOORING LINE BY BJ
+      COMMON /MOOR/ NMOOR,MOORTASK,MOORNODE(10000)  
+      
+C     SAVE ELEMENT NUMBER      
+      COMMON /NELEM/ IEL      
+      
+      COMMON /SOILDYNA/ NSOIL
+      
+      COMMON /HYDRO_CONTROL/ NHYDRO_CONTROL,NHYDO_LOOP
+
+CB    THE NUMBER OF ELEMENT 
+            
+      !COMMON / WAVEREACFIXPARAMETER /  WAVEREACFIX(9999,7,2)
+      
+      COMMON /NEWWA/WA2(6,8) !---------NEW WORKING ARRAY BY BJ
+
+C	==================================================================
+C     FOR LINK CONSTRAINTS BY BJ
+      COMMON /FLOOR/ IFLOOR,NFLOOR,NSN0,NSNL
+      COMMON /TALTA/ TAS
+C	==================================================================
+
+      DIMENSION PROPM(MMP,1),PROPG(MGP,1),MTSET(1),IGSET(1),NODEX(MEX,1)
+	DIMENSION PROPO(6,1),IOSET(1),PROPOF(6)
+	DIMENSION IPINS(14,1),IHSET(1),IPINSF(14)
+      DIMENSION LM(NEF,1),WA(MWA,1),RE(1),DISLI(1),DISP(1),S(1)
+      DIMENSION COORD(1),EDIS(1),EDISI(1),ELOD(1)
+	DIMENSION AMV(3,NMV),IAX(NELE)
+	DIMENSION FIN(NEF)
+      DIMENSION WAVFOC(7,2)
+      
+      DIMENSION FIXLRWAVEFRAME(NEF),WFINTERNAL(NEF)
+      DIMENSION WAVEFORCELOCAL(14)
+      DIMENSION VR(3),VS(3),VT(3)
+      
+C	EAS VARIABLES SONGSAK MAR2006
+	DIMENSION ASEL(MM,MM1),APHA(MM),
+	1		  AINF(MM),ADIS(MM1+MM2),
+	2		  ASEQ(MM,MM2),AINP(MM),
+	3		  APHI(MM)
+	DIMENSION SEDI(MM,MM),SEL(MM,MM1),SEQ(MM,MM2)
+	DIMENSION ALPHA(MM),ALPHI(MM)
+
+	DIMENSION HINFC(MM),HINFP(MM)
+C	============================
+
+      DIMENSION LMRCT(NEF,NELE),REAC(MFQ),SETIF(NEQ,LCS),
+	1		  IDRCT(NSF,NSN)
+	DIMENSION FIXEO(NEF),FIXLO(NEF),FIXEN(NEF),FIXLR(NEF)	
+      DIMENSION FIXEO_OFF(NEF),FIXLO_OFF(NEF),FIXEN_OFF(NEF),FIXLR_OFF(NEF)
+
+C	FOR CABLE PRETENSION OPTIMIZATION SONGSAK NOV2006     
+	DIMENSION CABFZ(NEQ,NCABZ),CABFX(NEQ,NCABZ),CABFF(NCABZ),CABVEC(6)
+
+C	WORKING ARRAY IN THE NEW STORAGE BLOCK SONGSAK JAN2007
+      ALLOCATABLE WOREL(:),WOREL2(:)
+C	DIMENSION WOREL(MWA)
+C     DIMENSION WOREL2(MWA) !----- NEW WORKING ARRAY BY BJ
+      
+	DIMENSION TCHET(NHAEF*NELE,LCS),TAMBT(2,LCS)  !HEAT SONGSAK MAR2007
+	DIMENSION PMATRL(NMP,NMPS)                    !STORE WHOLE MATERIAL PROPERTIES SONGSAK JUN2007
+
+C     SHELL WITH NO ROTATION
+C     NEFC = NUMBER OF ELEMENT FACE = NEFC  (SEE ELEMIN)
+      DIMENSION ISFAC(2*NEFC,1)   !STORE SUPPORT FLAG FOR EACH ELEMENT FACE (SEE SHELL 3 NODE ONATE)
+      
+      DIMENSION FM(6,2),NOUTNODE(8)
+      
+      DIMENSION WAVEFIXEDFORCEMEM(7,2)
+       
+
+C	==============================================================
+C     UPDATE MAX NEF HERE FOR STORE LM IN MCSPARS !SONGSAK OCT2019 TWEAK SPEED
+      CALL MINTFIL('BLOK',NEFM  ,1,7 ,0)  !MAX ELEMENT NDOF (MAX OF OVERALL GROUP)
+      IF(NEF.GT.NEFM) NEFM = NEF
+      CALL MINTFIL('BLOK',NEFM  ,1,7 ,1)  !MAX ELEMENT NDOF (MAX OF OVERALL GROUP)
+C	==============================================================
+      TIME45 = 0.0
+      TIME46 = 0.0
+      TIME47 = 0.0
+      TIME48 = 0.0
+
+C	-----------------------
+C	SONGSAK ADD THID CONDITION SINCE THERE IS NO ELEMENT DAMPING INSIDE
+C	-----------------------
+	IF(ITASK.EQ.6) RETURN
+      
+C     ALLOCATE SPACE FOR ELEMENT WORKING ARRAY      
+      ALLOCATE(WOREL(MWA),WOREL2(MWA))
+
+C	------------------------------------------------------------------
+C     ELEMENT LOOP,INITIALISATION
+C     ---------------------------
+	PMATRL(1:NMP,1:NMPS) = PROPM(1:NMP,1:NMPS)
+
+	CALL CPU_TIME (TIM3)
+      
+	NEQF = 1
+      NEQL = NEQ
+      NPRE = 0
+      TAS = 0.0	
+	IF(ITYPE.EQ.2.AND.ISTYP.EQ.4.AND.KBOPZ.EQ.1) THEN  !CABLE OPTIMIZATION
+	CABFX = 0.0D0
+	CABFZ = 0.0D0
+      ENDIF
+
+      NMOOR = 0 !TESTING MOORING LINE BY BJ
+      IF(ITYPE.EQ.2.AND.ISTYP.EQ.7) THEN
+          NMOORING = 2
+      ELSE
+          NMOORING = 1
+      ENDIF          
+      
+!      DO INMOORING = 1,NMOORING !LOOP FOR MOORING ELEMENT UNTIL LINE 901 BY BJ
+!          
+!         IF(INMOORING.EQ.1) THEN
+!             MOORTASK = 1
+!         ELSEIF(INMOORING.EQ.2) THEN
+!             MOORTASK = 2
+!         ENDIF  
+      
+	DO 900  IEL = 1,NELE
+          
+      !IF (IEL.EQ.44)THEN
+      !AAA = 1
+      !ENDIF
+          
+      CALL CLEARA (S   ,NWS) ! CLEAR STIFFNESS MATRIX 
+      CALL CLEARA (ELOD,NEF)
+      CALL CLEARA (FIN ,NEF)
+
+      MSET   = MTSET(IEL)
+      ISET   = IGSET(IEL)
+      
+      PROPOF(1:6 ) = 0.0D0
+      IPINSF(1:14) = 0
+      IF(ITYPE.EQ.5) THEN
+	    IOET   = IOSET(IEL)
+	    IHET   = IHSET(IEL)
+	    IF(IOET.NE.0) PROPOF(1:6 ) = PROPO(1:6 ,IOET)
+	    IF(IHET.NE.0) IPINSF(1:14) = IPINS(1:14,IHET)
+      ENDIF
+
+      MEL    = IEL
+
+C	FIXEND FORCE IN GLOBAL SYSTEM FOR REACTION (FRAME ELEMENT)
+C	SONGSAK JUN2006
+      CALL CLEARA (FIXLR,NEF)
+      CALL CLEARA (FIXLR_OFF,NEF)
+
+C     --------------------------------------------------------
+C     TOTAL DISPLACEMENTS (EDIS) AND INCREMENTAL DISP.(EDISI)
+C     NODAL CO-ORDINATES FOR TOTAL OR UPDATED LAGRANGIAN FORM.
+C     --------------------------------------------------------
+      CALL ELCORD (A(LCO),LM,A(LDI),DISP,COORD,EDIS,EDISI,NEF)
+
+	 
+C	ADDED THE PRESCRIBE VALUE OF NODAL DISPLACEMENT TO THE ELEMENT DOF
+C	SONGSAK
+	IF(ITASK.NE.1) THEN
+	CALL SETELM (EDIS,LMRCT(1,IEL),IDRCT,NEF,LM(1,IEL),IA(LID))
+	ENDIF
+
+
+C     -----------------------------------------
+C     COMPUTATION OF EQUILIBRIUM LOADS ELOD(NEF)
+C     AND STIFFNESS MATRIX S(NWS) (IFREF=0)
+C     -----------------------------------------
+	NV = IAX(IEL)  !FOR BRIDGE LOAD ANALYSIS
+
+C	====================================================
+C	CALLING EAS VARIABLE SONGSAK MAR2006
+C	MODIFIED JAN2007
+C	====================================================
+	CALL EASTYP(ITYPE,ISTYP,IESPT)
+	IF(IESPT.GT.0) THEN 
+	CALL ADREAS(KEG,IEL,APHI,ASEL,APHA,AINF,ADIS,ASEQ,AINP,
+	1			'RED')
+	CALL EASCALL(ASEL,ASEQ,AINF,AINP,APHA,APHI,ADIS,EDIS,
+	1			 ALPHA,ALPHI,IESPT)
+	ENDIF
+
+      CALL CPU_TIME(TIME41)      
+C	===================================================================
+C	CALLING WORKING ARRAY FROM NEW STORAGE 
+	CALL ADREWT(KEG,IEL,WOREL,'RED')
+C	===================================================================
+C	CALLING NEW WORKING ARRAY FROM NEW STORAGE ----- BY BJ ... FOR SOLID
+	IF(ITYPE.EQ.10) CALL ADREWTN(KEG,IEL,WOREL2,'RED')
+C	===================================================================     
+      CALL CPU_TIME(TIME42)
+      TIME47 = TIME47 + (TIME42-TIME41)
+      
+	CALL CLEARA(FIXEN,NEF)
+	CALL CLEARA(FIXEO,NEF)
+      CALL CLEARA(FIXEN_OFF,NEF)
+      CALL CLEARA(FIXEO_OFF,NEF)
+
+	SELECTCASE(LAN_PRN)
+      CASE(0)
+      CALL OFFSHORE_LOAD_CASE_NUMBER (ILC,ILOFF,OPT_OFF,"CALL")
+      IF (OPT_OFF.EQ."CALC")THEN
+      CALL FIXSTOR_OFFSHORE(ILOFF,KEG,IEL,FIXEN_OFF,NEF,1.0D0,'RED','VARY')	!FORCE IN GLOBAL SYSTEM NOT LOCAL SUPPORT (IN ELEMENT LOCAL FOR FRAME ELEMENT) VARY
+      CALL FIXSTOR_OFFSHORE(ILOFF,KEG,IEL,FIXEO_OFF,NEF,1.0D0,'RED','CONT')	!FORCE IN GLOBAL SYSTEM NOT LOCAL SUPPORT (IN ELEMENT LOCAL FOR FRAME ELEMENT) CONSTANT
+      ELSEIF (OPT_OFF.NE."CALC")THEN
+      FIXEN_OFF = 0.
+      FIXEO_OFF = 0.
+      ENDIF
+      CALL FIXSTOR(ILC,KEG,IEL,FIXEN,NEF,1.0D0,'RED','VARY')	!FORCE IN GLOBAL SYSTEM NOT LOCAL SUPPORT (IN ELEMENT LOCAL FOR FRAME ELEMENT) VARY
+	CALL FIXSTOR(ILC,KEG,IEL,FIXEO,NEF,1.0D0,'RED','CONT')	!FORCE IN GLOBAL SYSTEM NOT LOCAL SUPPORT (IN ELEMENT LOCAL FOR FRAME ELEMENT) CONSTANT
+      
+      
+	CASE(1)
+	CALL LANFIXF3(FIXEN,IEL,KEG)							!MOVING LOAD PRINTING FLAG SONGSAK JUL2007
+      ENDSELECT
+      
+      
+	IF(ITYPE.EQ.17) THEN !TENDON CALL DATA
+	CALL TDINIT(IA(LTDN),WOREL,IEL,ILC,KSTEP,MSET,ISET,'CALL') 
+      ENDIF
+      
+      IF (ITYPE.EQ.2) THEN
+      CALL CALLNUMNODE_F (MEL,NOUTNODE(1),NOUTNODE(2))
+        DO I = 1,2
+         INDEX   = NOUTNODE(I)
+         INDEX   = (INDEX-1)*6
+            DO J = 1,6
+                FM(J,I) = DISLI(INDEX+J)
+            ENDDO
+         ENDDO
+      ENDIF
+      
+      CALL CPU_TIME(TIME41)
+
+	SELECT CASE(ITYPE)
+	CASE(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,20,21,17)
+	CALL MODULE (PROPM(1,MSET),PROPG(1,ISET),PROPOF,
+	1              NODEX(1,IEL),WOREL,WOREL2,AMV(1,NV),S,
+	2	            COORD,EDIS,EDISI,ELOD,ALPHA,SEL,SEDI,FIN,
+	3	            IPINSF,ISET,MSET,HINFC,FIXEN,FIXLR,
+	4	            FIXEO,FIXLO,CABFF,SEQ,HINFP,TCHET(1,ILC),
+	5	            TAMBT(1,ILC),PMATRL,ISFAC(1,IEL),FM,
+     6                FIXEN_OFF,FIXLR_OFF,FIXEO_OFF,FIXLO_OFF)
+      END SELECT
+      
+      CALL CPU_TIME(TIME42)
+      TIME45 = TIME45 + (TIME42-TIME41)
+      
+      !WRITE (300,'(E12.5)') S(1:105)
+      
+C     FOR LINK CONSTRAINTS BY BJ
+10      IF(IFLOOR.EQ.3) THEN           
+        DO I = 1,NWK
+          TAS = TAS + ABS(S(I))
+        ENDDO	   
+        ENDIF
+C     ----------------------------      
+        
+      IF (NSOIL.EQ.1.AND.ISOLOP.EQ.5.AND.ITASK.EQ.1) CALL DYNAMIC_SOIL (S,IEL)
+      
+	IF(ITYPE.EQ.17) THEN !TENDON STORE DATA
+	CALL TDINIT(IA(LTDN),WOREL,IEL,ILC,KSTEP,MSET,ISET,'RECD') 
+      ENDIF
+      
+
+C	===================================================================
+C	HERE SUBTRACT INITIAL STRESS FROM THERMAL LOAD SONGSAK MAR2007
+	CALL INISUBT(ITYPE,WOREL,KEG,IEL,NPT,NWG,ILC,RHO)
+C	===================================================================
+C	STORE WORKING ARRAY TO NEW STORAGE 
+	CALL ADREWT(KEG,IEL,WOREL,'WRT')
+C	===================================================================
+C	STORE NEW WORKING ARRAY TO NEW STORAGE BY BJ ... FOR SOLID
+	IF(ITYPE.EQ.10) CALL ADREWTN(KEG,IEL,WOREL2,'WRT')
+C	===================================================================      
+
+C	====================================================
+C	UPDATE EAS VARIABLE SONGSAK MAR2006
+C	MODIFIED JAN2007
+C	====================================================
+	IF(IESPT.GT.0.AND.ITASK.EQ.1) THEN 
+	CALL EASSTOR(SEDI,SEL,SEQ,HINFC,HINFP,ASEL,ASEQ,AINF,AINP,
+	1			 ADIS,EDIS)
+	CALL ADREAS(KEG,IEL,APHI,ASEL,APHA,AINF,ADIS,ASEQ,AINP,
+	1			'WRT')
+	ENDIF 
+
+C	============================================================
+C	TRANSFER THE INTERNAL FORCE AND STIFFNESS TO LOCAL SUPPORT
+C	============================================================
+	IF (NLS.GT.0) CALL LOCRES (IA(LID),IA(LDS),A(LDC),LM(1,IEL),
+     1                           S,EDIS,EDISI,ELOD,NSF,NNF,2)
+
+
+C	============================================================
+C	ASSEMBLE THE RESTRAINED STIFFNESS FOR SETTLEMENT LOAD CALC.
+C	============================================================
+	IF(IFREF.EQ.0) THEN
+	IF(ITASK.LE.4) THEN
+	CALL SETLODR(SETIF,IA(LID),IDRCT,LM(1,IEL),LMRCT(1,IEL),S,NEF)
+	ENDIF
+	ENDIF
+
+C	============================================================
+C	ASSEMBLE THE REACTION FORCE (IN THE SKEW SUPPORT FOR NLS NE 0)
+C	============================================================
+      
+	SELECTCASE (ITYPE)
+	
+      CASE(5)  !FIXEND IN THe ELEMENT LOCAL COORDINATE
+          
+          CHANA = 3
+
+	IF (NLS.GT.0) CALL LOCRES (IA(LID),IA(LDS),A(LDC),LM(1,IEL),
+     1                           S,EDIS,EDISI,FIXLR,NSF,NNF,5)       !VARY LOAD
+	IF (NLS.GT.0) CALL LOCRES (IA(LID),IA(LDS),A(LDC),LM(1,IEL),   
+     1                           S,EDIS,EDISI,FIXLO,NSF,NNF,5)       !CONT LOAD
+      
+       !=======================================================================
+       ! MODIFY BY CHANA
+       ! WAVE FORCE REACTION
+       ! 20 MARCH 2016
+       !=======================================================================
+       FIXLRWAVEFRAME = 0.0D0
+       WFINTERNAL = 0.0D0
+       
+      CALL TRAPIZOIDAL_REACTION_LCS( ILC, LCSX , NWAVEOPT , 'RED' )
+       
+      IF (NWAVEOPT.EQ.1) THEN
+      ! FOR OFFSHORE LOAD CASE MODIFY BY TOEY 4/2018
+      CALL OFFSHORE_LOAD_CASE_NUMBER (ILC,ILOFF,OPT_OFF,"CALL")
+      
+          IF (OPT_OFF.EQ."CALC")THEN
+          CALL WAVEFORCE_FIXED_REACTION(IEL,ILOFF,WAVEFIXEDFORCEMEM)
+          ELSEIF (OPT_OFF.NE."CALC")THEN
+          WAVEFIXEDFORCEMEM = 0.
+          ENDIF
+
+      ! ONLY FOR WAVE FORCE REACTION
+      FIXLRWAVEFRAME(1)	=     WAVEFIXEDFORCEMEM(1,1)          !WAVEREACFIX(IEL,1,1)   
+      FIXLRWAVEFRAME(2)	=     WAVEFIXEDFORCEMEM(2,1)          !WAVEREACFIX(IEL,2,1)   
+      FIXLRWAVEFRAME(3)	=     WAVEFIXEDFORCEMEM(3,1)          !WAVEREACFIX(IEL,3,1)   
+      FIXLRWAVEFRAME(4)	=     WAVEFIXEDFORCEMEM(4,1)          !WAVEREACFIX(IEL,4,1)   
+      FIXLRWAVEFRAME(5)	=     WAVEFIXEDFORCEMEM(5,1)          !WAVEREACFIX(IEL,5,1)   
+      FIXLRWAVEFRAME(6)	=     WAVEFIXEDFORCEMEM(6,1)          !WAVEREACFIX(IEL,6,1)   
+      FIXLRWAVEFRAME(7)	=     WAVEFIXEDFORCEMEM(7,1)          !WAVEREACFIX(IEL,7,1)   
+      FIXLRWAVEFRAME(8)	=     WAVEFIXEDFORCEMEM(1,2)          !WAVEREACFIX(IEL,1,2)   
+      FIXLRWAVEFRAME(9)	=     WAVEFIXEDFORCEMEM(2,2)          !WAVEREACFIX(IEL,2,2)   
+      FIXLRWAVEFRAME(10)	=     WAVEFIXEDFORCEMEM(3,2)          !WAVEREACFIX(IEL,3,2)   
+      FIXLRWAVEFRAME(11)	=     WAVEFIXEDFORCEMEM(4,2)          !WAVEREACFIX(IEL,4,2)   
+      FIXLRWAVEFRAME(12)	=     WAVEFIXEDFORCEMEM(5,2)          !WAVEREACFIX(IEL,5,2)   
+      FIXLRWAVEFRAME(13)	=     WAVEFIXEDFORCEMEM(6,2)          !WAVEREACFIX(IEL,6,2)   
+      FIXLRWAVEFRAME(14)	=     WAVEFIXEDFORCEMEM(7,2)          !WAVEREACFIX(IEL,7,2) 
+      
+      CALL TRAPIZOIDAL_TRANSFORMATION(VR,VS,VT,'RED',WAVEFORCELOCAL,ILC)
+
+      WFINTERNAL(1:14)	=  WAVEFORCELOCAL(1:14) 
+
+      ENDIF
+      
+      !=======================================================================
+      ! REACTION FORCE CALCULATE (FIXLR_OFF FOR OFFSHORE LOAD CASE BY TOEY 4/2018)
+	DO IEF=1,NEF
+	FIN(IEF) = FIN(IEF) - RHO*FIXEN(IEF) - FIXEO(IEF) - RHO*FIXEN_OFF(IEF)! - RHO*WFINTERNAL(IEF) 	!ELEMENT LOCAL
+	IRC = LMRCT(IEF,IEL)
+	IF (IRC.NE.0) REAC(IRC) = REAC(IRC) + ELOD(IEF) 
+	1						- RHO*FIXLR(IEF) - FIXLO(IEF) - RHO*FIXLR_OFF(IEF) !- RHO*FIXLRWAVEFRAME(IEF	!SKEW SUPPORT
+      ENDDO
+      
+	
+	CASE(2,6,9,8,10,11,15,16)  !FIXEND IN GLOBAL SYSTEM
+
+	FIXLR(1:NEF) = FIXEN(1:NEF)
+	IF (NLS.GT.0) CALL LOCRES (IA(LID),IA(LDS),A(LDC),LM(1,IEL),
+     1                           S,EDIS,EDISI,FIXLR,NSF,NNF,5)
+	FIXLO(1:NEF) = FIXEO(1:NEF)
+	IF (NLS.GT.0) CALL LOCRES (IA(LID),IA(LDS),A(LDC),LM(1,IEL),
+     1                           S,EDIS,EDISI,FIXLO,NSF,NNF,5)
+
+	DO IEF=1,NEF
+	FIN(IEF) = FIN(IEF) - RHO*FIXEN(IEF) - FIXEO(IEF)                   !GLOBAL SYSTEM
+	IRC = LMRCT(IEF,IEL)
+	IF (IRC.NE.0) REAC(IRC) =  REAC(IRC) + ELOD(IEF) 
+	1						  -RHO*FIXLR(IEF) - FIXLO(IEF) - RHO*FIXLR_OFF(IEF)	!SKEW SUPPORT
+	ENDDO
+
+	CASE DEFAULT
+
+	DO IEF=1,NEF
+	IRC = LMRCT(IEF,IEL)
+	IF (IRC.NE.0) THEN
+	REAC(IRC) = REAC(IRC) + ELOD(IEF)
+	ENDIF
+      ENDDO
+      
+	
+      
+	ENDSELECT 
+
+C	============================================================
+C	CABLE PRETENSION OPTIMIZATION
+C	============================================================
+	IF(ITYPE.EQ.2.AND.ISTYP.EQ.4.AND.KBOPZ.EQ.1) THEN
+	CABDX = COORD(4) - COORD(1)
+	CABDY = COORD(5) - COORD(2)
+	CABDZ = COORD(6) - COORD(3)
+	CABLEN = SQRT(CABDX*CABDX + CABDY*CABDY + CABDZ*CABDZ)
+	CABVEC(1) = CABDX/CABLEN
+	CABVEC(2) = CABDY/CABLEN
+	CABVEC(3) = CABDZ/CABLEN
+	CABVEC(4) =-CABDX/CABLEN
+	CABVEC(5) =-CABDY/CABLEN
+	CABVEC(6) =-CABDZ/CABLEN
+
+C	ALL FORCE COMPONENT
+	DO IEF = 1,NEF
+	IEQ = LM(IEF,IEL)
+	IF (IEQ.NE.0) CABFZ(IEQ,IEL) = CABVEC(IEF)
+	ENDDO
+
+C	ONLY X-COMPONENT
+	IEQ = LM(1,IEL)
+	IF (IEQ.NE.0) CABFX(IEQ,IEL) = CABVEC(1)
+	IEQ = LM(4,IEL)
+	IF (IEQ.NE.0) CABFX(IEQ,IEL) = CABVEC(4)
+	ENDIF
+
+	IF(KSTEP.EQ.1.AND.KBOPZ.EQ.1) THEN
+C	DEFINED MEMBER FORCE CONSTRAINT ELEMENT GROUP
+	CALL MOMGRP(IA(LGID),TPOPZ(LM557),MEL,KEG,NELE)
+	ENDIF
+
+	IF(KSTEP.GT.1.AND.KBOPZ.EQ.1) THEN
+C	MEMBER FORCE CONSTRAINT
+	CALL MOMCON1(IA(LGID),FIN,NEF,NELE,TPOPZ(LM557),
+	1	        TPOPZ(LM557+4*MCMOM),MEL,KEG)
+	ENDIF
+
+C	============================================================
+	IF(ITYPE.EQ.5.AND.ISPRI.EQ.0) THEN		
+	IF(LAN_PRN.EQ.0.AND.OPT_OFF.EQ."SKIP") CALL SMHFAC(RHO,FIN,IEL)
+	IF(LAN_PRN.EQ.1.AND.OPT_OFF.EQ."SKIP") CALL LNHFAC(FIN,KEG,RHO,IEL,NELE,LCS)
+      IF(LAN_PRN.EQ.0.AND.OPT_OFF.EQ."CALC") CALL SMHFAC_OFFSHORE(RHO,FIN,IEL,ILOFF)
+	IF(LAN_PRN.EQ.1.AND.OPT_OFF.EQ."CALC") CALL LNHFAC_OFFSHORE(FIN,KEG,RHO,IEL,NELE,LCS)
+	ENDIF
+C	============================================================
+      IF (ITASK-IFPR(5).GT.0 .OR. IFPRI.NE.0) GOTO 300
+      IF (ITASK.LE.3 .AND. IFREF.NE.0) GOTO 300
+CC      CALL MATOUT (S,NEF,NEF,5,22,'E',15,10,3,' STIFFNESS')
+
+
+C
+ 300  CALL CPU_TIME(TIME43)
+      TIME48 = TIME48 + (TIME43-TIME42)
+
+      IF (ITASK.LE.2) GOTO 310
+      IF (IFEIG.EQ.0) GOTO 510
+
+      GOTO 900
+
+ 310  CONTINUE
+C     -----------------------------------------------------
+C     ASSEMBLE THE RESISTING FORCE
+C     -----------------------------------------------------
+      DO 400  IEF=1,NEF
+      IEQ = LM(IEF,IEL)
+ 400  IF (IEQ.NE.0) RE(IEQ)   = RE(IEQ) - ELOD(IEF)
+
+C     -----------------------------------------------------
+C     ASSEMBLE TANGENTIAL STIFFNESS (IFREF=0)
+C     ASSEMBLE GEOMETRIC STIFFNESS MATRIX (ITASK=4,IFEIG=0)
+C     -----------------------------------------------------
+ 500  IF (IFREF) 900,510,900
+C     ---------------------------
+C     ASSEMBLE LUMPED MASS MATRIX
+C     ---------------------------
+ 510  CALL CPU_TIME (TIM1)
+
+C     ------------------------------------------------------------
+C     ASSEMBLE TANGENTIAL STIFFNESS, GEOMETRIC STIFFNESS
+C     OR CONSISTENT MASS MATRIX (NBLOCK=1),OR DAMPING MATRIX
+C	Damping Matrix is assembled here(ITASK=6),(14Nov03,NguyenDV)
+C     ------------------------------------------------------------
+      CALL CPU_TIME(TIME43)
+ 520  CALL ADDBAN (LM(1,IEL),IA(LMA),S,NEQF,NEQL,NPRE,NEF,NWS)
+      CALL CPU_TIME(TIME44)
+      TIME46 = TIME46 + (TIME44-TIME43)	
+
+c	K = 0
+c	DO I =1,NEF
+c	DO J =I,NEF
+c	K = K + 1
+c	IF(I.EQ.11.and.j.eq.11) WRITE(*,*) MEL,K,S(K)
+c	IF(I.EQ.11.and.j.eq.14) WRITE(*,*) MEL,K,S(K)
+c	IF(I.EQ.14.and.j.eq.14) WRITE(*,*) MEL,K,S(K)
+c
+c	IF(I.EQ.4.and.j.eq.4) WRITE(*,*) MEL,K,S(K)
+c	IF(I.EQ.4.and.j.eq.7) WRITE(*,*) MEL,K,S(K)
+c	IF(I.EQ.7.and.j.eq.7) WRITE(*,*) MEL,K,S(K)
+c	IF(I.EQ.J) WRITE(*,*) MEL,K,S(K)
+c	ENDDO
+c	ENDDO
+C	WRITE(*,*) S(1:(NEF*NEF+NEF)/2)
+
+ 590  CALL CPU_TIME (TIM2)
+      TIM(13) = TIM(13) + TIM2-TIM1
+
+ 900  CONTINUE
+C 901  ENDDO !FOR MOORING LINE BY BJ
+C	STOP
+      
+      DEALLOCATE(WOREL,WOREL2)
+C     ----------------------------------------------
+C     STRESS OUTPUT (ISPRI=0)
+C     ----------------------------------------------
+      CALL CPU_TIME (TIM1)
+      TIM(11) = TIM(11) + (TIM1-TIM3)
+
+CC	WRITE(*,'(X,A30,E12.4)') 
+C	1	'TIME FOR ELEMENT LOOP . . . .',TIME45
+C	WRITE(*,'(X,A30,E12.4)') 
+C	1	'TIME FOR WRITING STIFFNESS. .',TIME46
+C	WRITE(*,'(X,A30,E12.4)') 
+C	1	'TIME FOR ELEM MANIPULATION. B',TIME47
+C	WRITE(*,'(X,A30,E12.4)') 
+CC	1	'TIME FOR ELEM MANIPULATION. E',TIME48
+      
+      
+      IF (ISPRI.NE.0) RETURN
+      
+      !IF (IEG.EQ.2.AND.ITASK.EQ.3)THEN
+      !REWIND (810)
+      !READ (810) CCT
+      !ENDIF
+C	PRINT OUT ELEMENT STRESS
+	CALL ELPOUT (OPT_OFF)
+      !IF (IEG.EQ.2.AND.ITASK.EQ.3)THEN
+      !REWIND (810)
+      !READ (810) CCT
+      !ENDIF
+
+
+      CALL CPU_TIME (TIM2)
+      TIM(17) = TIM(17) + (TIM2-TIM1)
+
+      
+
+      RETURN
+      END
+C
+C=====================================================================
+	SUBROUTINE ADDMASS(RMASS,MAXA,NEQ,OPTN)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+      CHARACTER*4 OPTN
+C	=============================================================
+C	PRODUCED BY SONGSAK JUN2007
+C	ADDED NODAL MASS
+	COMMON /NMAS/ NCM,NCC  !THIS COMMON IS ORIGINALLY USED BY BENNY
+C	=============================================================
+	DIMENSION RMASS(1),MAXA(1)
+      DIMENSION RMA(NEQ)
+      COMMON /DYNAMASS/ NDYMNASS
+      
+C     FORCE TO MASS 
+      IF(NCM.LE.0.AND.OPTN.EQ.'MASS') THEN
+      CALL FORCEMASSVECTOR (RMA,'READD')
+      DO IEQ = 1,NEQ
+      VALV = ABS(RMA(IEQ))
+      CALL MESTIF(IEQ,VALV,1,1,'WRT')
+      ENDDO
+      ENDIF
+      
+      IF(NCM.LE.0.AND.OPTN.EQ.'MASS') RETURN
+	IF(NCC.LE.0.AND.OPTN.EQ.'DAMP') RETURN
+      CALL FORCEMASSVECTOR (RMA,'READD')
+      
+      IF (NDYMNASS.EQ.1)  CALL DYNAMICMASS (RMASS)
+C     NODAL MASS + FORCE TO MASS 
+	DO IEQ = 1,NEQ
+	VALV =  RMASS(IEQ)+RMA(IEQ)
+	K    =  MAXA(IEQ)
+	CALL MESTIF(IEQ,VALV,1,1,'WRT')
+	ENDDO
+	
+
+	RETURN
+	END
+C	=====================================================================
+C	======================================================SONGSAK AUG2007
+C	=====================================================================
+      SUBROUTINE RHSFOR (RFAC,R,EFLO,PRLO,RT,NEQ,ISW)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	PROGRAMED BY SUNIL 01/05/13
+C     ----------------------------------------------------------------
+C     FORM RHS FORCE VECTOR
+C	----------------------------------------------------------------
+C     RFAC(NSTEP)	  = PRESCRIBED INCR. LOAD FACTORS / DISP. INCREMENTS
+C                     (RFAC(KSTEP)=0 INDICATES AUTOMATIC SELECTION)
+C     R(NEQ)		  = REFERENCE LOAD VECTOR
+C	RT(NEQ)		  = LOAD ON THE PREVIOUS TIME STEP
+C     PRLO(7,NSTEP) = PROPORTIONAL LOAD TABLE (A1 A2 A3....A7 for parametric load curve)
+C     EFLO(NEQ)     = EFFECTIVE LOAD VECTOR
+C	ISW			  = SWITCH
+C					1-RHS FORCE FOR LINEAR STATIC ANALYSIS
+C					2-CURRENT RHS FORCE FOR LINEAR DYNAMIC ANALYSIS
+C     ----------------------------------------------------------------
+	COMMON /NUMB/ HED(20),MODEX,NRE,NSN,NEG,NBS,NLS,NLA,
+     +              NSC,NSF,IDOF(9),LCS,ISOLOP,LSYMM,ICONTROLSPEC
+      COMMON /ITER/ RHO,RHOP,RHOPREV,RTOL,ETOL,DLMAX,ALP,
+	1              NSTEP,NPRIN,NDRAW,
+	2			  KONEQ,NIREF,ITOPT,ICONV,NOLIN,KSTEP,
+     3              LIMEQ(2),ITEMAX,NUMREF,NUMITE,ITETOT,LIMET
+      COMMON /INCO/ A0,A1,A2,A3,A4,A5,A6,A7,A8,ALFA,BETA,
+	1              A11,A12,ALF,IOPT
+      COMMON /TIME/ DDT,CTIM,NINC
+C	-----------------------------------------------------------------
+      DIMENSION RFAC(1),R(NEQ),EFLO(NEQ),PRLO(1),RT(NEQ),DUMI(NEQ)
+
+
+
+	GOTO (100,200), ISW
+C     ----------------------------------------
+C     FORM RHS FORCE VECTOR FOR LINEAR ANALYSIS
+C     ----------------------------------------
+100	RHO = RFAC(KSTEP)
+C	----------------------------------
+C	SUBROUTINE VECTOR ({DISP}=RHO*{R})
+C	----------------------------------
+	CALL VECMUL (R,EFLO,EFLO,RHO,RNORM,NEQ)
+      RETURN
+C     -----------------------------------------------------------------
+C     FORM CURRENT APPLIED RHS FORCE VECTOR FOR LINEAR DYNAMIC ANALYSIS
+C     -----------------------------------------------------------------
+C	FOURTH GOTO IN NEXT LINE ADDED BY GILSON - OCT2001	
+200	GOTO (300,400,500,600), IOPT
+C	-------------------
+C	WILSON-THETA METHOD
+C	-------------------
+300	CALL LOADCURV ((CTIM-DDT),2,NSTEP,PRLO,PROP1)
+	CALL LOADCURV ( CTIM,     2,NSTEP,PRLO,PROP2)
+	RHO = PROP2*RFAC(KSTEP)
+	RHO1= (A11*PROP2 - A11*PROP1 + PROP1)*RFAC(KSTEP)
+	CALL VECMUL (R,EFLO,EFLO,RHO1,RNORM,NEQ)
+	GOTO 900
+C	----------------------
+C	NEWMARK METHOD
+C	----------------------
+400	CALL LOADCURV (CTIM,2,NSTEP,PRLO,PROPLD)
+	RHO = PROPLD*RFAC(KSTEP)
+	CALL VECMUL (R,EFLO,EFLO,RHO,RNORM,NEQ)
+	GOTO 900
+C	-------------------------
+C	CENTRAL DIFFERENCE METHOD
+C	-------------------------
+500	CALL LOADCURV ((CTIM-DDT),2,NSTEP,PRLO,PROP1)
+	RHO = PROP1*RFAC(KSTEP)
+	CALL VECMUL (R,EFLO,EFLO,RHO,RNORM,NEQ)
+	GOTO 900
+C
+C	---------------------------
+C	HILBER-HUGHES-TAYLOR METHOD
+C	---------------------------
+600	CALL LOADCURV (CTIM,2,NSTEP,PRLO,PROPLD)
+	RHO = PROPLD*RFAC(1)
+	CALL VECMUL (R,EFLO,EFLO,RHO,RNORM,NEQ)
+	FACT=1.0+ALF
+	DUMI=EFLO
+	EFLO=FACT*DUMI-ALF*RT
+	RT=DUMI
+	GOTO 900
+C
+900	RETURN
+C
+	END
+C
+C=====================================================================
+      SUBROUTINE RHSDYNA (RFAC,R,RC,RFV,RFC,REXT,EFLO,PRLO,RT,NEQ,ISW)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	PROGRAMED BY SUNIL 01/05/13
+C     ----------------------------------------------------------------
+C     FORM RHS FORCE VECTOR
+C	----------------------------------------------------------------
+C     RFAC(NSTEP)	  = PRESCRIBED INCR. LOAD FACTORS / DISP. INCREMENTS
+C                     (RFAC(KSTEP)=0 INDICATES AUTOMATIC SELECTION)
+C     R(NEQ)		  = VARY LOAD VECTOR
+C     RC(NEQ)		  = CONSTANT LOAD VECTOR
+C     RFV(NEQ)		  = OFFSHORE LOAD VECTOR VARY
+C     RFC(NEQ)		  = OFFSHORE LOAD VECTOR CONSTANT 
+C	RT(NEQ)		  = LOAD ON THE PREVIOUS TIME STEP
+C     PRLO(7,NSTEP) = PROPORTIONAL LOAD TABLE (A1 A2 A3....A7 for parametric load curve)
+C     EFLO(NEQ)     = EFFECTIVE LOAD VECTOR
+C	ISW			  = SWITCH
+C					1-RHS FORCE FOR LINEAR STATIC ANALYSIS
+C					2-CURRENT RHS FORCE FOR LINEAR DYNAMIC ANALYSIS
+C     ----------------------------------------------------------------
+	COMMON /NUMB/ HED(20),MODEX,NRE,NSN,NEG,NBS,NLS,NLA,
+     +              NSC,NSF,IDOF(9),LCS,ISOLOP,LSYMM,ICONTROLSPEC
+      COMMON /ITER/ RHO,RHOP,RHOPREV,RTOL,ETOL,DLMAX,ALP,
+	1              NSTEP,NPRIN,NDRAW,
+	2			  KONEQ,NIREF,ITOPT,ICONV,NOLIN,KSTEP,
+     3              LIMEQ(2),ITEMAX,NUMREF,NUMITE,ITETOT,LIMET
+      COMMON /INCO/ A0,A1,A2,A3,A4,A5,A6,A7,A8,ALFA,BETA,
+	1              A11,A12,ALF,IOPT
+      COMMON /TIME/ DDT,CTIM,NINC
+      ! FREQ. LENGTH (ADDING FOR FREQ. DOMAIN)
+      COMMON /RESO/ OPRES,STEPSTAT,STEPINCR,STEPEND
+C	-----------------------------------------------------------------
+      DIMENSION RFAC(1),R(NEQ),EFLO(NEQ),PRLO(1),RT(NEQ),DUMI(NEQ)
+      DIMENSION RC(NEQ),RFV(NEQ),RFC(NEQ),REXT(NEQ)
+
+
+	GOTO (100,200), ISW
+C     ----------------------------------------
+C     FORM RHS FORCE VECTOR FOR LINEAR ANALYSIS
+C     ----------------------------------------
+100	RHO = RFAC(KSTEP)
+C	----------------------------------
+C	SUBROUTINE VECTOR ({DISP}=RHO*{R})
+C	----------------------------------
+	CALL VECMUL (R,EFLO,EFLO,RHO,RNORM,NEQ)
+      RETURN
+C     -----------------------------------------------------------------
+C     FORM CURRENT APPLIED RHS FORCE VECTOR FOR LINEAR DYNAMIC ANALYSIS
+C     -----------------------------------------------------------------
+C	FOURTH GOTO IN NEXT LINE ADDED BY GILSON - OCT2001	
+200	GOTO (300,400,500,600), IOPT
+C	-------------------
+C	WILSON-THETA METHOD
+C	-------------------
+300	CALL LOADCURV ((CTIM-DDT),2,NSTEP,PRLO,PROP1)
+	CALL LOADCURV ( CTIM,     2,NSTEP,PRLO,PROP2)
+	RHO = PROP2*RFAC(KSTEP)
+	RHO1= (A11*PROP2 - A11*PROP1 + PROP1)*RFAC(KSTEP)
+      IF (OPRES.EQ.1) RHO = 1.0D0                        ! FREQ. LENGTH METHOD RHO = 1 (BY TOEY 04/2018)
+      IF (OPRES.EQ.1) RHO1 = 1.0D0                       ! FREQ. LENGTH METHOD RHO = 1 (BY TOEY 04/2018)
+	CALL VECMUL (R,EFLO,EFLO,RHO1,RNORM,NEQ)
+	CALL VECADD (EFLO,RFV,EFLO,RHO1,RNORM,NEQ)            !ADD VARY OFFSHORE LOAD TO EFFECTIVE LOAD VECTOR
+	CALL VECADD (EFLO,RC ,EFLO,RHO1,RNORM,NEQ)            !ADD CONSTANT LOAD TO EFFECTIVE LOAD VECTOR
+	CALL VECADD (EFLO,RFC,EFLO,RHO1,RNORM,NEQ)            !ADD CONSTANT OFFSHORE LOAD TO EFFECTIVE LOAD VECTOR
+      CALL VECADD (EFLO,REXT,EFLO,RHO1,RNORM,NEQ)           !ADD EXTERNAL  FORCE
+	GOTO 900
+C	----------------------
+C	NEWMARK METHOD
+C	----------------------
+400   CALL LOADCURV (CTIM,2,NSTEP,PRLO,PROPLD)
+      !CALL LOADCURV_FREQ (PROPLD)   !DYNAMIC FREQ.
+	RHO = PROPLD*RFAC(KSTEP)
+      ! LOAD FACTOR (RHO) - CASE OF FREQ. STEP 
+      IF (OPRES.EQ.1) RHO = 1.0D0                        ! FREQ. LENGTH METHOD RHO = 1 (BY TOEY 04/2018)
+	CALL VECMUL (R,EFLO,EFLO,RHO,RNORM,NEQ)
+	CALL VECADD (EFLO,RFV,EFLO,RHO,RNORM,NEQ)            !ADD VARY OFFSHORE LOAD TO EFFECTIVE LOAD VECTOR
+	CALL VECADD (EFLO,RC ,EFLO,RHO,RNORM,NEQ)            !ADD CONSTANT LOAD TO EFFECTIVE LOAD VECTOR
+	CALL VECADD (EFLO,RFC,EFLO,RHO,RNORM,NEQ)            !ADD CONSTANT OFFSHORE LOAD TO EFFECTIVE LOAD VECTOR
+      CALL VECADD (EFLO,REXT,EFLO,RHO,RNORM,NEQ)           !ADD EXTERNAL FORCE
+	GOTO 900
+C	-------------------------
+C	CENTRAL DIFFERENCE METHOD
+C	-------------------------
+500	CALL LOADCURV ((CTIM-DDT),2,NSTEP,PRLO,PROP1)
+	RHO = PROP1*RFAC(KSTEP)
+      IF (OPRES.EQ.1) RHO = 1.0D0                        ! FREQ. LENGTH METHOD RHO = 1 (BY TOEY 04/2018)
+	CALL VECMUL (R,EFLO,EFLO,RHO,RNORM,NEQ)
+	CALL VECADD (EFLO,RFV,EFLO,RHO,RNORM,NEQ)            !ADD VARY OFFSHORE LOAD TO EFFECTIVE LOAD VECTOR
+	CALL VECADD (EFLO,RC ,EFLO,RHO,RNORM,NEQ)            !ADD CONSTANT LOAD TO EFFECTIVE LOAD VECTOR
+	CALL VECADD (EFLO,RFC,EFLO,RHO,RNORM,NEQ)            !ADD CONSTANT OFFSHORE LOAD TO EFFECTIVE LOAD VECTOR
+      CALL VECADD (EFLO,REXT,EFLO,RHO,RNORM,NEQ)           !ADD EXTERNAL FORCE
+	GOTO 900
+C
+C	---------------------------
+C	HILBER-HUGHES-TAYLOR METHOD
+C	---------------------------
+600	CALL LOADCURV (CTIM,2,NSTEP,PRLO,PROPLD)
+	RHO = PROPLD*RFAC(1)
+      IF (OPRES.EQ.1) RHO = 1.0D0                        ! FREQ. LENGTH METHOD RHO = 1 (BY TOEY 04/2018)
+	CALL VECMUL (R,EFLO,EFLO,RHO,RNORM,NEQ)
+	CALL VECADD (EFLO,RFV,EFLO,RHO,RNORM,NEQ)            !ADD VARY OFFSHORE LOAD TO EFFECTIVE LOAD VECTOR
+	CALL VECADD (EFLO,RC ,EFLO,RHO,RNORM,NEQ)            !ADD CONSTANT LOAD TO EFFECTIVE LOAD VECTOR
+	CALL VECADD (EFLO,RFC,EFLO,RHO,RNORM,NEQ)            !ADD CONSTANT OFFSHORE LOAD TO EFFECTIVE LOAD VECTOR
+      CALL VECADD (EFLO,REXT,EFLO,RHO,RNORM,NEQ)           !ADD EXTERNAL FORCE
+	FACT=1.0+ALF
+	DUMI=EFLO
+	EFLO=FACT*DUMI-ALF*RT
+	RT=DUMI
+	GOTO 900
+C
+900	RETURN
+C
+	END
+C
+C=====================================================================
+	SUBROUTINE EFSTIF (MAXA,NWK,NWM,NEQ,AA,BB,CC,TYP1,TYP2,TYP3,TYP4)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+	CHARACTER*4 TYP1,TYP2,TYP3,TYP4
+C	PROGRAMED BY SUNIL 01/05/15
+C     ----------------------------------------------------------------
+C     FORM EFFECTIVE STIFFNESS MATRIX [K]=[K]+A0[M]+A1[C]
+C						 FOR HHT -> [K]=FACT[K]+A0[M]+FACT*A1[C]
+C	----------------------------------------------------------------
+C     AA(NWK)		 = LINEAR STIFFNESS MATRIX STRORED IN COMPACTED FORM
+C     BB(NWM)		 = MASS MATRIX STRORED IN COMPACTED FORM
+C     MAXA(NEQ1)	 = DIAGONAL ADDRESSES
+C	ALF			 = ALPHA PARAMETER OF HHT METHOD
+C     ----------------------------------------------------------------
+      COMMON /INCO/ A0,A1,A2,A3,A4,A5,A6,A7,A8,ALFA,BETA,
+	1              A11,A12,ALF,IOPT
+C	---------------------------------
+	DIMENSION MAXA(1)
+	DIMENSION AA(1),BB(1),CC(1)
+	
+
+	GOTO (1,1,3,1), IOPT
+
+C	-----------------------------------------
+C	FOR WILSON-THETA, NEWMARK AND HHT METHODS
+C	-----------------------------------------
+1	FACT=1.0
+	IF(IOPT.EQ.4) FACT = 1.0+ALF !HHT
+C	---------------------------
+C	ADD CONSTISTENT MASS MATRIX
+C	---------------------------
+C	DO I = 1,NWK
+C	AA(I) = FACT*AA(I) + A0*BB(I)
+C	ENDDO
+	CALL MDOPER(TYP4,TYP1,TYP2,FACT,A0,'ADD')
+
+C	---------------------------
+C	ADD CONSTISTENT DAMP MATRIX
+C	---------------------------
+C	DO I = 1,NWK
+C	AA(I) = AA(I) + FACT*A1*CC(I)
+C	ENDDO
+	CALL MDOPER(TYP4,TYP4,TYP3,1.0D0,FACT*A1,'ADD')
+
+	GOTO 900
+
+C	------------------------------
+C	FOR CENTRAL DIFFERENCE METHODS
+C	------------------------------
+3	CONTINUE
+C	---------------------------
+C	ADD CONSTISTENT MASS MATRIX
+C	---------------------------
+C	DO I = 1,NWK
+C	AA(I) = A0*BB(I)
+C	ENDDO
+	CALL MDOPER(TYP4,TYP1,TYP2,0.0D0,A0,'ADD')
+C	---------------------------
+C	ADD CONSTISTENT DAMP MATRIX
+C	---------------------------
+C	DO I = 1,NWK
+C	AA(I) = AA(I) + A1*CC(I)
+C	ENDDO
+	CALL MDOPER(TYP4,TYP4,TYP3,1.0D0,A1,'ADD')
+
+	GOTO 900
+C	---------------------------
+
+900	RETURN
+	END
+C
+C=====================================================================
+	SUBROUTINE EFLOAD (MAXA,EFLO,DISP,VELO,ACCE,DUMY,NEQ,NWK,NWM,
+	1				   AA,BB,CC,TYP1,TYP2,TYP3) 
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+	CHARACTER*4 TYP1,TYP2,TYP3
+C     ----------------------------------------------------------------
+C     FORM EFFECTIVE RHS FORCE VECTOR [F]=[F]+[M]{D,V,A}+[C]{D,V,A}
+C		HHT -> [F]=[F(T+ALF)]+ALF[K]{D}+[M]{D,V,A}+[C]{D,V,A}
+C	----------------------------------------------------------------
+C     AA(NWK)		 = STIFFNESS MATRIX STRORED IN COMPACTED FORM
+C     BB(NWM)		 = MASS MATRIX STRORED IN COMPACTED FORM
+C     MAXA(NEQ1)	 = DIAGONAL ADDRESSES
+C     EFLO(NEQ)	 = EFFECTIVE LOAD VECTOR
+C     DISP(NEQ)	 = DISPLACEMENTS
+C     VELO(NEQ)	 = VELOCITIES
+C     ACCE(NEQ)	 = ACCELERATIONS
+C     DUMY(NEQ)	 = DYMMY VECTOR
+C	AA(NWK)		 = STIFFNESS MATRIX (NOT EFSTIF)
+C     ----------------------------------------------------------------
+      COMMON /INCO/ A0,A1,A2,A3,A4,A5,A6,A7,A8,ALFA,BETA,
+	1              A11,A12,ALF,IOPT
+C	----------------------------------------------------------------
+	DIMENSION MAXA(1),EFLO(1),DISP(1),VELO(1),ACCE(1),
+	1          DUMY(1)
+	DIMENSION AA(1),BB(1),CC(1)
+
+	
+	GOTO (1,2,3,4), IOPT
+C	-------------------
+C	WILSON-THETA METHOD
+C	-------------------
+1	DO I = 1,NEQ
+	DUMY(I) = A0*DISP(I) + A2*VELO(I)+ 2.0*ACCE(I)
+	ENDDO
+C	---------------------------
+C	FOR CONSTISTENT MASS MATRIX
+C	---------------------------
+	CALL MAMULT (MAXA,BB,DUMY,EFLO,TYP2,'ADD')
+
+C	--------------------------------
+C	CONTRIBUTION FORM DAMPING MATRIX
+C	--------------------------------
+  120	DO I = 1,NEQ
+	DUMY(I) = A1*DISP(I) + 2.0*VELO(I)+ A3*ACCE(I)
+	ENDDO
+C	---------------------------
+C	FOR CONSTISTENT DAMP MATRIX
+C	---------------------------
+	CALL MAMULT (MAXA,CC,DUMY,EFLO,TYP3,'ADD')
+
+	GOTO 900
+C	--------------
+C	NEWMARK METHOD
+C	--------------
+2	DO I = 1,NEQ
+	DUMY(I) = A0*DISP(I) + A2*VELO(I)+ A3*ACCE(I)
+	ENDDO
+C	---------------------------
+C	FOR CONSTISTENT MASS MATRIX
+C	---------------------------
+	CALL MAMULT (MAXA,BB,DUMY,EFLO,TYP2,'ADD')
+
+C	--------------------------------
+C	CONTRIBUTION FORM DAMPING MATRIX
+C	--------------------------------
+220	DO I = 1,NEQ
+	DUMY(I) = A1*DISP(I) + A4*VELO(I)+ A5*ACCE(I)
+	ENDDO
+C	---------------------------
+C	FOR CONSTISTENT DAMP MATRIX
+C	---------------------------
+	CALL MAMULT (MAXA,CC,DUMY,EFLO,TYP3,'ADD')
+
+	GOTO 900
+C	-------------------------
+C	CENTRAL DIFFERENCE METHOD
+C	-------------------------
+3	CONTINUE
+C	---------------------------
+C	FOR CONSTISTENT MASS MATRIX
+C	---------------------------
+C	DO I = 1, NWK
+C	AA(I) = A2*BB(I) - AA(I)
+C	ENDDO
+	CALL MDOPER('STI0',TYP2,TYP1,A2,1.0D0,'SUB')
+ 
+320	CALL MAMULT (MAXA,AA,DISP,EFLO,'STI0','ADD')
+
+C	---------------------------
+C	FOR CONSTISTENT DAMP MATRIX
+C	---------------------------
+C	DO I = 1, NWK
+C	AA(I) = A1*CC(I) - A0*BB(I)
+C	ENDDO
+	CALL MDOPER('STI0',TYP3,TYP2,A1,A0,'SUB')
+
+	CALL MAMULT (MAXA,AA,DUMY,EFLO,'STI0','ADD')
+
+	GOTO 900
+C	---------------------------
+C	HILBER-HUGHES-TAYLOR METHOD
+C	---------------------------
+4	DO I = 1,NEQ
+	DUMY(I) = A0*DISP(I) + A2*VELO(I)+ A3*ACCE(I)
+	ENDDO
+C	---------------------------
+C	FOR CONSTISTENT MASS MATRIX
+C	---------------------------
+	CALL MAMULT (MAXA,BB,DUMY,EFLO,TYP2,'ADD')
+
+C	--------------------------------
+C	CONTRIBUTION FORM DAMPING MATRIX
+C	--------------------------------
+420	CONTINUE
+	FACT=1.0+ALF
+	DO I = 1,NEQ
+	DUMY(I)=FACT*A1*DISP(I)+(FACT*A4+ALF)*VELO(I)+FACT*A5*ACCE(I)
+	ENDDO
+C	---------------------------
+C	FOR CONSTISTENT DAMP MATRIX
+C	---------------------------
+	CALL MAMULT (MAXA,CC,DUMY,EFLO,TYP3,'ADD')
+
+C	----------------------------------
+C	CONTRIBUTION FROM STIFFNESS MATRIX
+C	----------------------------------
+	DO I = 1,NEQ
+	DUMY(I)=ALF*DISP(I)
+	ENDDO
+
+	CALL MAMULT (MAXA,AA,DUMY,EFLO,TYP1,'ADD')
+
+
+
+900	RETURN
+	END
+C
+C======================================================================
+      SUBROUTINE MULT (A,B,C,MAXA,NEQ)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	SUNIL 01/04/20 PROGRAMMED BY SUNIL
+C	-----------------------------
+C	CALCULATE {A} = {A} + [B]*{C}
+C	-----------------------------
+      DIMENSION A(1),B(1),C(1),MAXA(1)
+C
+      DO I = 1,NEQ
+		KL = MAXA(I)
+		KU = MAXA(I+1) - 1
+		II = I + 1
+		CC = C(I)
+		DO KK = KL,KU      
+			II = II - 1            
+			A(II) = A(II) + B(KK)*CC
+		ENDDO
+	ENDDO
+
+      IF (NEQ.EQ.1) RETURN
+
+      DO 200 I = 2,NEQ  
+		KL = MAXA(I) + 1  
+		KU = MAXA(I+1) - 1
+		IF (KU-KL) 200,210,210
+210			II = I
+			AA = 0.0
+			DO KK = KL,KU
+				II = II - 1
+				AA = AA + B(KK)*C(II)
+			ENDDO
+			A(I) = A(I) + AA
+200			CONTINUE
+C
+      RETURN
+      END
+C
+C======================================================================
+      SUBROUTINE CURDVA (ID,DISP,VELO,ACCE,DUMY,NEQ,NSF,REVATV)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	SUNIL 01/05/10 PROGRAMMED BY SUNIL
+C	---------------------------------------------------
+C	CALCULATE CURRENT DISP., VELO. & ACCE. AT TIME T+DT
+C	---------------------------------------------------
+      COMMON /ITER/ RHO,RHOP,RHOPREV,RTOL,ETOL,DLMAX,ALP,
+	1              NSTEP,NPRIN,NDRAW,
+	2			  KONEQ,NIREF,ITOPT,ICONV,NOLIN,KSTEP,
+     3              LIMEQ(2),ITEMAX,NUMREF,NUMITE,ITETOT,LIMET
+      COMMON /TIME/ DDT,CTIM,NINC
+      COMMON /INCO/ A0,A1,A2,A3,A4,A5,A6,A7,A8,ALFA,BETA,
+	1              A11,A12,ALF,IOPT
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+C	Next commnon block added 15Apr07 by NguyenDV
+	COMMON /RMAX/ DISMAX(2),VELMAX(2),ACCMAX(2)
+
+
+      DIMENSION ID(NSF,1),DISP(1),VELO(1),ACCE(1),DUMY(1)
+
+C	FOURTH GOTO IN NEXT LINE ADDED BY GILSON - OCT2001	
+	GOTO (1,2,3,2), IOPT
+C	-------------------
+C	WILSON-THETA METHOD
+C	-------------------
+1	DO I = 1,NEQ
+		VEL = VELO(I)
+		ACC = ACCE(I)
+		ACCE(I) = A4*(DISP(I)-DUMY(I)) + A5*VEL + A6*ACC
+		VELO(I) = VEL + A7*(ACC + ACCE(I))
+		DISP(I) = DUMY(I) + DDT*VEL + A8*(ACCE(I)+2.0*ACC)
+	ENDDO 
+	GOTO 900
+C	-----------------------
+C	NEWMARK AND HHT METHODS
+C	-----------------------
+2	DO I = 1,NEQ
+		VEL = VELO(I)
+		ACC = ACCE(I)
+		ACCE(I) = A0*(DISP(I)-DUMY(I)) - A2*VEL - A3*ACC
+		VELO(I) = VEL + A6*ACC + A7*ACCE(I)
+      ENDDO 
+      !DISP(6) = 0.0D0
+      !DISP(12) = 0.0D0
+	GOTO 900
+C	-----------------------------------------------
+C	CENTRAL DIFFERENCE METHOD 
+C	(NO ACCELERATIONS & VELEOCITIES WILL BE STORED)
+C	-----------------------------------------------
+3	IEQ   = ID(LIMEQ(2),LIMEQ(1))
+	CALL MOVE (VELO,ACCE,NEQ)
+	CALL MOVE (DUMY,VELO,NEQ)
+	DO I = 1,NEQ
+		DIS1 = ACCE(I)
+		DIS2 = VELO(I)
+		DIS3 = DISP(I)
+		ACC = A0*(DIS1 - 2.0*DIS2 + DIS3)
+		VEL = A1*(DIS3-DIS1)
+		IF (I.EQ.IEQ) WRITE (100,1100) CTIM,RHO,DIS3,VEL,ACC
+		IF (I.EQ.IEQ) WRITE (ITO,1100) CTIM,RHO,DIS3,VEL,ACC
+          IF (I.EQ.IEQ) WRITE (10,1100) CTIM,RHO,DIS3,VEL,ACC
+	ENDDO 
+	GOTO 1000
+
+900   IEQ   = ID(LIMEQ(2),LIMEQ(1))
+      
+      !REVATV = REVATV + 1
+      !IF (REVATV.EQ.2) RETURN
+	WRITE (100,1100) CTIM,RHO,DISP(IEQ),VELO(IEQ),ACCE(IEQ)
+	WRITE (ITO,1100) CTIM,RHO,DISP(IEQ),VELO(IEQ),ACCE(IEQ)
+      WRITE (10,1100) CTIM,RHO,DISP(IEQ),VELO(IEQ),ACCE(IEQ)
+
+C	Next part added 15Apr04 by NguyenDV to find the max. responses of the concerned DOFs
+          IF(DISP(IEQ).GT.DISMAX(1)) DISMAX(1)=DISP(IEQ)
+          IF(DISP(IEQ).LT.DISMAX(2)) DISMAX(2)=DISP(IEQ)
+          IF(VELO(IEQ).GT.VELMAX(1)) VELMAX(1)=VELO(IEQ)
+          IF(VELO(IEQ).LT.VELMAX(2)) VELMAX(2)=VELO(IEQ)          
+          IF(ACCE(IEQ).GT.ACCMAX(1)) ACCMAX(1)=ACCE(IEQ)
+          IF(ACCE(IEQ).LT.ACCMAX(2)) ACCMAX(2)=ACCE(IEQ)                                                                
+                                                                       
+1000	RETURN
+
+1100	FORMAT (5E12.4)
+
+      END
+C
+C=====================================================================
+
+	SUBROUTINE RAYDAM (MAXA,ALFA,BETA,NWK,NWM,NEQ,AA,BB,CC,
+	1				   TYP1,TYP2,TYP3)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+	CHARACTER*4 TYP1,TYP2,TYP3
+C     ----------------------------------------------------------------
+C     * FORM RAYLEIGH DAMPING MATRIX (PROPORTIONAL DAMPING ONLY)
+C     * FORM TOTAL SYSTEM DAMPING MATRIX [C] FROM 
+C		+ MATERIAL DAMPING MATRIX [Cp] (RAYLEIGH - PROPORTIONAL)
+C		+ MATERIAL SELF-FORMULATED DAMPING
+C		+ EXTERNALLY NON-PROPORTIONAL DAMPING MATRIX [Cn]
+C	----------------------------------------------------------------
+C     MAXA(NEQ1) = DIAGONAL ADDRESSES
+C     AA(NWM)	= STIFFNESS MATRIX STRORED IN COMPACTED FORM
+C     BB(NWM)	= MASS/DAMPING MATRIX STRORED IN COMPACTED FORM
+C	CC(NWK) = SYSTEM MATERIAL DAMPING MATRIX STRORED IN COMPACTED FORM
+C	ALFA	= MASS PROPORTIONAL CONSTANT
+C	BETA	= STIFFNESS PROPORTINAL CONSTANT
+C	(NOTE: DAMPING MATRIX IS LUMPED FOR LUMPED MASS MATRIX IS USED
+C     ----------------------------------------------------------------
+
+	DIMENSION MAXA(1)
+	DIMENSION AA(1),BB(1),CC(1)
+C	----------------------------------------------------------------	
+
+C	------------------------------
+C	FORM MASS PROPORTIONAL DAMPING
+C	------------------------------
+	IF (ALFA.NE.0.0) GOTO 100
+	GOTO 200
+
+  100	CALL MDOPER(TYP3,TYP3,TYP2,1.0D0,ALFA,'ADD')
+C	DO I = 1,NWM
+C	IF(NWM.NE.NEQ) CC(I) = CC(I) + ALFA*BB(I) 
+C	ENDDO
+
+  200	IF (BETA.NE.0.0) GOTO 300
+	GOTO 500
+C	-----------------------------------
+C	FORM STIFFNESS PROPORTIONAL DAMPING
+C	-----------------------------------
+  300	CALL MDOPER(TYP3,TYP3,TYP1,1.0D0,BETA,'ADD')
+C	DO I = 1,NWK
+C	CC(I) = CC(I) + BETA*AA(I)
+C	ENDDO
+
+C	-----------------------------------
+  500	CONTINUE
+
+
+
+	RETURN
+	END
+C
+C	=====================================================================
+      SUBROUTINE  MOVE (A,B,NN)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	PROGRAMED BY SUNIL 01/04/12
+C     -------------------------------
+C	MOVE VECTOR {A} INTO VECTOR {B} 
+C	-------------------------------
+c      DIMENSION A(1),B(1)
+      DIMENSION A(NN),B(NN)
+
+      DO N=1,NN
+		B(N)=A(N)
+	ENDDO
+
+      RETURN
+      END
+C
+C	=====================================================================
+      SUBROUTINE  MOVEI (IA,IB,NN)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	BY GILSON - FEB2005 (INTEGRATE)
+C     ---------------------------------
+C	MOVE VECTOR {IA} INTO VECTOR {IB} 
+C	---------------------------------
+      DIMENSION IA(1),IB(1)
+
+      DO N=1,NN
+		IB(N)=IA(N)
+	ENDDO
+
+      RETURN
+      END
+C
+C	=====================================================================
+C	======================================================================
+      SUBROUTINE LOADCURV_FREQ (PROPLD)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+      COMMON /LINEAT/ KTRAF,KEATH,KCSAL,KOFFL,KSPEC,KDESIGN,KFATM,KFATJ,KFATL,KFAST,KOREV,KFTTD,NSUPER 
+      COMMON /NUMB/ HED(20),MODEX,NRE,NSN,NEG,NBS,NLS,NLA,
+     +              NSC,NSF,IDOF(9),LCS,ISOLOP,LSYMM,ICONTROLSPEC
+      COMMON /RESO/ OPRES,STEPSTAT,STEPINCR,STEPEND
+      
+      IF (ICONTROLSPEC.EQ.0) RETURN
+      
+      IF (ICONTROLSPEC.EQ.1.AND.KSPEC.EQ.0)THEN
+          IF (OPRES.EQ.1) PROPLD = 1
+          IF (OPRES.EQ.2) THEN   
+          ! develop next
+          PROPLD = 1
+          ENDIF
+      ELSE
+      RETURN
+      ENDIF
+      
+      END
+      
+      
+      
+      SUBROUTINE TEST_FILE (LEST)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+      COMMON /NUMB/ HED(20),MODEX,NRE,NSN,NEG,NBS,NLS,NLA,
+     +              NSC,NSF,IDOF(9),LCS,ISOLOP,LSYMM,ICONTROLSPEC
+      COMMON A(9000000),IA(9000000)
+            COMMON /LOCA/ LID,LDS,LEL,LDC,LXY,LCH,LNU,LMP,LGP,LMS,LGS,
+     1              LCO,LEX,LLM,LES,LEC,LED,LEI,LEE,LMA,LLF,LLV,
+     2              LRE,LDI,LDL,LDT,LDK,LER,LEV,LTT,LWV,LAR,LBR,
+     3              LVE,LDD,LRT,LBU,LBC,LVL,LAL,LEF,LDU,LPR,LLO,
+	4              LRV,LRT1,LRET,LRET1,LDM,LDPT,LVL1,LMV,LXI,LCM,LCC,
+	5			    LCN,LDIM,LFRE,LSFC,LLOF
+          DIMENSION LEST(1)
+C     -----------------
+	DO IEG = 1,NEG
+	KEG = IEG
+	NELEMI = 10 + IEG
+      NELEMA = 30 + IEG
+      REWIND NELEMI
+      REWIND NELEMA
+C      READ (NELEMI) (IA(NLNU),NLNU=LNU,LNU + LEST(IEG)-1)
+C      READ (NELEMA) ( A(NLNU),NLNU=LMP,LMP + LEST(IEG+NEG)-1)
+      READ (NELEMI) IA(LNU:LNU + LEST(IEG    )-1)
+      READ (NELEMA)  A(LMP:LMP + LEST(IEG+NEG)-1)     
+      ENDDO
+      END
+

@@ -1,0 +1,487 @@
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK FEB2009 =============
+C	=======================================================================
+
+      SUBROUTINE SPIGINIT
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+	DIMENSION NPM(10),NPI(10)
+
+	ALLOCATABLE AF1(:) 
+
+	CALL INTFILL('%NUB',NSN  ,1,1,0)
+
+
+	CALL DEFNINT('SPIG',KSPIG,1,10 )
+	CALL DEFNINT('$PIG',KSPIG,1,NSN)
+	
+	NEF = 6
+	NFL = 5000
+	N1  = 30
+	NSPG= 0
+	CALL INTFILL('SPIG',NSPG,1,1,1)
+	CALL INTFILL('SPIG',NEF ,1,2,1)
+	CALL INTFILL('SPIG',NFL ,1,3,1)
+	CALL INTFILL('SPIG',N1  ,1,4,1)
+
+	CALL DIROPEN(NFL,128)
+
+	ALLOCATE(AF1(N1))
+
+	AF1(1:N1) = 0.0D0
+
+	NPM(1:2) = [N1,NSN]
+
+	DO ISN = 1,NSN
+	NPI(1:2) = [N1,ISN]
+	CALL PUTREAL(NFL,AF1,NPM,NPI,2,2) 
+	ENDDO
+
+	DEALLOCATE(AF1)
+
+	RETURN
+	END
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK FEB2009 =============
+C	=======================================================================
+
+      SUBROUTINE SPIGBUL
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+	DIMENSION SK1(6),SK2(6)
+
+
+      CALL FREINT('N',NOD ,1)	 !NOD TO INSTALL
+      CALL FREINT('O',ICOM,1)	 !0 = REMOVE  1 = REPLACE  2 = ADD
+
+	IF(ICOM.EQ.0) GOTO 5
+      CALL FREINT('U',IUP ,1)	 !INSTALL TO UPDATE OR ORIGINAL POSITION FLAG  0=ORIGINAL 1=UPDATE
+      CALL FREREL('F',SK1 ,6)	 !STIFFNESS IN POSITIVE DIRECTION
+      CALL FREREL('B',SK2 ,6)	 !STIFFNESS IN NEGATIVE DIRECTION
+5	CONTINUE
+
+
+
+	CALL INTFILL('SPIG',NSPG,1,1,0)
+
+
+	SELECTCASE(ICOM)
+
+	CASE(0)
+	ITG = 0
+	DO ISPG = 1,NSPG
+	CALL INTFILL('$PIG',ISN,1,ISPG,0)  !CALL CORRESPONDING NODE NUMBER
+	IF(NOD.EQ.ISN) ITG = ISPG
+	IF(NOD.EQ.ISN) EXIT
+	ENDDO
+	IF(ITG.NE.0) THEN
+	DO ISPG = ITG,NSPG-1
+	ISPG1 = ISPG + 1
+	CALL INTFILL('$PIG',ISN,1,ISPG1,0) 
+	CALL INTFILL('$PIG',ISN,1,ISPG ,1) 
+	ENDDO
+	ISN = 0
+	CALL INTFILL('$PIG',ISN,1,NSPG ,1) 
+	NSPG = NSPG - 1
+	ENDIF
+
+	CASE(1)
+	NSPG = NSPG + 1
+	ISPG = NSPG
+	CALL INTFILL('$PIG',NOD,1,ISPG ,1) 
+	CALL SPICINS(NOD,SK1,SK2,IUP,'NEW')
+
+
+	CASE(2)
+	ITG = 0
+	DO ISPG = 1,NSPG
+	CALL INTFILL('$PIG',ISN,1,ISPG,0)  !CALL CORRESPONDING NODE NUMBER
+	IF(NOD.EQ.ISN) ITG = ISPG
+	IF(NOD.EQ.ISN) EXIT
+	ENDDO
+	ISPG = ITG
+	IF(ITG.EQ.0) THEN
+	NSPG = NSPG + 1
+	ISPG = NSPG
+	CALL INTFILL('$PIG',NOD,1,ISPG ,1)
+	CALL SPICINS(NOD,SK1,SK2,IUP,'NEW') 
+	ELSE
+	CALL INTFILL('$PIG',NOD,1,ISPG ,1) 
+	CALL SPICINS(NOD,SK1,SK2,IUP,'ADD')
+	ENDIF
+	
+
+	ENDSELECT
+
+
+	CALL INTFILL('SPIG',NSPG,1,1,1)
+
+	RETURN
+	END
+
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK FRB2009 =============
+C	=======================================================================
+      SUBROUTINE SPICINS(ISN,SKI1,SKI2,IUP,NAME)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+      CHARACTER*3 NAME
+	DIMENSION IDOF(9),NPM(10),NPI(10),SKI1(6),SKI2(6)
+	DIMENSION SK1(6),SK2(6),DPO(6),SKE(6),REF(6)
+	ALLOCATABLE AF1(:) 
+
+
+
+	IF(NAME.EQ.'NEW') IPER = 0
+	IF(NAME.EQ.'ADD') IPER = 1
+
+
+	CALL INTFILL('%NUB',NSN ,1,1,0)
+	CALL INTFILL('%NUB',NSF ,1,2,0)
+
+	CALL INTFILL('SPIG',NEF ,1,2,0)
+	CALL INTFILL('SPIG',NFL ,1,3,0)
+	CALL INTFILL('SPIG',N1  ,1,4,0)
+
+	ALLOCATE(AF1(N1))
+C	----------------------------------------
+C	CALLING IDOF
+C	----------------------------------------
+	DO I = 1,9
+	CALL INTFILL('%DOF',IDOF(I),1,I,0)
+	ENDDO
+
+	NPM(1:2) = [N1,NSN]
+	NPI(1:2) = [N1,ISN]
+	CALL PUTREAL(NFL,AF1,NPM,NPI,2,0) 
+	SK1(1:6) = AF1(1 :6 )
+	SK2(1:6) = AF1(7 :12)
+	DPO(1:6) = AF1(13:18)
+	SKE(1:6) = AF1(19:24)
+	REF(1:6) = AF1(25:30)
+
+	IF(IPER.EQ.0) THEN  !REPLACE & NEW
+	SK1(1:6) = SKI1(1:6)
+	SK2(1:6) = SKI2(1:6)
+	DPO(1:6) = 0.0D0
+	SKE(1:6) = 0.0D0
+	REF(1:6) = 0.0D0
+	ENDIF
+	IF(IPER.EQ.1) THEN	!ADD
+	SK1(1:6) = SK1(1:6) + SKI1(1:6)
+	SK2(1:6) = SK1(1:6) + SKI2(1:6)
+	DPO(1:6) = 0.0D0
+	SKE(1:6) = 0.0D0
+	REF(1:6) = 0.0D0
+	ENDIF
+
+
+	IF(IUP.GT.0) THEN  !INSTALL TO UPDATE CONFIGURATION
+
+	DO 100 ISF=1,NSF
+	CALL RELFILL('$XDS',DIST,ISF,ISN,0)    !GETTING HERE NODAL DISPLACEMENT
+	IDF = IDOF(ISF)
+
+	IF(IDF.GT.NEF) GOTO 100
+
+	DPO(IDF) = DIST
+
+100	CONTINUE
+
+	ENDIF
+
+	AF1(1 :6 ) = SK1(1:6)
+	AF1(7 :12) = SK2(1:6)
+	AF1(13:18) = DPO(1:6)
+	AF1(19:24) = SKE(1:6)
+	AF1(25:30) = REF(1:6)
+
+	NPM(1:2) = [N1,NSN]
+	NPI(1:2) = [N1,ISN]
+	CALL PUTREAL(NFL,AF1,NPM,NPI,2,1) 
+
+
+	DEALLOCATE(AF1)
+
+
+	RETURN
+	END
+
+C	1		   KX1,KY1,KZ1,KRX1,KRY1,KRZ1,
+C	2		   KX2,KY2,KZ2,KRX2,KRY2,KRZ2,
+C    3		   UXO,UYO,UZO,URXO,URYO,URZO,
+C	4		   KEX,KEY,KEZ,KERX,KERY,KERZ,
+C	5		   REX,REY,KEZ,KERX,KERY,KERZ
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK FRB2009 =============
+C	=======================================================================
+
+
+      SUBROUTINE SPIGCON
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+
+	DIMENSION IDOF(9)
+
+	ALLOCATABLE  KRQ(:), KEQ(:)
+	ALLOCATABLE   SE(:),  RE(:)
+	ALLOCATABLE EXDI(:),STLD(:)
+
+
+	CALL INTFILL('%NUB',NSN ,1,1,0)
+	CALL INTFILL('%NUB',NSF ,1,2,0)
+
+	CALL INTFILL('SPIG',NSPG,1,1,0)
+	CALL INTFILL('SPIG',NEF ,1,2,0)
+	CALL INTFILL('SPIG',NFL ,1,3,0)
+	CALL INTFILL('SPIG',N1  ,1,4,0)
+
+	NEK = (NEF*NEF+NEF)/2
+
+	ALLOCATE( KRQ(NEF), KEQ(NEF))
+	ALLOCATE(  SE(NEK),  RE(NEF))
+	ALLOCATE(EXDI(NEF),STLD(NEF))
+
+	NNM = 1
+C	----------------------------------------
+C	CALLING IDOF
+C	----------------------------------------
+	DO I = 1,9
+	CALL INTFILL('%DOF',IDOF(I),1,I,0)
+	ENDDO
+
+
+C	SOLUTION CONTROL ARRAY
+      CALL INTFILL('%SOL',LOPT1,1,1,0)
+      CALL INTFILL('%SOL',LOPT2,1,2,0)
+      CALL INTFILL('%SOL',LOPT3,1,3,0)
+      CALL INTFILL('%SOL',LOPT4,1,4,0)
+      CALL INTFILL('%SOL',LOPT5,1,5,0)
+
+
+
+	DO 1000 ISPG = 1,NSPG
+
+	KRQ(1:NEF) = 0
+	KEQ(1:NEF) = 0
+
+	CALL INTFILL('$PIG',ISN,1,ISPG,0)  !CALL CORRESPONDING NODE NUMBER
+
+	DO 100 ISF=1,NSF
+	IDF = IDOF(ISF)
+	IF(IDF.GT.NEF) GOTO 100
+	CALL INTFILL('$LID',KRQ(IDF),ISF,ISN,0)
+	CALL INTFILL('-EMQ',KEQ(IDF),ISF,ISN,0)
+100	CONTINUE
+
+
+C	------------------------------------
+C	IF(LOPT2.GT.0) 
+C		NOTHING FOR NON MECHANICAL UPDATE
+C	ENDIF
+C	------------------------------------
+
+C	------------------------------------
+	IF(LOPT1.GT.0) THEN !UPDAT MECHANICAL
+	CALL CSASPIU(ISN,NSN,NSF,NEF,NFL,N1)
+	ENDIF
+C	------------------------------------
+
+	  SE(1:NEK) = 0.0D0
+	  RE(1:NEF) = 0.0D0	
+	EXDI(1:NEF) = 0.0D0
+	STLD(1:NEF) = 0.0D0
+C	LSTF  0 = NO COMPUTE OF STIFFNESS   1 = COMPUTE STIFFNESS
+C	LFOC  0 = NO COMPUTE OF ELM FORCE   1 = COMPUTE ELM FORCE
+	LSF = 1
+	LFC = 1
+	CALL CSASPIF(ISN,NSN,NSF,SE,RE,NEF,NFL,N1,LSF,LFC)
+
+C	------------------------------------
+	IF(LOPT3.EQ.1) THEN
+C		NOTHING FOR NON MECHANICAL
+	ENDIF
+C	------------------------------------
+	IF(LOPT3.EQ.2) THEN
+C	--------------------------
+	DO IEF = 1,NEF
+	IEQ  = KRQ(IEF)   !ORIGINAL EQAUATION
+	CALL RELFILL('-EIS',RE(IEF),IEQ,1,2)    !STORE MECHANICAL FORCE
+	ENDDO
+C	------------------------------------
+	ENDIF
+C	------------------------------------
+	IF(LOPT3.EQ.3) THEN
+C	--------------------------
+C		NOTHING FOR NON MECHANICAL
+C	--------------------------
+	DO IEF = 1,NEF
+	IEQ  = KRQ(IEF)   !ORIGINAL EQAUATION
+	CALL RELFILL('-EIS',RE(IEF),IEQ,1,2)    !STORE MECHANICAL FORCE
+	ENDDO
+C	------------------------------------
+	ENDIF
+C	------------------------------------
+	IF(LOPT3.EQ.4) THEN
+C	--------------------------
+	DO IEF = 1,NEF
+	IEQ  = KRQ(IEF)   !ORIGINAL EQAUATION
+	CALL RELFILL('-EIS',RE(IEF),IEQ,1,2)    !STORE MECHANICAL FORCE
+	ENDDO
+C	------------------------------------
+	ENDIF
+C	------------------------------------
+
+
+C	ASSEMBLE OF STIFFNESS
+	IF(LOPT4.GT.0) THEN
+	CALL STIFLAX(KRQ,SE,NEF,NNM)  !TRANSFORMATION DUE TO LOCAL SUPPORT
+	CALL ASBSTF(SE,KEQ,NEF) 
+	ENDIF
+
+C	------------------------------------
+C	FORCE FROM INCREMENTAL PRESCRIBED DISP.
+	IF(LOPT5.GT.0) THEN
+	DO IEF = 1,NEF
+	IEQ  = KRQ(IEF)   !IF2(1:NEF) = ORIGINAL EQAUATION
+	CALL RELFILL('$XDI',EXDI(IEF),IEQ,1,0)  !GETTING HERE INCREMENTAL NODAL PRESCRIBED DISPLACEMENT
+	ENDDO
+	CALL MULTRI(SE,EXDI,STLD,NEF)
+	DO IEF = 1,NEF
+	IEQ  = KRQ(IEF)   !IF2(1:NEF) = ORIGINAL EQAUATION
+	CALL RELFILL('-STL',STLD(IEF),IEQ,1,2)  !STORE FORCE FROM INCREMENTAL NODAL PRESCRIBED DISPLACEMENT
+	ENDDO
+	ENDIF
+C	------------------------------------
+
+
+1000	CONTINUE
+
+
+
+	DEALLOCATE( KRQ, KEQ)
+	DEALLOCATE(  SE,  RE)
+	DEALLOCATE(EXDI,STLD)
+
+
+	RETURN
+	END
+
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK FRB2009 =============
+C	=======================================================================
+      SUBROUTINE CSASPIU(ISN,NSN,NSF,NEF,NFL,N1)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+
+	DIMENSION IDOF(9),NPM(10),NPI(10),AF1(N1)
+	DIMENSION SK1(6),SK2(6),DPO(6),SKE(6),REF(6)
+
+
+C	----------------------------------------
+C	CALLING IDOF
+C	----------------------------------------
+	DO I = 1,9
+	CALL INTFILL('%DOF',IDOF(I),1,I,0)
+	ENDDO
+
+
+	NPM(1:2) = [N1,NSN]
+	NPI(1:2) = [N1,ISN]
+	CALL PUTREAL(NFL,AF1,NPM,NPI,2,0) 
+	SK1(1:6) = AF1(1 :6 )
+	SK2(1:6) = AF1(7 :12)
+	DPO(1:6) = AF1(13:18)
+	SKE(1:6) = AF1(19:24)
+	REF(1:6) = AF1(25:30)
+
+
+	DO 100 ISF=1,NSF
+	CALL RELFILL('$XDS',DIST,ISF,ISN,0)    !GETTING HERE NODAL DISPLACEMENT
+	IDF = IDOF(ISF)
+
+	IF(IDF.GT.6) GOTO 100
+
+	DISP = DIST - DPO(IDF)
+	IF(DISP.GT.0.0D0) THEN
+	SKE(IDF) = SK1(IDF)
+	ELSEIF(DISP.LT.0.0D0) THEN
+	SKE(IDF) = SK2(IDF)
+	ELSEIF(DISP.EQ.0.0D0) THEN
+	SKE(IDF) = SK1(IDF)
+	IF(SK2(IDF).GT.SKE(IDF)) SKE(IDF)=SK2(IDF)
+	ENDIF
+	REF(IDF) = SKE(IDF)*DISP
+
+100	CONTINUE
+
+	AF1(1 :6 ) = SK1(1:6)
+	AF1(7 :12) = SK2(1:6)
+	AF1(13:18) = DPO(1:6)
+	AF1(19:24) = SKE(1:6)
+	AF1(25:30) = REF(1:6)
+
+	NPM(1:2) = [N1,NSN]
+	NPI(1:2) = [N1,ISN]
+	CALL PUTREAL(NFL,AF1,NPM,NPI,2,1) 
+
+
+
+	RETURN
+	END
+
+C	1		   KX1,KY1,KZ1,KRX1,KRY1,KRZ1,
+C	2		   KX2,KY2,KZ2,KRX2,KRY2,KRZ2,
+C    3		   UXO,UYO,UZO,URXO,URYO,URZO,
+C	4		   KEX,KEY,KEZ,KERX,KERY,KERZ,
+C	5		   REX,REY,KEZ,KERX,KERY,KERZ
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK FRB2009 =============
+C	=======================================================================
+      SUBROUTINE CSASPIF(ISN,NSN,NSF,S,RE,NEF,NFL,N1,LSF,LFC)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+
+	DIMENSION NPM(10),NPI(10),S(1),RE(1),AF1(N1)
+	DIMENSION SK1(6),SK2(6),DPO(6),SKE(6),REF(6)
+
+
+	NPM(1:2) = [N1,NSN]
+	NPI(1:2) = [N1,ISN]
+	CALL PUTREAL(NFL,AF1,NPM,NPI,2,0) 
+	SK1(1:6) = AF1(1 :6 )
+	SK2(1:6) = AF1(7 :12)
+	DPO(1:6) = AF1(13:18)
+	SKE(1:6) = AF1(19:24)
+	REF(1:6) = AF1(25:30)
+
+	IF(LSF.GT.0) THEN
+	KEF = 0
+	DO IEF = 1,NEF
+	DO JEF = IEF,NEF
+	KEF = KEF + 1
+	IF(IEF.EQ.JEF) S(KEF) = SKE(IEF)
+	ENDDO
+	ENDDO
+	ENDIF
+
+
+	IF(LFC.GT.0) THEN
+	DO IEF = 1,NEF
+	RE(IEF) = REF(IEF)
+	ENDDO
+	ENDIF
+
+
+	RETURN
+	END
+
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK FRB2009 =============
+C	=======================================================================

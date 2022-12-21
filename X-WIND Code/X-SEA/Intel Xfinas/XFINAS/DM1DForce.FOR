@@ -1,0 +1,3092 @@
+      SUBROUTINE DM1DF(IDATM,AA,BB,CC)  
+      IMPLICIT REAL*8(A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+	CHARACTER*200 STROHED
+C	-----------------------------------------------------------------
+C	MAIN PROGRAM FOR 3D DYNAMIC ANALYSIS OF BRIDGE UNDER MOVING FORCES
+C	Developed by Mr. NguyenD.V, Asian Institute of Technology, Thailand
+C	Oct.-Nov.2005, updated Modesuperpostion Dec.2009
+C	-----------------------------------------------------------------
+C	IDMA	= DYNAMIC MOVING MODELLING TYPE
+C				1: Vehicle modeled as moving forces (inputed axle loads) with 3D bridge model
+C
+C	IANA	= ANALYSIS METHOD OF MOVING LOAD (=1 if IDMA =1)
+C	IDSO	= SOLUTION METHOD
+C			    1 = Direct Integration
+C				2 = Modal superpostion (available for only IDMA=1) 
+
+C	STRUCTURE PARAMETERS:
+C	--------------------
+C	NSN     = NUMBER OF NODES FOR ENTIRE STRUCTURE
+C	NEG     = NUMBER OF ELEMENT GROUPS
+C	NBS     = NUMBER OF GLOBAL SUPPORTS
+C	NLS     = NUMBER OF LOCAL SUPPORTS (SKEWED SUPPORTS)
+C	NSS		=  NUMBER OF SPRING SUPPORTED NODES GLOBALY
+C	NLSS	= NUMBER OF SPRING SUPPORTED NODES LOCALY
+C	NLA     = NUMBER OF LOCAL AXES
+C	NSC     = MAXIMUM NUMBER OF COORDINATES AT ANY ONE NODE
+C	NSF     = MAXIMUM NUMBER OF DEGREES OF FREEDOM AT ANY ONE NODE
+
+C     A(LXY)  = XY(NSN,NSC): NODAL CO-ORDINATES X,Y,Z
+C     IA(LID) = NRL(NSF,NSN): BOUNDARY CODES AND EQUATION NUMBERS
+C     A(LDK)  = D(NEQ)     :  DIAGONAL TERMS OF GLOBAL STIFFNESS MATRIX
+
+
+C	Element Parameters
+C	NCO     = NUMBER OF NODAL COORDINATES
+C	NNF     = NUMBER OF NODAL DEGREES OF FREEDOM
+C	NEF     = NUMBER OF ELEMENT DEGREES OF FREEDOM
+C	NNO     = CURRENT NUMBER OF ELEMENT NODES
+C	NELE    = NUMBER OF ELEMENTS IN GROUP
+C     IA(LLM) = LM(NEF,NELE): ELEMENT CONNECTIVITY FOR CURRENT ELEMENT GROUP
+C						    & GLOBAL EQUATION NUMBER FOR ELEMENT DOF
+
+C	NEID(2,NELW)  = NODE NUMBER OF LANE WHERE WHEEL RUNS
+C
+C	TRAIN PARAMETERS:
+C	-----------------
+C	NEQTR  = Number of equations of stiffness matrix = 3*(ITRAIN(1)*5) + (2*ITRAIN(2)+1)*5 + 3*(ITRAIN(3)*5)
+C	NWKTR  = NUMBER OF ELEMENTS BELOW SKYLINE OF UPPER TRIA. STIFFNESS MATRIX(=ITRAIN(1)*29+(12+ITRAIN(2)*17)+ITRAIN(3)*29)
+C	IW(I_NCHTR)= NCHTR(NEQTR) : VECTOR CONTANING COLUMN HEIGHT OF TRAIN'S STIFF/DAMPING MATRIX
+C	IW(I_NDTR) = NDTR(NEQTR+1):VECTOR CONTAINING DIAGONAL ELEMENT ADDRESS OF TRAIN STIFFNESS/DAMPING MATRIX
+
+C	OUTPUT CONTROLS	
+C	IW(I_PRST) = IPRTST(NPRTST,2): NODES NUMBER OF STRUCTURE[NODE #, DOF #]
+C	NPRTTR	   = NUMBER OF DEGREES OF FREEDOM TO PRINT OF TRAIN
+C	NPRTST	   = NUMBER OF NODES TO PRINT OF STRUCTURE
+C
+C	------------------------------------------------------------
+      CHARACTER*80 TITLE
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+	
+      COMMON /LOCA/ LID,LDS,LEL,LDC,LXY,LCH,LNU,LMP,LGP,LMS,LGS,
+     1              LCO,LEX,LLM,LES,LEC,LED,LEI,LEE,LMA,LLF,LLV,
+     2              LRE,LDI,LDL,LDT,LDK,LER,LEV,LTT,LWV,LAR,LBR,
+     3              LVE,LDD,LRT,LBU,LBC,LVL,LAL,LEF,LDU,LPR,LLO,
+	4              LRV,LRT1,LRET,LRET1,LDM,LDPT,LVL1,LMV,LXI,LCM,LCC,
+	5			    LCN,LDIM,LFRE,LSFC,LLOF
+
+      COMMON /ELEM/ NAME(2),ITYPE,ISTYP,NLOPT,MTMOD,NSINC,ITOLEY,
+     1              NELE,NMPS,NGPS,NMP,NGP,NNM,NEX,NCO,NNF,NWG,NEFC,
+     2              NPT,NWA,NWS,KEG,MEL,NNO,NEF,NELTOT,NMV,MTYP,ISECT
+      COMMON /SOLU/ NEQ,NEQ1,NBLOCK,MK,BM,NWK,NWM,ISTOR,NFAC,
+     +              NRED,KPOSD,DETK,DET1,DAVR,STOL
+      COMMON /EIGN/ NSEIG,NROOT,NC,NNC,NITEM,IFSS,SHIFT0,EPS,IEIG,NEIG,
+     +              ISOLV,IVPRT		!added 17Apr06
+	COMMON /SPBC/ NSS,NLSS
+      COMMON /DMCO/ IDMA,IANA,IDSO,NNBR,NNRA,NEBEBR,NPBEBR,NLRB,
+     +			  NEWKTK,NPWKTK,NEBERA,NPBERA,NDOF,NNBE,NNWK
+
+	COMMON /DMSOI/ IPATH,NMAX,NPRTTR,NPRTST,NPRWH,KPRTR
+	COMMON /DMSOR/ ALPHA,BITA,DELT,VEL,EXTDIS,TOLER,SCALE,TLENGTH,BIDIS
+
+	COMMON /BRI3/ H4,ECC,ZET1,ZET2,RDM,RDK,NELW
+	COMMON /BRIW/ I_PELW,I_NEID,I_PRST
+	COMMON /IWTR/ IT1,IT2,IT3,I_ITRAIN,I_NCHTR,I_NDTR,I_PRTR,I_PTWH		  
+	COMMON /TRW3/ I_PCAB,I_CADI,I_ADDI,I_ALSU,I_PRSS,I_PBOG,I_PRPS,
+	1			  I_PRWH,I_WRCO,I_WPOS,I_AMTR,I_ACTR,I_AKTR,I_AXLD
+	COMMON /NIAX/ NWHEEL
+      COMMON /FLAG/ IFPRI,ISPRI,IFPLO,IFREF,IFEIG,ITASK,IFFLAG !added 5Nov2005 for error
+
+      COMMON A(9000000),IA(9000000)
+
+	COMMON /MEMW/ W(7000000),IW(7000000)
+	
+C     OUTPUT CONTROL	      
+      ALLOCATABLE STROHED(:)
+      
+      ALLOCATABLE WHWIDTH(:)
+      
+	DIMENSION AA(1),BB(1),CC(1)
+
+c	DIMENSION AC(1)
+C	------------------------------------------------------------------------
+C	LOADWAY DEFINE
+C	--------------
+C	Read number of elements to define loaways of bridge
+	CALL RENELW
+
+	CALL LOCAW(4,2)
+C	Read element number array to define loaways of bridge
+	CALL REELELW(IW(I_NEID))
+ 
+C	-------------------------------
+C	RECALL MATRICES OF  STRUCTURES:
+C	-------------------------------
+      NUMITE = 0
+      NUMREF = 0
+      INDPD  = KPOSD
+
+	KSTEP = 1
+
+C     Set control flags
+      IFPRI = 0
+      IFPLO = 0
+
+C     Form mass matrix:
+C     -----------------
+	IFEIG = 0
+	IFREF = 1
+      ISPRI = 1
+      ITASK = 5
+      CALL GRLOOP (IA(LEL),KSC)
+
+C
+C     Form material damping matrix: 
+C     -----------------------------
+	IFEIG = 0
+	IFREF = 1
+      ISPRI = 1
+      ITASK = 6
+      CALL GRLOOP (IA(LEL),KSC)
+
+C     Form tangential stiffness matrix: (IFREF=0)
+C     ------------------------------------------
+  505	IFEIG = 1
+	IFREF = 0
+      ISPRI = 1
+      ITASK = 1
+      CALL GRLOOP (IA(LEL),KSC)
+
+      NUMREF = NUMREF + 1
+
+C	Read additional parameters of bridge for 3D model (eccentricity)
+      CALL REBRI3D
+
+C	FORM DAMPING MATRIX OF BRIDGE
+C	-----------------------------
+C	Solve for bridge frequencies & Calculate Rayleigh damping coefficients
+C	By Subspace
+	IF(ISOLV.EQ.1) THEN
+		CALL STABIL(AA,BB,'STIF','MASS')
+	  CALL MPFCAL(IA(LMA),IA(LID),A(LER),A(LEV),A(LDIM),
+	1			    A(LFRE),NROOT,NITEM,BB,'MASS',KSC)
+	    CALL RDAMCO(A(LEV),NROOT,NITEM)  
+C     By Lanczos
+	ELSE IF (ISOLV.EQ.2) THEN
+	    CALL LANC(W,IA(LID),IA(LMA),N11,N10,AA,BB,'STIF','MASS')
+	  CALL MPFCAL(IA(LMA),IA(LID),W(N10),W(N11),A(LDIM),
+	1			   A(LFRE),NROOT,NITEM,BB,'MASS',KSC)
+		CALL RDAMCO(W(N11),NROOT,NITEM) 
+	ENDIF
+
+C     Form total damping matrix (RDM OR/AND RDK .NE.0.)
+	CALL RDAMBR (IA(LMA),RDM,RDK,NWK,NWM,NEQ,AA,BB,CC,
+	1			 'STIF','MASS','DAMP')
+
+C     INPUT OF INTEGRATION CONSTANTS FOR DYNAMIC ANALYSIS (NEWMARK OR WILSON-THETA)
+C	----------------------------------------------------
+
+C	Read control variables for moving forces/axle load analysis:
+	CALL REMOVM(LSTATC)
+C	Allocate storage
+	CALL LOCAW(4,3)
+
+C	IPATH.EQ.1 : LOAD RUNS ON BRIDGE, OTHERWISE ON RAIL
+      IF(IPATH.EQ.1) THEN
+	  CALL PATHMOV(NELW,IW(I_NEID),W(I_PELW),A(LXY),TLENGTH)
+      ELSE
+	  GOTO 1000
+      ENDIF
+
+C	READ MOVING LOAD OR LUMPED AXLE LOAD AT WHEEL POSITION
+      ALLOCATE(WHWIDTH(NWHEEL))
+	CALL REAXLOAD(W(I_AXLD),W(I_WPOS),WHWIDTH,NWHEEL) 
+C	----------------------------------------------------------
+C	SOLVE DYNAMIC MOVING FORCES OVER STRUCTURE IN 3D-MODELLING
+C	----------------------------------------------------------
+C	READ NODES NUMBER & DOFs OF STRUCTURE TO PRINT IN OUTPUT
+
+      ALLOCATE(STROHED(NPRTST))
+	CALL REPRST(IW(I_PRST),NPRTST,STROHED) 
+
+C	Dynamic Analysis with Moving Forces by Direct Intergration			
+	IF(IDSO.EQ.1) THEN
+	   CALL DMF3DINT(W(I_WPOS),W(I_AXLD),AA,BB,CC,
+	1				 IA(LMA),STROHED,WHWIDTH,LSTATC)
+
+C	Dynamic Analysis with Moving Forces by Vector Superposition
+	ELSE IF(IDSO.EQ.2) THEN
+	   CALL DMF3DMOD(W(I_WPOS),W(I_AXLD),AA,BB,CC,
+	1				 IA(LMA),STROHED,WHWIDTH) 
+	ENDIF
+C
+C	------------------------------------------------------------------------
+ 1000	CONTINUE
+ 
+      DEALLOCATE(STROHED,WHWIDTH)
+      
+      RETURN
+	END
+C
+C	=======================================================================
+      SUBROUTINE DMMAIN(AA,BB,CC)    
+      IMPLICIT REAL*8(A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	------------------------------------------------------------------------
+C	MAIN PROGRAM FOR MOVING LOAD ANALYSIS 
+C	------------------------------------------------------------------------
+      CHARACTER*80 TITLE
+
+      COMMON /IOUNIT/IN,IOUT,NSTIF
+      COMMON /MAXDM/AMXTR(100,3),AMXST(100,6)
+C	Next common blocks added 30Jul04 by NguyenDV
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+
+      COMMON /FLAG/ IFPRI,ISPRI,IFPLO,IFREF,IFEIG,ITASK,IFFLAG
+
+      COMMON /EIGN/ NSEIG,NROOT,NC,NNC,NITEM,IFSS,SHIFT0,EPS,IEIG,NEIG,
+     +              ISOLV,IVPRT
+      COMMON /DMCO/ IDMA,IANA,IDSO,NNBR,NNRA,NEBEBR,NPBEBR,NLRB,
+     +			  NEWKTK,NPWKTK,NEBERA,NPBERA,NDOF,NNBE,NNWK
+
+C	COMMON /DMAS/ IT1,IT2,IT3,IPATH,ALPHA,BITA,DELT,VEL,EXTDIS,NMAX,
+C     +			  TOLER,SCALE,NPRTTR,NPRTST
+C	Changed to DMSO,DITR,DIAX 9Sep04 by NguyenDV
+	COMMON /DMSOI/ IPATH,NMAX,NPRTTR,NPRTST,NPRWH,KPRTR
+	COMMON /DMSOR/ ALPHA,BITA,DELT,VEL,EXTDIS,TOLER,SCALE,TLENGTH,BIDIS
+
+C	COMMON /DITR/ IT1,IT2,IT3
+C	Previous changed to the next 20Oct05
+	COMMON /IWTR/ IT1,IT2,IT3,I_ITRAIN,I_NCHTR,I_NDTR,I_PRTR,I_PTWH
+	COMMON /NIAX/ NWHEEL	
+
+C	Next commnon block added 11Jan05
+C	COMMON /BREL/ I_MPBEBR,I_LNBEBR,I_PRBEBR
+
+C	Next commnon block added 12Jan05
+	COMMON /LODW/ I_MPWK,I_LNWK,I_PRWK,I_MPBEBR,I_LNBEBR,I_PRBEBR
+C	Next commnon block added 12Jan05
+	COMMON /MEMW/ W(7000000),IW(7000000)
+C	------------------------------------------------------------------------
+      DIMENSION AR(9000000),IA(50000)
+	DIMENSION AA(1),BB(1),CC(1)
+
+C      
+C	   IDATM: Data type
+C			= 0:Input data by text format file (Original)
+C			= 1:Input data by GiD
+C
+C	   IMESH: Mesh numbering type 
+C			= 0:Normal node numbering (manually input,used for Text only)
+C		    = 1:Random node numbering (generated by GiD, used for GiD & Text)	
+  	IDATM = 1
+	IMESH = 0
+
+	IFPRI = 1
+C	
+      GOTO (100,200,300),IDMA
+
+C	VEHILES MODELED AS MOVING FORCES (inputed axle loads) with 3D bridge model
+  100 CALL DM1DF(IDATM,AA,BB,CC)
+	RETURN
+	
+  200 CONTINUE
+      RETURN
+	
+C     3D TRAIN-BRIDGE DYNAMIC INTERACTION ANALYSIS
+  300 CALL DM3DM(IDATM,AA,BB,CC)
+      RETURN
+      
+      END
+C	=======================================================================
+
+      SUBROUTINE RENELW
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     -----------------------------------------------------------------
+C	PROGRAM TO GET NELW (NUMBER OF SEGMENT IN THE LOADWAY)
+C	Currently, the loadway is defined by only one element group
+C	 31-10-2005 by NguyenDV
+C	-----------------------------------------------------------------
+C	OUTPUT VARIABLES:
+C	-----------------
+C	NELW   = NUMBER OF SEGMENT IN THE LOADWAYS 
+C     -----------------------------------------------------------------
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+	COMMON /BRI3/ H4,ECC,ZET1,ZET2,RDM,RDK,NELW
+      LOGICAL PROMPT,ERROR
+      
+C	----------------------------
+C	READ NUMBER OF PATH ELEMENTS
+C	----------------------------
+	READ (ITI,*)
+	
+	READ (ITI,*) NDLW !NUMBER OF NODES IN LOADWAY
+	
+      NELW = NDLW - 1   !NUMBER OF SEGMENT IN LOADWAY
+
+ 	RETURN
+	END
+C	=======================================================================
+      SUBROUTINE REELELW(NEID)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     -----------------------------------------------------------------
+C	PROGRAM TO READ ELEMENT NUMBER IN THE LOADWAY (PATH ELEMENTS)
+C	Currently, the loadway is defined by only one element group
+C	 31-10-2005 by NguyenDV
+C	-----------------------------------------------------------------
+C	INPUT VARIABLES:
+C	-----------------
+C	NELW   = NUMBER OF SEGMENT IN THE LOADWAYS 
+
+C	OUTPUT VARIABLES:
+C	-----------------
+C	NEID(NELW) = ARRAY OF PATH ELEMENT NUMBERS
+C     -----------------------------------------------------------------
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+      COMMON /ELEM/ NAME(2),ITYPE,ISTYP,NLOPT,MTMOD,NSINC,ITOLEY,
+     1              NELE,NMPS,NGPS,NMP,NGP,NNM,NEX,NCO,NNF,NWG,NEFC,
+     2              NPT,NWA,NWS,KEG,MEL,NNO,NEF,NELTOT,NMV,MTYP,ISECT
+      COMMON /NUMB/ HED(20),MODEX,NRE,NSN,NEG,NBS,NLS,NLA,
+     +              NSC,NSF,IDOF(9),LCS,ISOLOP,LSYMM
+	COMMON /BRI3/ H4,ECC,ZET1,ZET2,RDM,RDK,NELW
+
+	DIMENSION NEID(2,1)
+	
+C	-----------------------
+C	READ PATH ELEMENTS DATA
+C	-----------------------
+	WRITE (ITO,1000)
+      WRITE (10,1000)
+
+	DO 100 I=1,NELW
+	
+	  IF (I.EQ.1) THEN
+	      READ(ITI,*) NEID(1,I)
+	  ELSE
+	      NEID(1,I) = NEID(2,I-1)
+	  ENDIF
+	  
+	  READ(ITI,*) NEID(2,I)
+
+  100	CONTINUE
+  
+
+	WRITE (ISO,1500) NELW
+	DO I = 1,NELW
+ 	  WRITE (ISO,2000) NEID(1:2,I)
+ 	ENDDO
+ 	
+
+C	-----------------------
+ 1000 FORMAT (1X,'READ NODAL NUMBERS OF LOADWAY (PATH SEGMENTS) ')
+
+ 1500 FORMAT (//18X,44(1H*)/18X,1H*,42X,1H*/
+     +18X,'* ELEMENT NUMBERS TO DEFINE LOADWAY (PATH) *'/
+     +18X,1H*,42X,1H*/18X,44(1H*)//
+     +14X,'NUMBER OF SEGMENT . . . . . . . . . NELW =',I9)
+     
+ 2000 FORMAT(8X,I5,2X,I5)
+
+ 	RETURN
+	END
+C	=======================================================================
+      SUBROUTINE PATHMOV(NELW,NEID,PELW,XY,TLENGTH)
+      IMPLICIT REAL*8(A-H,O-Z)
+	IMPLICIT INTEGER*4 (I-N)
+C	-----------------------------------------------------------------------
+      COMMON /NUMB/ HED(20),MODEX,NRE,NSN,NEG,NBS,NLS,NLA,
+     +              NSC,NSF,IDOF(9),LCS,ISOLOP,LSYMM
+     
+C	INPUT
+C	XY(NSN,3)	= NODAL COORDINATE
+C	NELW		= NUMBER OF SEGMENT OF LOADWAY
+
+C	OUTPUT
+C	TLENGTH	= TOTAL LENGTH OF PATH (LOADWAY)
+
+C	-----------------------------------------------------------------------
+      DIMENSION XY(NSN,1)
+      
+      DIMENSION NEID(2,1),DXYZ(3),PELW(4,1)
+C	----------------------------------------------------------------------- 
+
+C	Calculate total length of traveling path
+      TLENGTH = 0.0D0
+      DO I = 1,NELW
+        NODI = NEID(1,I)
+        NODJ = NEID(2,I)
+        DXYZ(1:3) = XY(NODJ,1:3) - XY(NODI,1:3)
+	  CALL SCALEN(DXYZ,DXYZ,SLEN,3)
+	  PELW(1:3,I) = DXYZ(1:3)
+	  PELW(  4,I) = SLEN
+	  TLENGTH = TLENGTH + SLEN
+      ENDDO
+      
+      
+      RETURN
+      END
+C
+C	=======================================================================
+      SUBROUTINE REAXLOAD(AXLOAD,WHPOS,WHWIDTH,NWHEEL)    
+      IMPLICIT REAL*8(A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	-------------------------------------------------------
+C	READ MOVING LOAD OR LUMPED AXLE LOAD AT WHEEL POSITION
+C	-------------------------------------------------------
+C	INPUT:
+C	-----
+C	NWHEEL = Number of wheels or axle loads
+C	------------------------------------------------------------------------------
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+C
+C	DIMENSION NWHNUM(NWHEEL),AXLOAD(*),WHPOS(1)
+	DIMENSION NWHNUM(NWHEEL),AXLOAD(NWHEEL),WHPOS(NWHEEL),WHWIDTH(NWHEEL)
+C	
+      READ(ITI,*)
+  	WRITE (ITO,1000)
+      WRITE (10,1000)
+	WRITE(ISO,3400)
+
+	CALL CLEARI(NWHNUM,NWHEEL)
+	CALL CLEARA(AXLOAD,NWHEEL)
+	CALL CLEARA(WHPOS,NWHEEL)
+			
+CN	DO 195 I=1,NWHEEL	 
+CN		READ(ITI,*) NWHNUM(I),WHPOS(I),AXLOAD(I) !No typical data exist for wheel
+CN		WRITE(ISO,3420) I,WHPOS(I),AXLOAD(I)
+CN  195	CONTINUE
+	
+	NAXL = 1
+
+  100	READ(ITI,*,END=150) NWH,WHP,AXL,WHW  !WHW = WIDTH OF LOAD -- WHW=0.0 for Point load  --  WHW>0.0 for Uniform load
+  150	NWH = IABS(NWH)
+
+C		WRITE(ISO,3420) I,AXLOAD(I),WHPOS(I)
+		WRITE(ISO,3420) NWH,WHP,AXL
+	NWHNUM(NAXL) = NWH
+	WHPOS(NAXL)  = -1.0D0*WHP  !NEGATIVE BECAUSE THe SENSE OF REAR WHEEL IS FOLLOWING THE FRONT WHEEL (Refer to Dr Van formulation)
+	AXLOAD(NAXL) = AXL
+	WHWIDTH(NAXL) = WHW
+
+	NAXL = NAXL+1
+	IF(NAXL.LE.NWHEEL) GOTO 100
+
+ 1000 FORMAT(//,1X,'READ LUMPED AXLE LOADS AT WHEEL POSITION')
+ 3400 FORMAT(//,5X,'MOVING LOAD OR LUMPED AXLE LOAD AT WHEEL POSITION',/
+     +/5X,'Wheel No.	Wheel Position   Vertical Axle Load')
+
+ 3410 FORMAT(3F10.0)
+ 3420 FORMAT(5X,I4,10X,E11.4,12X,E11.4)
+
+      RETURN
+      END
+
+C	=======================================================================
+      SUBROUTINE REPRST(IPRTST,NPRTST,STROHED)
+      IMPLICIT REAL*8(A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+	CHARACTER*200 NAME
+	CHARACTER*200 STROHED
+C	----------------------------------------------------------------------
+C	PROGRAM TO READ:
+C	  - NODES NUMBER OF STRUCTURE IPRTST(NPRTST,2)[NODE #, DOF #]
+C	----------------------------------------------------------------------
+C	INPUT:
+C	------
+C	IPRTST(NPRTST,2) : NODES NUMBER OF STRUCTURE[NODE #, DOF #]
+C	NPRTST : NUMBER OF NODES TO PRINT OF STRUCTURE
+C	---------------------------------------------------------------------
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+
+      DIMENSION IPRTST(NPRTST,2)
+      DIMENSION STROHED(NPRTST)
+C	---------------------------------------------------------------------
+      IF(NPRTST.GT.0) THEN
+	  READ(ITI,*)
+        DO 100 I=1,NPRTST
+	  READ(ITI,'(A200)') NAME
+		READ(ITI,*) (IPRTST(I,J),J=1,2)
+        STROHED(I) = TRIM(NAME)
+  100   CONTINUE
+          
+        WRITE(ISO,1000)
+        DO 200 I=1,NPRTST
+          WRITE(ISO,2000) (IPRTST(I,J),J=1,2)
+
+  200   CONTINUE
+      ENDIF
+C     
+      RETURN
+
+ 1000 FORMAT(//,1X,'PRINTED NODE NUMBER AND ITS DOF BRIDGE',/
+     &'  NUM  DOF')
+ 2000 FORMAT(10I5)
+      END
+C
+C	=======================================================================
+      SUBROUTINE CALAXL3D(AXLOAD,IDWHPOS,NEID,PELW,XI,IDWSEG,XISG,ID,FS)
+      IMPLICIT REAL*8(A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	-----------------------------------------------------------------------
+C	PROGRAM TO: 
+C	 - CALCULATE EQUIVALENT NODAL FORCE VECTOR APPLIED TO 3D-STRUCTURE {FS(NEQ)}
+C	   FROM LUMPED FORCES ACTING AT WHEEL POSITION
+C	 - Assumed ONLY forces acting vertically. Later the transverse forces can be included
+C	By NguyenDV Nov2005
+C	-----------------------------------------------------------------------
+C	INPUT:
+C	------
+C	AXLOAD(NWHEEL) = AXLE LOAD
+C	ID(NSF,NSN)  = BOUNDARY CODES AND EQUATION NUMBERSNRL = NRL(NSF,NSN) = EQUATION NUMBER
+C	NSF    = Maximum number of DOFs per node (=6 or 7, depends on the type of element)
+C	NNF    = NUMBER OF NODAL DEGREES OF FREEDOM
+C	NEQ    = NUMBER OF EQUATIONS OF STRUCTURE
+
+C	IDWHPOS(NWHEEL)   = ID NUMBER OF ELEMENT CORRESPONDING TO WHEEL POSITION
+C	NEID(2,NELW)      = NODE NUMBER OF LANE WHERE WHEEL RUNS
+C	XI(NWHEEL)        = Natural coordinate of wheel position at the current element
+C					      XI(I)= DABS(WHPOS(I)-XYZI)/DABS(XYZI-XYZJ)
+C	NWHEEL  = Number of wheels or axle loads
+C	NELW    = Number of segment of loadway
+C	WHPOS(NWHEEL) = Wheel position
+
+C	OUTPUT:
+C	-------
+C	FS(NEQ)       = Equivalent nodal force vector applied to structure (at current time)
+
+C	INDEX:
+C	------
+C	SFBC0(2)= shape functions of C0-beam element in narural coordinate {1/2(1-r) 1/2(1+r)}
+C	SFBC1(6)= shape functions of C1-beam element
+C	FSE(12) = Equivalent nodal forces vector of the current element (from lumped forces at wheel position)
+C	-------------------------------------------------------------------------------
+      COMMON /SOLU/ NEQ,NEQ1,NBLOCK,MK,BM,NWK,NWM,ISTOR,NFAC,
+     +              NRED,KPOSD,DETK,DET1,DAVR,STOL
+      COMMON /NUMB/ HED(20),MODEX,NRE,NSN,NEG,NBS,NLS,NLA,
+     1              NSC,NSF,IDOF(9),LCS,ISOLOP,LSYMM
+     
+	COMMON /NIAX/ NWHEEL
+	
+	COMMON /BRI3/ H4,ECC,ZET1,ZET2,RDM,RDK,NELW
+
+C	GRAVTITY DIRECTION ADDED BY SONGSAK MAR2006  
+	COMMON /MGRAV/ NGRAV	
+C
+      DIMENSION ID(NSF,1)
+      DIMENSION NEID(2,1),IDWHPOS(1),XI(1),PELW(4,1)
+      DIMENSION FSE(7,2),FS(NEQ)
+	DIMENSION AXLOAD(NWHEEL)
+	
+	DIMENSION VR(3)
+	
+	DIMENSION IDWSEG(NWHEEL,1),XISG(NWHEEL,1) !FOR UNIFORM LOAD
+C	----------------------------------------------------------------------
+C	EQUIVALENT NODAL FORCE CORRESPONDING TO LUMPED FORCE AT WHEEL POSITION
+C	----------------------------------------------------------------------
+	CALL CLEARA(FS,NEQ)
+C
+      DO 40 I=1,NWHEEL
+        IF(IDWHPOS(I).GT.0) THEN
+
+C	CALCULATE EQUIVALENT NODAL FORCES VECTOR OF THE CURRENT BEAM ELEMENT
+        IENUM=IDWHPOS(I)		!ID of current element     
+        
+C     LOCAL VECTOR & SEGMENT LENGTH		
+        VR(1:3) = PELW(1:3,IENUM)
+           SLEN = PELW(  4,IENUM)
+
+C     EQUIVALENT NODAL FORCE FROM WHEEL CONTACT	  
+        AXLD = -1.0D0*AXLOAD(I)     ! MINUS FOR NEGATIVE GRAVITY
+	  CALL WHELFIX(AXLD,XI(I),NGRAV,VR,SLEN,FSE,ECC,'NODE')        
+         
+C	ASSEMBLE EQUIVALENT NODAL FORCE OF ELEMENT INTO GLOBAL NODAL FORCE
+          DO 50 J=1,2			        !Loops over number of nodes per element
+            NDNUM=NEID(J,IENUM)	        !Current node number
+            DO 60 ISF=1,NSF		        !Loops over number of DOFs per node
+			    IDF = IDOF(ISF)         !DOF NUMBER
+			    IF(IDF.GT.0.AND.IDF.LE.7) THEN
+				    IEQ=ID(ISF,NDNUM)	!Equation number of current DOF
+				    IF(IEQ.GT.0) THEN
+				        FS(IEQ)=FS(IEQ)+FSE(IDF,J)
+				    ENDIF
+			    ENDIF
+   60       CONTINUE
+   50     CONTINUE
+
+        ENDIF			!----->(IDWHPOS(I).GT.0)
+        
+        
+        IF(IDWHPOS(I).LT.0) THEN !UNIFORM LOAD
+            NWSG = ABS(IDWHPOS(I))  !NUMBER OF ELEMENT OCCUPIED BY UNIFORM LOAD (PUT MINUS SIGN TO PREVENT CONFLICT WITH POINT LOAD)
+            DO IWSG = 1,NWSG
+                IENUM = IDWSEG(I,IWSG)
+                
+                VR(1:3) = PELW(1:3,IENUM)
+                   SLEN = PELW(  4,IENUM)
+                   
+                XII = XISG(I,2*IWSG-1)
+                XIJ = XISG(I,2*IWSG-0)
+                
+C               EQUIVALENT NODAL FORCE FROM WHEEL CONTACT	  
+                AXLD = -1.0D0*AXLOAD(I)     ! MINUS FOR NEGATIVE GRAVITY
+	          CALL UNIFFIX(AXLD,XII,XIJ,NGRAV,VR,SLEN,FSE,ECC)  
+         
+C	ASSEMBLE EQUIVALENT NODAL FORCE OF ELEMENT INTO GLOBAL NODAL FORCE
+                DO J=1,2			        !Loops over number of nodes per element
+                    NDNUM=NEID(J,IENUM)	        !Current node number
+                    DO ISF=1,NSF		        !Loops over number of DOFs per node
+			            IDF = IDOF(ISF)         !DOF NUMBER
+			            IF(IDF.GT.0.AND.IDF.LE.7) THEN
+				            IEQ=ID(ISF,NDNUM)	!Equation number of current DOF
+				            IF(IEQ.GT.0) THEN
+				                FS(IEQ)=FS(IEQ)+FSE(IDF,J)
+				            ENDIF
+			            ENDIF
+                    ENDDO
+                ENDDO
+            ENDDO
+        ENDIF			!----->(IDWHPOS(I).LT.0)
+        
+   40 CONTINUE		! Loops over NWHEEL
+
+      RETURN
+      END
+C
+C	=======================================================================
+      SUBROUTINE PRTITLE(IPRTST,NPRTST,VEL,EXTDIS,TLENGTH,SOLT,STROHED)
+      IMPLICIT REAL*8(A-H,O-Z)
+	IMPLICIT INTEGER*4 (I-N)
+	CHARACTER*200 NAME
+	CHARACTER*200 STROHED
+	CHARACTER*40 HED
+	CHARACTER*4000 PHED
+
+C	PROGRAM TO:
+C		- PRINT OUT THE STRUCTURE RESPONSE OF DYNAMIC MOVING LOAD ANALYSIS
+C	-----------------------------------------------------------------------
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+	DIMENSION IPRTST(NPRTST,2)
+	DIMENSION STROHED(NPRTST)
+c	-----------------------------------------------------------------------
+	WRITE(100,500)
+
+	VELKMH = VEL*3.6
+c	Extra time after last wheel leaves the path (for free vibration)
+	TEXTRA = EXTDIS/VEL	
+	WRITE(100,1000) VELKMH,TLENGTH,SOLT,TEXTRA
+
+
+      IF(NPRTST.GT.0) THEN
+      
+      WRITE(100,1200)
+
+      DO IOUTST = 1,NPRTST
+          NAME = STROHED(IOUTST)
+	    NAML = LEN_TRIM(NAME)
+    	
+          NCHA = 40
+          HED(1:NAML) = NAME(1:NAML)
+          HED(NAML+1:NCHA) = ' '
+          
+          I1 = 1    + NCHA*(IOUTST-1)
+          I2 = NCHA + NCHA*(IOUTST-1)
+          PHED(I1:I2) = HED(1:NCHA)
+      ENDDO
+      WRITE(100,1300) PHED(1:NCHA*NPRTST)  
+      
+      
+      NCHA = 40
+      HED(1:4) = 'DIS.' 
+      HED(5:11) = ' '
+      HED(12:15) = 'VEL.' 
+      HED(16:22) = ' '
+      HED(23:26) = 'ACC.' 
+      HED(27:40) = ' '
+      DO IOUTST = 1,NPRTST
+          I1 = 1    + NCHA*(IOUTST-1)
+          I2 = NCHA + NCHA*(IOUTST-1)
+          PHED(I1:I2) = HED(1:NCHA)
+      ENDDO
+      WRITE(100,1400) PHED(1:NCHA*NPRTST)    
+      
+      ENDIF
+
+
+
+
+  500	FORMAT (//1H#,5X,53(1H*)/
+     + 1H#,5X,1H*,51X,1H*/
+     + 1H#,5X,52H* DYNAMIC MOVING LOAD ANALYSIS OF COMPLEX STRUCTURE 
+     + 1H*/1H#,5X,1H*,51X,1H*/
+     + 1H#,5X,1H*,19X,13H JOB PROGRESS,19X,1H*/
+     + 1H#,5X,53(1H*)/)
+     
+ 1000 FORMAT (5X,'VELOCITY(VEL, Km/hour). . . . . . . . . .= ',F10.4/
+     +5X,'TOTAL LENGTH OF WHEEL-PATH OF BRIDGE (M) = ',F10.4/
+     +5X,'TOTAL TIME WHEELS RUN ON THE PATH (Sec.) = ',F10.4/
+     +5X,'EXTRA TIME FOR FREE VIBRATION. . .(Sec.) = ',F10.4)
+
+ 1200 FORMAT (//2X,29(1H-),/2X,'OUTPUT OF STRUCTURAL RESPONSE',/2X,29(1H-))
+ 
+ 1300 FORMAT (/2X,12X,'List of Output',11X,6X,A)
+ 1400 FORMAT (/5X,'TIME(s)',3X,'POS.-1st-Wheel(m)',11X,A)
+
+
+	RETURN
+
+	END
+
+C	=======================================================================
+      SUBROUTINE BROUT3D(NRL,RS,IPRTST,ITE,DDT,WCOD1)
+      
+      IMPLICIT REAL*8(A-H,O-Z)
+	IMPLICIT INTEGER*4 (I-N)
+C	-----------------------------------------------------------------------
+C	PROGRAM TO:
+C		- PRINT OUT THE STRUCTURE RESPONSE OF DYNAMIC MOVING LOAD ANALYSIS
+C
+C	INPUT:
+C	------
+C	NRL(NSF,NSN)	= EQUATION NUMBER OF STRUCTURE
+C	RS(NEQ,3)		= (I)TH RESPONSE OF STRUCTURE[DIS, VEL, ACCE] 
+C	IPRTST(NPRTST,2)= NODES NUMBER OF STRUCTURE[NODE #, RESPONSES]
+C	NPRTST			= NUMBER OF NODES TO PRINT OF STRUCTURE
+C	ITE				= I-TH SOLUTION STEP 
+C	DDT				= TIME STEP INCREMENT
+C
+C	INDEX
+C	-----
+C	PRTST(NPRTST*2) : TEMPORARY STORAGE TO PRINT STRUCTURE RESPONSES
+C	TIMMAX(4){MAXDIS,MINDIS,MAXACCE,MINACCE} = MAXIMUM STRUCTURE RESPONSE [D,A] AMONG ALL DOFs AT CURRENT TIME STEP
+C	--------------------------------------------------------------------------
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+      COMMON /SOLU/ NEQ,NEQ1,NBLOCK,MK,BM,NWK,NWM,ISTOR,NFAC,
+     +              NRED,KPOSD,DETK,DET1,DAVR,STOL
+      COMMON /NUMB/ HED(20),MODEX,NRE,NSN,NEG,NBS,NLS,NLA,
+     +              NSC,NSF,IDOF(9),LCS,ISOLOP,LSYMM
+	COMMON /DMSOI/ IPATH,NMAX,NPRTTR,NPRTST,NPRWH,KPRTR
+	COMMON /DMSOR/ ALPHA,BITA,DELT,VEL,EXTDIS,TOLER,SCALE,TLENGTH,BIDIS
+C
+      COMMON /MAXDM/AMXTR(100,3),AMXST(100,6)
+		
+	DIMENSION NRL(NSF,NSN),RS(NEQ,3),IPRTST(NPRTST,2),BOUT(3,NPRTST)
+C	-----------------------------------------------------------------------
+
+      IF(NPRTST.GT.0) THEN
+      
+	IF(ITE.EQ.0)THEN
+		TIME=0.0D0
+	ELSEIF(ITE.GT.0) THEN
+		TIME=ITE*DELT
+	ENDIF
+C	XW1 = VEL*TIME !current position of 1st wheel, added 03Mar07,changed next 16May08
+	XW1 = WCOD1 + VEL*TIME       
+      
+      DO IOUTST = 1,NPRTST
+          NCNOD = IPRTST(IOUTST,1) !NODE
+          NCDOF = IPRTST(IOUTST,2) !DOF
+          CALL GETSTDIS(NRL,NCNOD,NCDOF,NEQ,RS,BOUT(1,IOUTST),'DIS')
+          CALL GETSTDIS(NRL,NCNOD,NCDOF,NEQ,RS,BOUT(2,IOUTST),'VEL')
+          CALL GETSTDIS(NRL,NCNOD,NCDOF,NEQ,RS,BOUT(3,IOUTST),'ACC')
+          
+          IF(ITE.EQ.1) THEN
+              AMXST(IOUTST,1:3) = BOUT(1:3,IOUTST)
+              AMXST(IOUTST,4:6) = BOUT(1:3,IOUTST)
+          ELSE
+              DO I = 1,3
+                IF(BOUT(I,IOUTST).GT.AMXST(IOUTST,I+0)) AMXST(IOUTST,I+0) = BOUT(I,IOUTST)
+                IF(BOUT(I,IOUTST).LT.AMXST(IOUTST,I+3)) AMXST(IOUTST,I+3) = BOUT(I,IOUTST)
+              ENDDO
+          ENDIF
+      ENDDO
+      WRITE(100,1100) TIME,XW1,(BOUT(1:3,IOUTST),IOUTST=1,NPRTST)
+      
+      ENDIF
+
+
+1100  FORMAT(3X, E10.3 ,3X, 3X,E13.4,X, 6X, 100(3E13.4,4X))
+      
+      RETURN
+      END
+C	=======================================================================
+      SUBROUTINE DMF3DINT(WHPOS,AXLOAD,AK,AM,AC,ND,STROHED,WHWIDTH,LSTATC) !added AC 17Apr06
+
+      IMPLICIT REAL*8(A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+	CHARACTER*200 STROHED
+C	-------------------------------------------------------------------------     
+C	Program for Dynamic Analysis with Moving Forces by Direct Intergration  
+c	-------------------------------------------------------------------------  
+C	INPUT:
+C	------
+C	NEID(2,NELW) = NODE NUMBERS CORRESPONDING TO SEGMENT WHERE WHEELS RUN
+C	WHPOS(NWHEEL) = WHEEL POSITION AT CURRENT TIME STEP
+C	WHPOSN(NWHEEL) = POSITION AT NEXT TIME STEP
+C	IDWHPOS(NWHEEL) = ID NUMBER OF ELEMENT CORRESPONDING TO WHEEL POSITION
+C	XI(NWHEEL)	= NATURAL COORDINATE OF WHEEL POSITION
+C	FS(NEQ)		= EQUIVALENT NODAL FORCE VECTOR OF AXLE LOAD APPLIED TO STRUCTURE
+C	RS(NEQ,3)	= (I)TH RESPONSE OF STRUCTURE[DIS, VEL, ACCE] 
+C	RSN(NEQ,3)  = (I+1)TH RESPONSE OF STRUCTURE
+C	AK(NWK)		= STIFFNESS MATRIX OF STRUCTURE
+C	AM(NWK)		= MASS/damping MATRIX OF STRUCTURE
+C	AMO(NWK)    = ORIGINAL MASS MATRIX OF STRUCTURE
+C	AKO(NWK)    = ORIGINAL STIFFNESS MATRIX OF STRUCTURE
+C	NRL(NSF,NSN)= EQUATION NUMBER OF STRUCTURE
+C	ND(NEQ+1)   = VECTOR CONTAINING ADDRESS OF DIAGONAL ELEMENTS OF STRUCTURE
+C	AXLOAD(NWHEEL)= AXLE LOAD APPLIED TO STRUCTURE
+
+C	SS(NEQ) : WORKING VECTOR
+
+C	NWHEEL : NUMBER OF WHEELS
+C	NELW : NUMBER OF SEGMENT OF TRAIN PATH IN GENERAL, NELW=NEBEBR OR =NEBERA
+C	TLENGTH : TOTAL LENGTH OF PATH WHERE WHEEL RUNS
+C	SCALE : GRAVITY ACCELERATION
+C	NWK : NUMBER OF ELEMENTS OF STIFFNESS MATRIX OF STRUCTURE
+C	NEQ : NUMBER OF EQUATIONS OF STRUCTURE
+C	NDOF : NUMBER OF DEGREES OF FREEDOM OF NODE
+C	NNM : NUMBER OF NODES MAKING A BEAM ELEMENT(=2)
+
+C	VEL : VELOCITY(M/SEC) OF TRAIN
+C	DDT : DELTA T(TIME INCREMENT)
+C	EXTDIS : EXTRA DISTANCE
+
+C	ALPHA : NEWMARK BETA COEFFICIENT
+C	BETA
+
+C	IPRTST(NPRTST,2) : NODES NUMBER OF STRUCTURE[NODE #, SPONSES
+C	PRTST(NPRTST*2) : TEMPORARY STORAGE TO PRINT STRUCTURE RESPONSES
+C	NPRTST : NUMBER OF NODES TO PRINT OF STRUCTURE
+
+
+C	INDEX
+C	NSOLT : NUMBER OF TOTAL SOLUTION TIMES
+C	AC(NWK)		= DAMPING MATRIX OF STRUCTURE (after read from UNIT 4)
+C	---------------------------------------------------------------------------------
+      COMMON /MAXDM/AMXTR(100,3),AMXST(100,6)
+
+      CHARACTER*80 TITLE
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+
+      COMMON /IOUNIT/IN,IOUT,NSTIF
+
+	
+      COMMON /LOCA/ LID,LDS,LEL,LDC,LXY,LCH,LNU,LMP,LGP,LMS,LGS,
+     1              LCO,LEX,LLM,LES,LEC,LED,LEI,LEE,LMA,LLF,LLV,
+     2              LRE,LDI,LDL,LDT,LDK,LER,LEV,LTT,LWV,LAR,LBR,
+     3              LVE,LDD,LRT,LBU,LBC,LVL,LAL,LEF,LDU,LPR,LLO,
+	4              LRV,LRT1,LRET,LRET1,LDM,LDPT,LVL1,LMV,LXI,LCM,LCC,
+	5			    LCN,LDIM,LFRE,LSFC,LLOF
+
+      COMMON /ELEM/ NAME(2),ITYPE,ISTYP,NLOPT,MTMOD,NSINC,ITOLEY,
+     1              NELE,NMPS,NGPS,NMP,NGP,NNM,NEX,NCO,NNF,NWG,NEFC,
+     2              NPT,NWA,NWS,KEG,MEL,NNO,NEF,NELTOT,NMV,MTYP,ISECT
+      COMMON /SOLU/ NEQ,NEQ1,NBLOCK,MK,BM,NWK,NWM,ISTOR,NFAC,
+     +              NRED,KPOSD,DETK,DET1,DAVR,STOL
+	COMMON /SPBC/ NSS,NLSS
+      COMMON /DMCO/ IDMA,IANA,IDSO,NNBR,NNRA,NEBEBR,NPBEBR,NLRB,
+     +			  NEWKTK,NPWKTK,NEBERA,NPBERA,NDOF,NNBE,NNWK
+	COMMON /DMSOI/ IPATH,NMAX,NPRTTR,NPRTST,NPRWH,KPRTR
+	COMMON /DMSOR/ ALPHA,BITA,DELT,VEL,EXTDIS,TOLER,SCALE,TLENGTH,BIDIS
+
+	COMMON /BRI3/ H4,ECC,ZET1,ZET2,RDM,RDK,NELW
+
+	COMMON /BRIW/ I_PELW,I_NEID,I_PRST
+	COMMON /IWTR/ IT1,IT2,IT3,I_ITRAIN,I_NCHTR,I_NDTR,I_PRTR,I_PTWH
+
+	COMMON /TRW3/ I_PCAB,I_CADI,I_ADDI,I_ALSU,I_PRSS,I_PBOG,I_PRPS,
+	1			  I_PRWH,I_WRCO,I_WPOS,I_AMTR,I_ACTR,I_AKTR,I_AXLD
+	COMMON /NIAX/ NWHEEL
+C      COMMON /TIME/ DDT,CTIM,NINC                                !Removed 3Nov2006 by NguyenDV
+C      COMMON /INCO/ A0,A1,A2,A3,A4,A5,A6,A7,A8,ALFA,BETA,		!Removed 3Nov2006 by NguyenDV
+C	1              A11,A12,ALF,IOPT
+
+      COMMON A(9000000),IA(9000000)
+	COMMON /MEMW/ W(7000000),IW(7000000)
+C	-------------------------------------------------------------------
+      DIMENSION WHPOS(NWHEEL),WHPOSN(NWHEEL),WHWIDTH(NWHEEL)
+      DIMENSION IDWHPOS(NWHEEL),XI(NWHEEL),FS(NEQ),RS(NEQ,3),RSN(NEQ,3)
+      DIMENSION ND(NEQ+1)
+	DIMENSION SS(NEQ),IPRTST(NPRTST,2),PRTST(NPRTST*2)
+	DIMENSION DIAK(NEQ)
+	DIMENSION STROHED(NPRTST)
+	
+	DIMENSION IDWSEG(NWHEEL,NELW),XISG(NWHEEL,2*NELW) !FOR UNIFORM LOAD
+C	---------------------------------------------------------------------------------
+	DIMENSION AK(1),AM(1),AC(1),DDK(NEQ),DDM(NEQ)
+
+C     TOTAL VEHICLE LENGTH EQUAL TO POSITON OF LAST LOAD PLUS LENGTH OF LAST LOAD
+      VLENG = DABS(WHPOS(NWHEEL))+WHWIDTH(NWHEEL)
+      
+      SOLT=(VLENG+TLENGTH+EXTDIS)/VEL
+      NSOLT=IDNINT(SOLT/DELT)
+
+C	PRINT OUT DIAGONAL ELEMENT OF STIFFNESS MATRIX (temperary, for testing)
+c	CALL PRDIAMAT(Am,ND,NEQ,NWK)
+
+C	PRINT TITLE OF OUTJOB
+	CALL PRTITLE(IW(I_PRST),NPRTST,VEL,EXTDIS,TLENGTH,SOLT,STROHED)
+
+C	ALPHA = A12
+C3NOV	BITA  = A11
+ 
+C	STORE ORIGINAL STIFFNESS & MASS MATRICES
+
+
+C	CALL CLEARA(AC,NWK)	!ASSUMED ZERO DAMPING --->>(TEMPERARY), removed17Apr06
+
+C	BEFORE DECOMP AK=ORIGINAL STIFFNESS MATRIX
+C	AFTER DECOMP AK=DECOMPOSED STIFFNESS MATRIX
+C     FACTORIZE LINEAR STIFFNESS MATRIX [K]=[L][D][L]T
+C     ----------------------------------------------------------
+CN      CALL COLSOL (ND,AK,AM,A(LDK),A(LEF),1,INDPD)
+
+C	ISH=0
+C	CALL DECOMP(AK,ND,NEQ,ISH,IOUT)
+C	INDPD = KPOSD
+C	CALL COLSOL(ND,AK,DDK,DDK,1,INDPD,'STIF','TEMP')
+
+C	***********************************************
+C 	*		 ANALYSIS PROCESS AT ZERO STEP        *                            
+C     ***********************************************      
+      WRITE(*,1000)
+
+C	IDENTIFY ELEMENT NUMBER CORRESPONDING TO WHEEL POSITION AT ZERO STEP
+      CALL IDWHEELF(NELW,IW(I_NEID),W(I_PELW),W(I_WPOS),WHWIDTH,IDWHPOS,XI,IDWSEG,XISG,NWHEEL)
+
+C	INITIALIZE RESPONSE OF STRUCTURE AT ZERO STEP
+	CALL CLEARMAT(RS,NEQ,3)
+
+C	CALCULATE EQUIVALENT NODAL FORCES APPLIED TO STRUCTURE AT ZERO STEP
+      CALL CALAXL3D(W(I_AXLD),IDWHPOS,IW(I_NEID),W(I_PELW),XI,IDWSEG,XISG,IA(LID),FS)	
+
+
+C	CALCULATE DISPLACEMENT OF STRUCTURE AT ZERO STEP
+C	CALL MULTDM(SS,AM,RS(1,3),ND,NEQ,NWK)
+	CALL MAMULT(ND,AM,RS(1,3),SS,'MASS','STD')
+	CALL VECSUB(FS,FS,SS,FACT,VNORM,NEQ)
+
+
+C	CALL MULTDM(SS,AC,RS(1,2),ND,NEQ,NWK)
+	CALL MAMULT(ND,AC,RS(1,2),SS,'DAMP','STD')
+	CALL VECSUB(FS,FS,SS,FACT,VNORM,NEQ)
+
+C	CALL REDBAK(AK,FS,ND,NEQ)
+	CALL COLSOL(ND,AK,DDK,FS,1,INDPD,'STIF','TEMP')
+	CALL COLSOL(ND,AK,DDK,FS,2,INDPD,'STIF','TEMP')
+	
+	CALL MOVE(FS,RS(1,1),NEQ)
+
+C	PRINT OUT THE STRUCTURE RESPONSE AT ZERO STEP
+cn	CALL BROUT3D(IA(LID),RS,IW(I_PRST),0,DDT)	!Changed to next 04Mar07 by NguyenDV
+C	Added coordinate of 1st wheel WHPOS(1) 11Feb08
+	WHPOS(1) = 0.0 !(Temperary)
+	CALL BROUT3D(IA(LID),RS,IW(I_PRST),0,DELT,WHPOS(1))
+
+
+C	RESTORE ORIGINAL STIFFNESS MATRIX TO AK WHICH CONTAINS THE STIFFNESS MATRIX
+C	DECOMPOSED IN THE SUBROUTINE DECOMP
+
+
+C	BEFORE DECOMP AM=ORIGINAL MASS MATRIX
+C	AFTER DECOMP AM=DECOMPOSED MASS MATRIX
+
+C	PRINT OUT DIAGONAL ELEMENT OF STIFFNESS/MASS MATRIX (temperary, for testing)
+C	CALL PRDIAMAT(AM,ND,NEQ,NWM)
+
+c      CALL COLSOL (ND,AM,AM,A(LDK),A(LEF),1,INDPD)
+
+C	ISH=0	!SHIFT is not applied when non-positive define (some zero dia-values)
+C	CALL DECOMP(AM,ND,NEQ,ISH,IOUT)
+C	CALL COLSOL(ND,AM,DDM,DDM,1,INDPD,'MASS','MAS0')
+
+
+C     -----------------------------
+      SELECTCASE(LSTATC)
+      
+      CASE(0) !STATIC
+       
+C	DIRECTLY COPY STIFFNESS TO EFFECTIVE STIFFNESS                 
+      CALL MDMOVE('STIF','EFTF')
+
+      CASE(1) !DYNAMIC
+
+C	CALCULATE EFFECTIVE STIFFNESS MATRIX OF STRUCTURE
+C	 - Before EFFSTIF, AK = Original stiffness matrix
+C	 - After  EFFSTIF  AK = Decomposed Effective stiffness matrix
+
+      CALL EFFSTIFB(AM,AC,AK,ND,DELT,ALPHA,BITA,NEQ,NWK,DDK,
+	1			 'STIF','MASS','DAMP','EFTF','TEMP')	
+
+      ENDSELECT
+C     -----------------------------
+
+
+
+C     ----------------------------------------------------------
+C     FORM EFFECTIVE LINEAR STIFFNESS MATRIX [K]=[K]+A0[M]+A1[C]
+C     ----------------------------------------------------------
+CN	CALL EFSTIF (ND,AK,AMO,NWK,NWM,NEQ)
+C     ----------------------------------------------------------
+C     FACTORIZE EFFECTIVE LINEAR STIFFNESS MATRIX [K]=[L][D][L]T
+C     ----------------------------------------------------------
+CN      CALL COLSOL (ND,AK,AMO,AKO,A(LEF),1,INDPD)
+C
+C     ******************************************************************
+C     *							FOLLOWING STEP                       *                                       
+C     ******************************************************************
+      DO 100 ITE=1,NSOLT
+        WRITE(*,2000) ITE,DFLOAT(ITE)/NSOLT*100.
+
+C	  CALCULATE (ITE+1)TH WHEEL POSITION 
+        DO 200 J=1,NWHEEL
+C          WHPOSN(J)=WHPOS(J)+ITE*DDT*VEL	  !Changed to next 04Mar07 by NguyenDV
+          WHPOSN(J)=WHPOS(J)+ITE*DELT*VEL
+  200   CONTINUE
+
+C	  IDENTIFY ELEMENT NUMBER CORRESPONDING TO WHEEL POSITION AT (ITE+1)TH STEP
+        CALL IDWHEELF(NELW,IW(I_NEID),W(I_PELW),WHPOSN,WHWIDTH,IDWHPOS,XI,IDWSEG,XISG,NWHEEL)
+      
+C	  CALCULATE EQUIVALENT NODAL FORCES APPLIED TO STRUCTURE
+        CALL CALAXL3D(W(I_AXLD),IDWHPOS,IW(I_NEID),W(I_PELW),XI,IDWSEG,XISG,IA(LID),FS)	
+
+
+C	  ANALYZE STRUCTURE USING NEWMARK BETA METHOD
+C		AMO : ORIGINAL MASS MATRIX
+C		AC : ORIGINAL DAMPING MATRIX
+C		AK : DECOMPOSED EFFECTIVE STIFFNESS MATRIX
+C		AM : DECOMPOSED MASS MATRIX
+C		AKO : ORIGINAL STIFFNESS MATRIX
+c        CALL NMSOL(AMO,AC,AK,RS,RSN,FS,ND,DDT,ALPHA,BITA,NEQ,NWK,NWK)  !Changed to next 3Nov2006 by NguyenDV
+
+
+C     -----------------------------
+      SELECTCASE(LSTATC)
+      CASE(0) !STATIC
+        CALL STASOLB(AK,RSN,FS,ND,NEQ,NWK,DDK,'EFTF')
+      CASE(1) !DYNAMIC 
+C     USING NEWMARK BETA METHOD TO CAL. DISP,VELO & ACCE [RSN(NEQ,3)]
+C           Decompositon & Solving is doing in this subroutine
+        CALL NMSOLB(AM,AC,AK,RS,RSN,FS,ND,DELT,ALPHA,BITA,NEQ,NWK,NWK,
+	1			 DDK,'EFTF','MASS','DAMP')
+      ENDSELECT
+C     -----------------------------	
+
+
+C	  RE-CALCULATE THE ACCELERATION FROM THE EQUILIBRIUM EQUATION
+        CALL CALACCB(FS,RSN,AM,AC,AK,SS,ND,NEQ,NWK,NWK,
+	1			  DDM,'STIF','MASS','DAMP')                        
+
+C	  STORE RESPONSES OF STRUCTURES FOR NEXT TIME STEP    
+        DO 300 K=1,3
+          DO 300 L=1,NEQ
+            RS(L,K)=RSN(L,K)
+  300   CONTINUE
+
+C	  PRINT OUT THE STRUCTURE RESPONSE AT ZERO STEP
+C	  CALL BROUT3D(IA(LID),RS,IW(I_PRST),ITE,DDT)		!Changed to next 3Nov2006 by NguyenDV 
+	  WHPOS(1) = 0.0 !(Temperary)
+	  CALL BROUT3D(IA(LID),RS,IW(I_PRST),ITE,DELT,WHPOS(1))
+
+C	--------------------------------------------------------------
+C	ADD THIS BLOCK FOR PRINTING STRESS OF ALL STEP SONGSAK JUL2007
+C	NEW OUTPUT SONGSAK JUL2007
+	CALL CLEROUT
+	CALL DISOUT(IA(LID),RS(1,1))
+	A(LDT:LDT+NEQ-1) = RS(1:NEQ,1)
+
+      IFPRI = 0
+      IFPLO = 0
+	IFEIG = 1
+      ITASK = 3
+      IFREF = 1
+      ISPRI = 0
+      CALL GRLOOP (IA(LEL),KSC)
+
+C	NEW OUTPUT SONGSAK JUL2007
+C	CALL PRNFLAG('ELEM','LINK','GSUP','LSUP','DISP','GSPG','LSPG')
+	CALL PRNFLAG('NONE','NONE','GSUP','LSUP','DISP','NONE','NONE')
+	CALL  PRNOUT('STND','PONE','NONE',ITE)
+C	--------------------------------------------------------------
+	 
+  100 CONTINUE
+
+C	PRINT EXTREMA RESPONSE [D,A] AT CONSIDERED STRUCTURE'S DOFs
+      IF(NPRTST.GT.0) THEN
+          WRITE(100,*)
+          WRITE(100,8420) (AMXST(IOUTST,1:3),IOUTST=1,NPRTST)
+          WRITE(100,8430) (AMXST(IOUTST,4:6),IOUTST=1,NPRTST)
+      ENDIF
+  
+ 1000 FORMAT(1X,'CURRENT TIME STEP =       0     0.00%')
+ 2000 FORMAT(1X,'CURRENT TIME STEP = ',I8,3X,F6.2,'%')
+
+
+8420  FORMAT('*MAXIMUM VALUE*', 3X, 12X ,X, 6X, 100(3E12.4,4X))
+8430  FORMAT('*MINIMUM VALUE*', 3X, 12X ,X, 6X, 100(3E12.4,4X))
+ 
+      RETURN
+      END
+C
+C	=======================================================================
+      SUBROUTINE REMOVM(LSTATC)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	July2004 by NguyenDV, changed June2006
+C     -----------------------------------------------------------
+C     READS CONTROL VARIABLES FOR MOVING MASS MODELLING ANALYSIS 
+C			(FOR INPUTED TRAIN, IANA = 1,2,3)
+C	-----------------------------------------------------------
+C	IT1=ITRAIN(1) = NUMBER OF FRONT CAR BODIES
+C	IT2=ITRAIN(2) = NUMBER OF INTERMEDIATE AND PASSENGER CAR BODIES(GE.3)
+C	IT3=ITRAIN(3) = NUMBER OF REAR CAR BODIES
+C
+C	IPATH  = THE POSITION OF MOVING TRAIN
+C			= 1:THE TRAIN IS MOVING ON THE BRIDGE DECK (THE DECK IS MODELLED ONLY)
+C			= 2:THE TRAIN IS MOVING ON THE RAIL (THE DECK AND TRACK ARE MODELLED)
+C	ALPHA  = NEWMARK INTEGRATION PARAMETERS
+C	BETA   = 
+C	DELT   = TIME INCREMENT IN THE NUMERICAL ANALYSIS (Sec)
+C	VEL    = VELOCITY OF MOVING TRAIN (Km/h)
+C	BIDIS  = INITIAL DISTANCE BEFORE ENTERING THE BRIDGE (added 30 Oct2007)
+C	EXTDIS = EXTRA DISTANCE AFTER THE TRAIN EXITS BRIDGE, REQUIRED FOR THE FREE VIBRATION 
+C			 ANALYSIS OF THE BRIDGE,AFTER THE TRAIN IS PASSED THROUGH THE BRIDGE.
+C	NMAX   = NUMBER OF ITERATION IN THE ANALYSIS (=100)
+C	TOLER  = TOLERANCE OF NUMERICAL ANALYSIS (=1.0E-6)
+C	SCALE  = GRAVITY ACCELERATION (=9.8m/s2)
+C	
+C	NPRTTR = NUMBER OF DEGREES OF FREEDOM TO PRINT OF TRAIN
+C	NPRTST = NUMBER OF NODES TO PRINT OF STRUCTURE
+C	NPRWH  = NUMBER OF DEGREES OF FREEDOM OF WHEEL TO PRINT
+C	KPRTR  = TRAIN PRINT FLAG (in order to control size of train output file)
+C			 = 0: displacements of train body is not print, only accelerations are printed
+C			 = 1: print
+C	IWRIN : Idenfifier for Input of Wheel-Rail contact Mechanism (added 12Mar08)
+C	   = 0: Input the contact stiffness & damping directly (OLD)
+C	   = 1: Input the wheel-rail properties and calculate contact stiffness & damping
+	
+C	NEID(2,NELW) : NODE NUMBER OF WHEEL PATH SEGMENT
+C	NELW : NUMBER OF SEGMENT OF WHEEL PATH		
+C     ----------------------------------------------------------------
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+      COMMON /NUMB/ HED(20),MODEX,NRE,NSN,NEG,NBS,NLS,NLA,
+     +              NSC,NSF,IDOF(9),LCS,ISOLOP,LSYMM
+      COMMON /DMCO/ IDMA,IANA,IDSO,NNBR,NNRA,NEBEBR,NPBEBR,NLRB,
+     +			  NEWKTK,NPWKTK,NEBERA,NPBERA,NDOF,NNBE,NNWK
+C	COMMON /DMAS/ IT1,IT2,IT3,IPATH,ALPHA,BITA,DELT,VEL,EXTDIS,NMAX,
+C     +			  TOLER,SCALE,NPRTTR,NPRTST
+C	Separate by /DMSO/ (solution controls) & /DITR/(inputed train) 8Sep04
+	COMMON /DMSOI/ IPATH,NMAX,NPRTTR,NPRTST,NPRWH,KPRTR
+	COMMON /DMSOR/ ALPHA,BITA,DELT,VEL,EXTDIS,TOLER,SCALE,TLENGTH,BIDIS
+C	COMMON /DITR/ IT1,IT2,IT3
+C	Previous changed to the next 20Oct05
+	COMMON /IWTR/ IT1,IT2,IT3,I_ITRAIN,I_NCHTR,I_NDTR,I_PRTR,I_PTWH
+	COMMON /NIAX/ NWHEEL
+	COMMON /TRN3/ NCARB,NACAB,NBOGI,NEQTR,NWKTR,NWMTR,IWRIN	  !added 12Mar08
+C	----------------------------------------------------------------
+C     READ CONTROL DATA:
+C     ------------------
+	IF(ISOLOP.NE.11) GOTO 500
+
+	SELECT CASE (IDMA)
+	  CASE(1)
+		READ (ITI,*)
+		READ (ITI,*,END=100)ALPHA,BITA,DELT,LSTATC,NPRTST	
+		READ (ITI,*)
+		READ (ITI,*,END=100)NWHEEL,IPATH,VEL,EXTDIS,SCALE		
+
+	  CASE(2)
+		READ (ITI,*)
+		READ (ITI,*,END=100)IT1,IT2,IT3,IPATH,ALPHA,BITA,DELT,VEL,
+     +					    EXTDIS,NMAX,TOLER,SCALE,NPRTTR,NPRTST
+
+	  CASE(3)  !Seperate from CASE(2) 14Jun2006
+		READ (ITI,*)
+		READ (ITI,*,END=150)ALPHA,BITA,DELT,NMAX,TOLER,SCALE,NPRTST
+		READ (ITI,*)
+		READ (ITI,*,END=150)IT1,IT2,IT3,IPATH,VEL,BIDIS,EXTDIS,NPRTTR,
+	1						KPRTR,NPRWH,IWRIN			
+
+C		CHECK CONTROL DATA:
+C		--------------------
+  150		IF(IT2.GT.0.AND.IT2.LT.3) THEN
+			WRITE(*,8000) IT2
+			STOP
+		ENDIF
+C
+		IF(ALPHA.EQ.0.0) ALPHA=0.25
+		IF(BITA.EQ.0.0) BITA=0.5
+		IF(ALPHA.GT.0.25.AND.BITA.NE.0.5) THEN
+			WRITE(*,4150) ALPHA,BITA
+			STOP
+		ENDIF
+		IF(NMAX.EQ.0) NMAX=100
+		IF(TOLER.EQ.0.0) TOLER=1.0D-06
+
+		IF(KPRTR.LT.0.AND.KPRTR.GT.1) KPRTR = 0 !added 04Mar07
+
+	END SELECT
+C
+C	IF(EXTDIS.EQ.0.0) EXTDIS=100.0
+cn      VEL=VEL/3.6		!Moved down 3Nov by Nguyen DV
+      IF(SCALE.EQ.0.0) SCALE=9.81 
+
+C     -------------------
+C     PRINT CONTROL DATA:
+C     -------------------
+  100 WRITE (ITO,1000)
+      WRITE (10,1000)
+
+	SELECT CASE(IDMA)
+	  CASE(1)
+	    WRITE (ISO,1400) ALPHA,BITA,DELT,NPRTST					!added 3Nov06 by Nguyen(in KU)
+		WRITE (ISO,1500) NWHEEL,IPATH,VEL,EXTDIS,SCALE					 
+
+	  CASE(2)
+		WRITE (ISO,2000) IT1,IT2,IT3,IPATH,ALPHA,BITA,DELT,VEL,EXTDIS,
+     +				 NMAX,TOLER,SCALE,NPRTTR,NPRTST
+
+	  CASE(3) !Seperate from CASE(2) 14Jun2006
+		WRITE (ISO,2400) ALPHA,BETA,DELT,NMAX,TOLER,SCALE,NPRTST
+c		WRITE (ISO,2500) IT1,IT2,IT3,IPATH,VEL,EXTDIS,NPRTTR  !changed next 03Mar07
+		WRITE (ISO,2500) IT1,IT2,IT3,IPATH,VEL,BIDIS,EXTDIS,NPRTTR,
+	1					 KPRTR,NPRWH		!BIDIS added 30Oct07
+
+	END SELECT
+
+	VEL=VEL/3.6 !Convert to (m/sec) and store in common block to use
+
+C	Next changed 3Nov06 by Nguyen(in KU)
+ 1000 FORMAT (/1X,'READ CONTROL VAR. FOR DYNAMIC MOVING LOADS ANALYSIS')
+
+C	Next added 3Nov06 by Nguyen(in KU)
+ 1400 FORMAT (//18X,57(1H*)/18X,1H*,55X,1H*/
+     +18X,'* SOLUTION PARAMETERS 3D DYNAMIC MOVING FORCES ANALYSIS *'/
+     +18X,1H*,55X,1H*/18X,57(1H*)//
+     +1X,'NEWMARK BETA METHOD COEFFICIENTS',/
+     +1X,'	ALPHA										 = ',F10.4/
+     +1X,'	BITA										 = ',F10.4/
+     +1X,'TIME INCREMENT(DELT)							 = ',F10.4/
+     +1X,'NUMBER OF NODES OF STRUCTURE TO PRINT(NPRTST)          = ',I5)
+
+C	Next changed 3Nov06 by Nguyen(in KU)
+ 1500 FORMAT (//15X,59(1H*)/15X,1H*,57X,1H*/
+     +15X,'* CONTROL VARIABLES FOR 3D DYNAMIC MOVING FORCES ANALYSIS *'/
+     +15X,1H*,57X,1H*/15X,59(1H*)//
+     +1X,'NUMBER OF WHEELS OR MOVING LOADS. . . . . . . .  = ',I10/
+     +1X,'RUNNING PATH(IPATH) . . . . . . . . . . . . . .  = ',I10/
+     +1X,'  IPATH.EQ.1, TRAIN RUNS ON BRIDGE',/
+     +1X,'  IPATH.NE.1, TRAIN RUNS ON RAIL',/
+     +1X,'VELOCITY(VEL, KM/H)								 = ',F10.4/
+     +1X,'EXTRA DISTANCE FOR FREE VIBRATION (EXTDIS,L). .	 = ',F10.4/
+     +1X,'GRAVITY ACCELERATION (SCALE, L/T**2)	. . . . . .	 = ',F10.4) !Removed NPRTST 03Mar07
+
+ 2000 FORMAT (//15X,56(1H*)/15X,1H*,54X,1H*/
+     +15X,'* CONTROL VARIABLES FOR MOVING MASS MODELLING ANALYSIS *'/
+     +15X,1H*,54X,1H*/15X,56(1H*)//
+     +1X,'TRAIN COMPOSITION',/
+     +1X,'  NUMBER OF FRONT CAR BODIES(ITRAIN(1))               = ',I10/
+     +1X,'  NUMBER OF INTERMEDIATE & PASSENGER BODIES(ITRAIN(2))= ',I10/
+     +1X,'  NUMBER OF REAR CAR BODIES(ITRAIN(3))                = ',I10/
+     +1X,'TRAIN PATH(IPATH)                                     = ',I10/
+     +1X,'  IPATH.EQ.1, TRAIN RUNS ON BRIDGE',/
+     +1X,'  IPATH.NE.1, TRAIN RUNS ON RAIL',/
+     +1X,'NEWMARK BETA METHOD COEFFICIENT',/
+     +1X,'	ALPHA										 = ',F10.4/
+     +1X,'	BITA										 = ',F10.4/
+     +1X,'TIME INCREMENT(DELT)							 = ',F10.4/
+     +1X,'VELOCITY(VEL, KM/H)								 = ',F10.4/
+     +1X,'EXTRA DISTANCE WHICH TRAIN RUNS(EXTDIS)			 = ',F10.4/
+     +1X,'MAX ITERATION(NMAX)								 = ',I10/
+     +1X,'TOLERANCE(TOLER)								 = ',E11.4/
+     +1X,'GRAVITY ACCELERATION(SCALE)						 = ',F10.4/
+     +1X,'NUMBER OF DEGREES OF FREEDOM OF TRAIN TO PRINT(NPRTTR) = ',I5/
+     +1X,'NUMBER OF NODES OF STRUCTURE TO PRINT(NPRTST)          = ',I5)
+
+ 2400 FORMAT (//18X,51(1H*)/18X,1H*,49X,1H*/
+     +18X,'* DYNAMIC SOLUTION PARAMETERS FOR 3D BRIDGE-TRAIN *'/
+     +18X,1H*,49X,1H*/18X,51(1H*)//
+     +1X,'NEWMARK BETA METHOD COEFFICIENT',/
+     +1X,'	ALPHA										 = ',F10.4/
+     +1X,'	BITA										 = ',F10.4/
+     +1X,'TIME INCREMENT(DELT)							 = ',F10.4/
+     +1X,'MAX ITERATION(NMAX)								 = ',I10/
+     +1X,'TOLERANCE(TOLER)								 = ',E11.4/
+     +1X,'GRAVITY ACCELERATION(SCALE)						 = ',F10.4/
+     +1X,'NUMBER OF NODES OF STRUCTURE TO PRINT(NPRTST)          = ',I5)
+
+ 2500 FORMAT (//22X,42(1H*)/22X,1H*,40X,1H*/
+     +22X,'* CONTROL VARIABLES FOR INPUTED 3D TRAIN *'/
+     +22X,1H*,40X,1H*/22X,42(1H*)//
+     +1X,'TRAIN COMPOSITION',/
+     +1X,'  NUMBER OF FRONT CAR BODIES(ITRAIN(1))               = ',I10/
+     +1X,'  NUMBER OF INTERMEDIATE & PASSENGER BODIES(ITRAIN(2))= ',I10/
+     +1X,'  NUMBER OF REAR CAR BODIES(ITRAIN(3))                = ',I10/
+     +1X,'TRAIN PATH(IPATH)                                     = ',I10/
+     +1X,'  IPATH.EQ.1, TRAIN RUNS ON BRIDGE',/
+     +1X,'  IPATH.NE.1, TRAIN RUNS ON RAIL',/
+     +1X,'VELOCITY(VEL, KM/H)								 = ',F10.4/
+     +1X,'INITIAL DISTANCE BEFORE ENTERING BRIDGE (BIDIS)  = ',F10.4/		!added 30 Oct2007
+c    +1X,'EXTRA DISTANCE WHICH TRAIN RUNS(EXTDIS)			 = ',F10.4/		!changed next 30Oct07
+     +1X,'EXTRA DISTANCE AFTER TRAIN EXITS BRIDGE (EXTDIS) = ',F10.4/
+c     +1X,'NUMBER OF DEGREES OF FREEDOM OF TRAIN TO PRINT(NPRTTR) = ',I5) !changed next 03Mar07
+     +1X,'NUMBER OF DEGREES OF FREEDOM OF TRAIN TO PRINT(NPRTTR) = ',I5/
+     +1X,'TRAIN PRINT FLAG (KPRTR = 0: not print disp, =1: print)= ',I5/  !added 04Mar07
+     +1X,'NUMBER OF DEGREES OF FREEDOM OF WHEEL TO PRINT(NPRWH)  = ',I5)  !added 03Mar07
+
+ 4150 FORMAT(//,1X,'INPUT ERROR IN NEWMARK COEFFICIENT',/
+     &1X,'RECOMMENDED VALUES ALPHA = 0.15, BITA=0.5 BUT INPUT VALUES',/
+     &1X,'ARE AS FOLLOWING',/
+     &1X,'  ALPHA = ',F10.4/
+     &1X,'  BITA  = ',F10.4)
+
+ 8000 FORMAT(1X,'NUMBER OF INTERMEDIATE AND PASSENGER CARS SHOULD BE',/,
+     &1X,' EQUAL TO 0 OR GREATER THAN AND EQUAL TO 3',/,
+     &1X,' IT2 = ',I5)
+
+  500 RETURN
+      END
+C
+C=====================================================================
+      SUBROUTINE PRDIAMAT(A,NDA,NEQ,NWA)
+
+      IMPLICIT REAL*8(A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	----------------------------------------------------------------------
+C	PROGRAM TO (Temperarily):
+C	  - PRINT OUT DIAGONAL ELEMENTS OF A COMPACTED TRIAGULARIZED MATRIX (STIFF,MASS)
+C	----------------------------------------------------------------------
+C	INPUT:
+C	------
+C	A(NWA)  = MATRIX
+C	NDA(NEQ+1)= ADDRESS OF DIAGONAL ELEMENTS
+C	NEQ
+C	NWA
+C	---------------------------------------------------------------------
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+
+      DIMENSION A(NWA),NDA(NEQ+1),DIA(NEQ)
+C	---------------------------------------------------------------------
+C	PRINT OUT DIAGONAL ELEMENT OF MATRIX (temperary, for testing)
+	DO 10 II=1,NEQ
+		IDIA = NDA(II)
+		DIA(II) = A(IDIA)
+   10	CONTINUE
+
+	WRITE(100,*)('DIAGONAL ADDRESSES OF MATRIX')
+	WRITE(100,*)NDA
+	WRITE(100,*)('DIAGONAL ELEMENTS OF MATRIX')
+   	WRITE(100,*)DIA
+
+	WRITE(100,*)('ALL ELEMENTS OF MATRIX')
+   	WRITE(100,*)A
+C     
+      RETURN
+      END
+C	=======================================================================
+	SUBROUTINE DMF3DMOD(WHPOS,AXLOAD,AK,AM,AC,ND,STROHED,WHWIDTH)
+      IMPLICIT REAL*8(A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+	CHARACTER*200 STROHED
+C	-------------------------------------------------------------------------     
+C	INPUT:
+C	------
+C	NEID(2,NELW) = NODE NUMBERS CORRESPONDING TO SEGMENT PATH WHERE WHEELS RUN
+C	WHPOS(NWHEEL) = WHEEL POSITION AT CURRENT TIME STEP
+C	WHPOSN(NWHEEL) = POSITION AT NEXT TIME STEP
+C	IDWHPOS(NWHEEL) = ID NUMBER OF ELEMENT CORRESPONDING TO WHEEL POSITION
+C	XI(NWHEEL)	= NATURAL COORDINATE OF WHEEL POSITION
+C	FS(NEQ)		= EQUIVALENT NODAL FORCE VECTOR OF AXLE LOAD APPLIED TO STRUCTURE
+C	RS(NEQ,3)	= (I)TH RESPONSE OF STRUCTURE[DIS, VEL, ACCE] 
+C	RSN(NEQ,3)  = (I+1)TH RESPONSE OF STRUCTURE
+C	AK(NWK)		= STIFFNESS MATRIX OF STRUCTURE
+C	AM(NWK)		= MASS/damping MATRIX OF STRUCTURE
+C	AMO(NWK)    = ORIGINAL MASS MATRIX OF STRUCTURE
+C	AKO(NWK)    = ORIGINAL STIFFNESS MATRIX OF STRUCTURE
+C	NRL(NSF,NSN)= EQUATION NUMBER OF STRUCTURE
+C	ND(NEQ+1)   = VECTOR CONTAINING ADDRESS OF DIAGONAL ELEMENTS OF STRUCTURE
+C	AXLOAD(NWHEEL)= AXLE LOAD APPLIED TO STRUCTURE
+
+C	SS(NEQ) : WORKING VECTOR
+
+C	NWHEEL : NUMBER OF WHEELS
+C	NELW : NUMBER OF SEGMENT OF TRAIN PATH 
+C	TLENGTH : TOTAL LENGTH OF PATH WHERE WHEEL RUNS
+C	SCALE : GRAVITY ACCELERATION
+C	NWK : NUMBER OF ELEMENTS OF STIFFNESS MATRIX OF STRUCTURE
+C	NEQ : NUMBER OF EQUATIONS OF STRUCTURE
+C	NDOF : NUMBER OF DEGREES OF FREEDOM OF NODE
+C	NNM : NUMBER OF NODES MAKING A BEAM ELEMENT(=2)
+
+C	VEL : VELOCITY(M/SEC) OF TRAIN
+C	DDT : DELTA T(TIME INCREMENT)
+C	EXTDIS : EXTRA DISTANCE
+
+C	ALPHA : NEWMARK BETA COEFFICIENT
+C	BETA
+
+C	IPRTST(NPRTST,2) : NODES NUMBER OF STRUCTURE[NODE #, SPONSES
+C	PRTST(NPRTST*2) : TEMPORARY STORAGE TO PRINT STRUCTURE RESPONSES
+C	NPRTST : NUMBER OF NODES TO PRINT OF STRUCTURE
+
+C	INDEX
+C	NSOLT : NUMBER OF TOTAL SOLUTION TIMES
+C	AC(NWK)		= DAMPING MATRIX OF STRUCTURE (after read from UNIT 4)
+C	---------------------------------------------------------------------------------
+      COMMON /MAXDM/AMXTR(100,3),AMXST(100,6)
+
+      CHARACTER*80 TITLE
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+	
+      COMMON /LOCA/ LID,LDS,LEL,LDC,LXY,LCH,LNU,LMP,LGP,LMS,LGS,
+     1              LCO,LEX,LLM,LES,LEC,LED,LEI,LEE,LMA,LLF,LLV,
+     2              LRE,LDI,LDL,LDT,LDK,LER,LEV,LTT,LWV,LAR,LBR,
+     3              LVE,LDD,LRT,LBU,LBC,LVL,LAL,LEF,LDU,LPR,LLO,
+	4              LRV,LRT1,LRET,LRET1,LDM,LDPT,LVL1,LMV,LXI,LCM,LCC,
+	5			    LCN,LDIM,LFRE,LSFC,LLOF
+
+      COMMON /ELEM/ NAME(2),ITYPE,ISTYP,NLOPT,MTMOD,NSINC,ITOLEY,
+     1              NELE,NMPS,NGPS,NMP,NGP,NNM,NEX,NCO,NNF,NWG,NEFC,
+     2              NPT,NWA,NWS,KEG,MEL,NNO,NEF,NELTOT,NMV,MTYP,ISECT
+
+      COMMON /SOLU/ NEQ,NEQ1,NBLOCK,MK,BM,NWK,NWM,ISTOR,NFAC,
+     +              NRED,KPOSD,DETK,DET1,DAVR,STOL
+
+	COMMON /SPBC/ NSS,NLSS
+
+      COMMON /EIGN/ NSEIG,NROOT,NC,NNC,NITEM,IFSS,SHIFT0,EPS,IEIG,NEIG,
+     +              ISOLV,IVPRT
+
+      COMMON /DMCO/ IDMA,IANA,IDSO,NNBR,NNRA,NEBEBR,NPBEBR,NLRB,
+     +			  NEWKTK,NPWKTK,NEBERA,NPBERA,NDOF,NNBE,NNWK
+
+	COMMON /DMSOI/ IPATH,NMAX,NPRTTR,NPRTST,NPRWH,KPRTR
+	COMMON /DMSOR/ ALPHA,BITA,DELT,VEL,EXTDIS,TOLER,SCALE,TLENGTH,BIDIS
+
+	COMMON /BRI3/ H4,ECC,ZET1,ZET2,RDM,RDK,NELW
+
+	COMMON /BRIW/ I_PELW,I_NEID,I_PRST
+	COMMON /IWTR/ IT1,IT2,IT3,I_ITRAIN,I_NCHTR,I_NDTR,I_PRTR,I_PTWH
+
+	COMMON /TRW3/ I_PCAB,I_CADI,I_ADDI,I_ALSU,I_PRSS,I_PBOG,I_PRPS,
+	1			  I_PRWH,I_WRCO,I_WPOS,I_AMTR,I_ACTR,I_AKTR,I_AXLD
+	COMMON /NIAX/ NWHEEL
+      COMMON /TIME/ DDT,CTIM,NINC
+      COMMON /INCO/ A0,A1,A2,A3,A4,A5,A6,A7,A8,ALFA,BETA,
+	1              A11,A12,ALF,IOPT
+
+      COMMON A(9000000),IA(9000000)
+	COMMON /MEMW/ W(7000000),IW(7000000)
+C	-------------------------------------------------------------------
+      DIMENSION WHPOS(NWHEEL),WHPOSN(NWHEEL),WHWIDTH(NWHEEL)
+      DIMENSION IDWHPOS(NWHEEL),XI(NWHEEL),FS(NEQ),RS(NEQ,3)
+      DIMENSION ND(NEQ+1)
+	DIMENSION IPRTST(NPRTST,2),PRTST(NPRTST*2)
+
+	DIMENSION DIAMR(NROOT),DIAKR(NROOT),DIACR(NROOT),RLT(NROOT)
+	DIMENSION RLT1(NROOT),ESTIF(NROOT),ACOF(NROOT),BCOF(NROOT)
+	DIMENSION Y(NROOT),YD(NROOT),YDD(NROOT),Y1(NROOT),YD1(NROOT)
+	DIMENSION YDD1(NROOT)
+	DIMENSION STROHED(NPRTST)
+	
+	DIMENSION IDWSEG(NWHEEL,NELW),XISG(NWHEEL,2*NELW) !FOR UNIFORM LOAD
+C	---------------------------------------------------------------------------------
+	DIMENSION AK(1),AM(1),AC(1)
+
+C     TOTAL VEHICLE LENGTH EQUAL TO POSITON OF LAST LOAD PLUS LENGTH OF LAST LOAD
+      VLENG = DABS(WHPOS(NWHEEL))+WHWIDTH(NWHEEL)
+      
+      SOLT=(VLENG+TLENGTH+EXTDIS)/VEL
+      NSOLT=IDNINT(SOLT/DELT)
+
+	CALL MODMATR(ND,A(LER),A(LEV),NEQ,NROOT,NWK,NWM,
+	1			 DIAMR,DIAKR,DIACR,AK,AM,AC,'STIF','MASS','DAMP')
+
+C	Print out modal properties (modal mass & stiffness)
+	CALL SDPROP1 (DIAMR,DIAKR,DIACR,NROOT) !added by Nguyen Dec2009  
+
+C	PRINT TITLE OF OUTJOB
+	CALL PRTITLE(IW(I_PRST),NPRTST,VEL,EXTDIS,TLENGTH,SOLT,STROHED)
+      
+C	Calculate the integration constants for modal equation solver (Newmark method) 	
+	CALL INCONM(ALPHA,BITA,DELT) 
+C     *************************************************************
+C 	*				ANALYSIS PROCESS AT ZERO STEP               *      
+C     *************************************************************
+
+      WRITE(*,1000)
+
+C	IDENTIFY ELEMENT NUMBER CORRESPONDING TO WHEEL POSITION AT ZERO STEP
+      CALL IDWHEELF(NELW,IW(I_NEID),W(I_PELW),W(I_WPOS),WHWIDTH,IDWHPOS,XI,IDWSEG,XISG,NWHEEL)
+
+C	CALCULATE EQUIVALENT NODAL FORCES APPLIED TO STRUCTURE AT ZERO STEP
+      CALL CALAXL3D(W(I_AXLD),IDWHPOS,IW(I_NEID),W(I_PELW),XI,IDWSEG,XISG,IA(LID),FS)	
+
+
+C	INITIALIZE RESPONSE OF STRUCTURE AT ZERO STEP BY ZERO DISP & VELO (MAY ASSUMED NON-ZERO)
+	CALL CLEARMAT(RS,NEQ,3)
+	CALL CLEARA(RLT,NROOT)
+
+C	CALCULATE MODE FORCE VECTOR {RLT} AT ZERO STEP
+	CALL TRANMUL (A(LER),FS,RLT,NEQ,NROOT)
+	
+	DO 50 I = 1,NROOT
+C		CALL MODZERO(RLT(I),DIAMR(I),DIAKR(I),DIACR(I),ACOF(I),
+C	1	   		     BCOF(I),ESTIF(I),Y(I),YD(I),YDD(I),
+C     2                 ALPHA,BITA,DELT)
+		CALL MODZERO(RLT(I),DIAMR(I),DIAKR(I),DIACR(I),ESTIF(I),Y(I),
+     1                 YD(I),YDD(I))
+
+   50 CONTINUE
+
+C	SUPERPOSING FOR STRUCTURE'S ACCELERATION AT ZERO STEP
+	CALL MATMULT(A(LER),YDD,RS(1,3),NEQ,NROOT,1,CONST,1)
+
+C	PRINT OUT THE STRUCTURE RESPONSE AT ZERO STEP
+C	Added coordinate of 1st wheel WHPOS(1) 11Feb08
+	WHPOS(1) = 0.0 !(Temperary)
+	CALL BROUT3D(IA(LID),RS,IW(I_PRST),0,DDT,WHPOS(1)) 	   
+C
+C    **********************************************************************
+C    *							FOLLOWING STEP                          *                           
+C    **********************************************************************
+      DO 100 ITE=1,NSOLT
+        WRITE(*,2000) ITE,DFLOAT(ITE)/NSOLT*100.
+
+C	  CALCULATE (ITE+1)TH WHEEL POSITION 
+        DO 200 J=1,NWHEEL
+          WHPOSN(J)=WHPOS(J)+ITE*DELT*VEL
+  200   CONTINUE
+
+C	  IDENTIFY ELEMENT NUMBER CORRESPONDING TO WHEEL POSITION AT (ITE+1)TH STEP
+        CALL IDWHEELF(NELW,IW(I_NEID),W(I_PELW),WHPOSN,WHWIDTH,IDWHPOS,XI,IDWSEG,XISG,NWHEEL)
+        
+C	  CALCULATE EQUIVALENT NODAL FORCES APPLIED TO STRUCTURE
+        CALL CALAXL3D(W(I_AXLD),IDWHPOS,IW(I_NEID),W(I_PELW),XI,IDWSEG,XISG,IA(LID),FS)	
+
+
+C	  CALCULATE MODE FORCE VECTOR AT CURRENT STEP(ITE+1)TH 
+	  CALL TRANMUL (A(LER),FS,RLT1,NEQ,NROOT)
+C	  RLT = modal load at time T
+C	  RLT1= modal load at time T+DELT
+
+	  DO 900 IM = 1,NROOT
+C		CALL MODSOLX(DIAMR(IM),DIAKR(IM),DIACR(IM),ESTIF(IM),RLT(IM),
+C	1			     Y(IM),YD(IM),YDD(IM),Y1(IM),YD1(IM),YDD1(IM),
+C     1                 ALPHA,BITA,DELT) !Change next to move integration const. out
+		CALL MODSOLX(DIAMR(IM),DIAKR(IM),DIACR(IM),ESTIF(IM),RLT(IM),
+	1			     Y(IM),YD(IM),YDD(IM),Y1(IM),YD1(IM),YDD1(IM))
+
+C	    Back-up modal responses
+	    Y(IM) = Y1(IM)
+	    YD(IM) = YD1(IM)
+	    YDD(IM) = YDD1(IM)
+
+C	    Back-up modal responses
+	    RLT(IM) = RLT1(IM)
+
+  900	  CONTINUE
+
+C	  SUPERPOSING FOR STRUCTURE'S RESPONSE
+cn	  CALL MATMULT(A(LER),Y,RS(1,1),NEQ,NROOT,1,CONST,1)
+cn	  CALL MATMULT(A(LER),YD,RS(1,2),NEQ,NROOT,1,CONST,1)
+cn	  CALL MATMULT(A(LER),YDD,RS(1,3),NEQ,NROOT,1,CONST,1)
+
+C	Previous changed next lines by Nguyen DV 03Dec2009
+	CALL SUPMODR (A(LER),Y,RS(1,1),NEQ,NROOT)
+	CALL SUPMODR (A(LER),YD,RS(1,2),NEQ,NROOT)
+	CALL SUPMODR (A(LER),YDD,RS(1,3),NEQ,NROOT)
+
+C	  PRINT OUT THE STRUCTURE RESPONSE AT ZERO STEP
+C	Added coordinate of 1st wheel WHPOS(1) 11Feb08
+	WHPOS(1) = 0.0 !(Temperary)
+	CALL BROUT3D(IA(LID),RS,IW(I_PRST),ITE,DELT,WHPOS(1))
+
+C	--------------------------------------------------------------
+C	ADD THIS BLOCK FOR PRINTING STRESS OF ALL STEP SONGSAK JUL2007
+C	NEW OUTPUT SONGSAK JUL2007
+	CALL CLEROUT
+	CALL DISOUT(IA(LID),RS(1,1))
+	A(LDT:LDT+NEQ-1) = RS(1:NEQ,1)
+
+      IFPRI = 0
+      IFPLO = 0
+	IFEIG = 1
+      ITASK = 3
+      IFREF = 1
+      ISPRI = 0
+      CALL GRLOOP (IA(LEL),KSC)
+
+C	NEW OUTPUT SONGSAK JUL2007
+C	CALL PRNFLAG('ELEM','LINK','GSUP','LSUP','DISP','GSPG','LSPG')
+	CALL PRNFLAG('NONE','NONE','GSUP','LSUP','DISP','NONE','NONE')
+	CALL  PRNOUT('STND','PONE','NONE',ITE)
+C	--------------------------------------------------------------
+	 
+  100 CONTINUE !END LOOP OVER NSOLT
+
+C	PRINT EXTREMA RESPONSE [D,A] AT CONSIDERED STRUCTURE'S DOFs
+      IF(NPRTST.GT.0) THEN
+          WRITE(100,*)
+          WRITE(100,8420) (AMXST(IOUTST,1:3),IOUTST=1,NPRTST)
+          WRITE(100,8430) (AMXST(IOUTST,4:6),IOUTST=1,NPRTST)
+      ENDIF
+      
+  
+ 1000 FORMAT(1X,'CURRENT TIME STEP =       0     0.00%')
+ 2000 FORMAT(1X,'CURRENT TIME STEP = ',I8,3X,F6.2,'%')
+
+
+8420  FORMAT('*MAXIMUM VALUE*', 3X, 12X ,X, 6X, 100(3E12.4,4X))
+8430  FORMAT('*MINIMUM VALUE*', 3X, 12X ,X, 6X, 100(3E12.4,4X))
+ 
+      RETURN
+      END
+C
+C	=======================================================================
+      SUBROUTINE MODMATR(MAXA,RVEC,RFREQ,NEQ,NROOT,NWK,NWM,
+	1					DIAMR,DIAKR,DIACR,AK,AM,AC,STIF,MASS,DAMP)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+	CHARACTER*4 STIF,MASS,DAMP
+C     -------------------------------------------------------------------
+C	PROGRAM TO 
+C		- EXTRACT EIGENVECTOR MATRIX (VECTOR BASE) AND FREQUENCY ARRAY
+C		  VECTOR BASES
+C				+ SUBSPACE EIGENVECTORS
+C				+ LANCZOS EIGENVECTORS
+C				+ LD RITZ VECTORS
+C	    -  FORM MODAL MATRICES (MASS, DAMPING, STIFFNESS)
+C     -------------------------------------------------------------------
+C	INPUT:
+C	------
+C	AM
+C	AC
+C	AK
+C	MAXA   = DIAGONAL ADDRESSES OF STIFFNESS MATRIX
+C	NEQ	   = SIZE OF GLOBAL STIFFNESS/MASS MATRIX = NO.OF SYSTEM D.O.F
+C	NROOT  = NUMBER OF MODES TAKEN INTO ACCOUNT TO SUPERPOSE 
+C	RVEC(NEQ,NROOT)=A(LER) = REDUCED MATRIX OF EIGENVECTOR TO SUPERPOSE
+C	RFREQ(NROOT)      = REDUCED EIGENVALUE ARRAY,CORRESPONDING TO [RVEC]
+
+C	OUTPUT:
+C	------
+C	RFREQ(NROOT)      = REDUCED FREQUENCY ARRAY,CORRESPONDING TO [RVEC]
+C	DIAMR(NROOT)      = Diagonal elements array of modal mass matrix [RMAS] 
+C	DIACR(NROOT)	  = Total diagonal elements array of proportional modal damping matrix
+C	DIAKR(NROOT)	  = Diagonal elements array of modal stiffness matrix [RSTIF]
+C	------------------------------------------------------------------
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+     
+	COMMON /BRI3/ H4,ECC,ZET1,ZET2,RDM,RDK,NELW
+C	---------------------------------------------------------------
+	DIMENSION MAXA(NEQ+1)
+      DIMENSION RVEC(NEQ,NROOT),RFREQ(NROOT),DRATIO(NROOT)
+	DIMENSION DIAMR(NROOT),DIAKR(NROOT),DIACR(NROOT),DIACER(NROOT)
+C     ----------------------------------------------------------------------
+	DIMENSION AK(1),AM(1),AC(1)
+
+C	Initialization
+C	--------------
+	CALL CLEARA(DIAMR,NROOT)
+	CALL CLEARA(DIACR,NROOT)
+	CALL CLEARA(DIAKR,NROOT)
+	CALL CLEARA(DIACER,NROOT)
+C	----------------------------------------
+C	DETERMINE COEFFICIENTS OF MODAL EQUATION
+C	----------------------------------------
+c	FORM REDUCED FREQUENCY ARRAYS
+C	-----------------------------
+	DO 200 J=1,NROOT
+	  IF (RFREQ(J).LT.0.0) THEN
+		WRITE(*,*)('ERROR: NEGATIVE EIGENVALUE')
+		STOP		
+	  ENDIF
+	  RFREQ(J) = DSQRT(RFREQ(J)) 
+  200	CONTINUE
+C
+C	FORM MODAL MASS MATRIX [RMAS(Nroot,Nroot)] = [RVECT]T *[MASS]*[RVEC]
+C		DIAMR(NR) = Diagonal elements array of product matrix [R]
+C	--------------------------------------------------------------------
+
+	CALL VFVMULD (MAXA,AM,RVEC,DIAMR,NEQ,NROOT,MASS)
+
+C	FORM MODAL STIFFNESS MATRIX [RSTIF(Nroot,Nroot)] = [RVECT]T *[STIF]*[RVEC]
+C		DIAKR(NR) = Diagonal elements array of product matrix [R]
+
+      CALL VFVMULD (MAXA,AK,RVEC,DIAKR,NEQ,NROOT,STIF)	
+
+C	FORM MODAL PROPORTIONAL DAMPING MATRIX 
+C	[RPDAM(Nroot,Nroot)]=ALFA*[RMAS]+BETA*[RSTIF]
+C     ---------------------------------------------
+C	In Case BETA.NE.0. OR. BETA.NE.0. 
+C	Addd Stiff-proportional damping to Modal Damping
+	IF (RDK.NE.0.0) THEN
+	  DO 350 I=1,NROOT
+			DIACR(I) = RDK*DIAKR(I)			 
+  350   CONTINUE
+	ENDIF
+C
+C	Add Mass-proportional damping to Modal Damping
+  400	IF (RDM.NE.0.) THEN 
+	 DO 450 I=1,NROOT
+			DIACR(I) = DIACR(I) + RDM*DIAMR(I)				 
+  450  CONTINUE
+  	ENDIF
+
+C	ADD EXTERNAL DAMPING MATRIX RNDAM = [RVECT][AC][RVEC] TO MODAL DAMPING
+C	--------------------------------------------------------------------
+	CALL VFVMULD (MAXA,AC,RVEC,DIACER,NEQ,NROOT,DAMP)
+
+	CALL VECADD(DIACR,DIACER,DIACR,FACT,VNORM,IDIM)
+
+C	COMPUTE MODAL DAMPING RATIOS ARRAY {DRATIO(NROOT)}
+C	--------------------------------------------------
+  	DO I=1,NROOT
+	    RM = DIAMR(I)
+		FREQ = RFREQ(I)
+C		IF(DIAMR(I).EQ.0.0.OR.RFREQ(I).EQ.0.0.) THEN
+		IF(DIAMR(I).EQ.0.OR.RFREQ(I).EQ.0.) THEN
+			WRITE(*,*)'ERROR: ZERO MODAL MASS VALUE'
+			STOP
+		ENDIF
+		DRATIO(I) = DIACR(I)/(2.*DIAMR(I)*RFREQ(I))
+	END DO
+
+
+	RETURN
+	END
+C	=======================================================================
+      SUBROUTINE MODZERO(RLT,DIAMR,DIAKR,DIACR,ESTIF,Y,YD,YDD)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     -------------------------------------------------------------------
+C	PROGRAM TO 
+C		- CALCULATE AT ZERO STEP
+
+C	INPUT:
+C	------
+C	RLT
+C	DIAMR
+C	DIAKR
+C	DIACR
+C
+C	OUTPUT:
+C	-------
+C	YDD   =	Initial acceleration
+C	ESTIF = Equivalent modal stiffness
+C	ACOF
+C	BCOF
+C     -------------------------------------------------------------------
+C      COMMON /INCO/ A0,A1,A2,A3,A4,A5,A6,A7,A8,ALFA,BETA,
+C	1              A11,A12,ALF,IOPT
+	COMMON /CONI/ B1,B2,B3,B4,B5,B6,B7,B8 	
+C     -------------------------------------------------------------------
+C     BITA : ALPHA for NEWMARK (=0.25)
+C     ALPHA : BETA for NEWMARK (=0.5)
+C	Calculate integration constants using Bridge Eng. lecture note (#2)
+C	Initial conditions of Modal Displacements and Velocities
+	  Y = 0.
+	  YD = 0. 
+
+C	Modal Initial force (at CTIM = 0) RLT
+C	Modal Initial acceleration (at CTIM = 0 or I=1)
+	YDD = (RLT - DIACR*YD - DIAKR*Y)/DIAMR
+     
+C	Equivalent modal stiffness:
+C	ESTIF = DIAKR + A1*DIAMR + A2*DIACR
+	ESTIF = DIAKR + B1*DIAMR + B2*DIACR
+C   
+C	ACOF = A2*DIAMR + (A4+1.)*DIACR
+C	BCOF = (A3+1.)*DIAMR + A5*DIACR
+
+	ACOF = B2*DIAMR + (B4+1.)*DIACR
+	BCOF = (B3+1.)*DIAMR + B5*DIACR
+
+	RETURN
+	END
+C
+C	=======================================================================
+      SUBROUTINE MODSOLX(DIAMR,DIAKR,DIACR,ESTIF,RLT1,Y,YD,YDD,Y1,YD1,
+	1					YDD1)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     -------------------------------------------------------------------
+C	PROGRAM TO 
+C		- SOLVE MODAL EQUATION AT EVERY TIME STEPBY NEWMARK (XFINAS)
+C	    - SUPERPOSE FOR STRUCTURAL RESPONSES
+C     -------------------------------------------------------------------
+C	INPUT:
+C	ESTIF
+C	RLT	   = modal load at time T
+C	RLT1   = modal load at time T+DELT
+C	Y
+C	YD
+C	YDD
+
+C	OUTPUT:
+C	Y1
+C	YD1
+C	YDD1	
+C	-------------------------------------------------------------------
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+	COMMON /CONI/ B1,B2,B3,B4,B5,B6,B7,B8	
+C	-------------------------------------------------------------------
+C	CALCULATION FOR SINGLE DEGREE OF FREEDOM
+C	----------------------------------------
+C     BITA : ALPHA for NEWMARK (=0.25)
+C     ALPHA : BETA for NEWMARK (=0.5)
+C	Newmark Integration using Bridge Eng. (2009) lecture note (#2)
+C	RLT1= modal load at time T+DELT
+
+C	Effective modal load:
+C	EMLOAD = RLT1+DIAMR*(A1*Y+A3*YD+A4*YDD)+ DIACR*(A2*Y+A5*YD+A6*YDD)
+	EMLOAD = RLT1+DIAMR*(B1*Y+B3*YD+B4*YDD)+ DIACR*(B2*Y+B5*YD+B6*YDD)  	     
+C	
+C	Increments of dis, velo. and acceleration:
+	Y1  = EMLOAD/ESTIF
+C	YDD1 = A1*(Y1-Y)-A3*YD-A4*YDD
+C	YD1  = YD + A7*YDD + A8*YDD1
+
+	YDD1 = B1*(Y1-Y)-B3*YD-B4*YDD
+	YD1  = YD + B7*YDD + B8*YDD1
+
+      RETURN
+
+	END
+C
+C	=======================================================================
+      SUBROUTINE INCONM(ALPHA,BITA,DELT)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     -------------------------------------------------------------------
+C	PROGRAM TO CALCULATE INTEGRATION CONSTANTS FOR NEWMARK METHODS
+C	Calculate integration constants using Bridge Eng. lecture note (#2)
+C     -------------------------------------------------------------------
+C	INPUT:
+C     BITA : ALPHA for NEWMARK (=0.25)
+C     ALPHA: BETA for NEWMARK (=0.5)
+C	DELT : Time interval 
+C	-------------------------------------------------------------------
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+	COMMON /CONI/ B1,B2,B3,B4,B5,B6,B7,B8
+C     -------------------------------------------------------------------
+	B1 = 1./(ALPHA*DELT**2)
+	B2 = BITA/(ALPHA*DELT)
+	B3 = 1./(ALPHA*DELT)
+ 	B4 = (1/(2*ALPHA))-1.
+ 	B5 = (BITA/ALPHA)-1.
+ 	B6 = ((BITA/(2.*ALPHA))-1.)*DELT
+ 	B7 = DELT*(1.-BITA)
+	B8 = BITA*DELT 
+
+      RETURN
+	END
+C	=======================================================================
+      SUBROUTINE MODSOLC(ESTIF,ACOF,BCOF,RLT,RLT1,Y,YD,YDD,Y1,YD1,YDD1)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     -------------------------------------------------------------------
+C	PROGRAM TO 
+C		- SOLVE MODAL EQUATION AT EVERY TIME STEP BY NEWMARK (CHOPRA P177)
+C	    - SUPERPOSE FOR STRUCTURAL RESPONSES
+C     -------------------------------------------------------------------
+C	INPUT:
+C	ESTIF
+C	ACOF
+C	BCOF
+C	RLT	   = modal load at time T
+C	RLT1   = modal load at time T+DELT
+C	Y
+C	YD
+C	YDD
+
+C	OUTPUT:
+C	Y1
+C	YD1
+C	YDD1	
+C	-------------------------------------------------------------------
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+      COMMON /INCO/ A0,A1,A2,A3,A4,A5,A6,A7,A8,ALFA,BETA,
+	1              A11,A12,ALF,IOPT
+C	-------------------------------------------------------------------
+C	CALCULATION FOR SINGLE DEGREE OF FREEDOM
+C	----------------------------------------
+C	RLT = modal load at time T
+C	RLT1= modal load at time T+DELT
+
+C	  Modal load increments
+	  DELP = RLT1 - RLT
+C
+C	  Equivalennt modal load:
+	  EMLOAD = DELP + ACOF*YD + BCOF*YDD
+C	
+C	  Increments of dis, velo. and acceleration:
+	  DELY   = EMLOAD/ESTIF
+
+	  DELYD  = A1*DELY - (A4+1.)*YD - A5*YDD
+C
+	  DELYDD = A0*DELY - A2*YD - (A3+1.)*YDD
+C
+C	  Updation of new dis, velo. and acceleration at time T+DELT or step NINC+1:
+
+	  Y1  = Y + DELY	 
+	  YD1 = YD + DELYD
+	  YDD1= YDD + DELYDD
+
+      RETURN
+
+	END
+C
+C=====================================================================
+      SUBROUTINE SUPMODR (RVEC,RMOD,RTOT,NEQ,NR)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     ----------------------------------------------------------------
+C     SUPERPOSTION OF A MODAL RESPONSE 
+C	by Nguyen DV 03Dec2009
+C     ----------------------------------------------------------------
+C	INPUT:
+C	RVEC(NEQ,NR) = EIGENVECTOR MATRIX (COLUMN-WISE)
+C	RMOD(NR)	 = MODAL RESPONSE (DISP, OR VELO, OR ACCE)
+C	NEQ
+C	NR
+C	
+C	OUTPUT:
+C	RTOT(NEQ) = TOTAL RESPONSE
+C	-----------------------------------------------------------------
+	DIMENSION RVEC(NEQ,NR),RMOD(NR),RTOT(NEQ)
+C	-----------------------------------------------------------------
+	CALL CLEARA(RTOT,NEQ)
+
+	DO 100 IMOD = 1,NR
+		DO 100 IEQ = 1,NEQ
+			RTOT(IEQ) = RTOT(IEQ)+RVEC(IEQ,IMOD)*RMOD(IMOD)
+ 100	CONTINUE
+
+      RETURN
+C
+      END
+C
+C=====================================================================
+      SUBROUTINE VECSCAL (A,B,FACT,IDIM)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     --------------------------------
+C     MULTIPLY A VECTOR WITH A SCALAR
+C     --------------------------------
+	DIMENSION A(IDIM),B(IDIM)
+c
+      DO 100  I=1,IDIM
+ 100		B(I) = FACT*A(I)
+
+      RETURN
+C
+      END
+C
+C	====================================================================
+	SUBROUTINE SDPROP1 (DIAMR,DIAKR,DIACR,NROOT) 
+      IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	Programmed 14Nov2005 by NguyenDV
+C	--------------------------------------------------------------
+C	PROGRAM TO PRINT OUNT MODAL PROPERTIES
+C	--------------------------------------------------------------
+C	INPUT ARGUMENTS:
+C	----------------
+C		DIAMR = DIAGONAL ELEMENTS OF MODAL MASS MATRIX
+C		DIAKR = DIAGONAL ELEMENTS OF MODAL STIFFNESS MATRIX
+C		DIACR = DIAGONAL ELEMENTS OF MODAL DAMPING MATRIX
+C		NROOT = REDUCED SIZE = NUMBER OF MODES BEING CONSIDERED
+C	-------------------------------------------------
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+C
+	DIMENSION DIAMR(NROOT),DIAKR(NROOT),DIACR(NROOT)
+C
+	WRITE (100,1000)
+
+	DO IMOD = 1,NROOT
+C		WRITE (100,2000)IMOD,DIAMR(IMOD),DIAKR(IMOD),DIACR(IMOD)
+		WRITE (100,2000)IMOD,DIAMR(IMOD),DIAKR(IMOD)
+     +					
+	ENDDO
+
+C 1000	FORMAT (//1H#,5X,55(1H-)/
+C     +17X,'SOLVING BY MODE SUPERPOSTION METHOD'/
+C     +17X,'MODAL PROPERTIES (DIAGONAL TERMS)'//
+C     +3X,'MODE',5X,'MODAL MASS',6X,'MODAL STIFFNESS',2X,
+C     +'MODAL DAMPING')
+
+ 1000	FORMAT (//1H#,5X,55(1H-)/
+     +17X,'SOLVING BY MODE SUPERPOSTION METHOD'/
+     +17X,'MODAL PROPERTIES (DIAGONAL TERMS)'//
+     +3X,'MODE',5X,'MODAL MASS',6X,'MODAL STIFFNESS')
+
+ 2000 FORMAT (3X,I3,6X,E13.6,4X,E13.6,4X,E13.6,4X,E13.6,4X,E13.6)
+                                                                       
+	RETURN
+      END
+C
+C=====================================================================
+	SUBROUTINE TRANMUL (V,AF,AR,NF,NR)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	14Nov2005
+C     ----------------------------------------------------------------
+C     PROGRAM TO 
+C	- TRANSPOSE MATRIX [V(NF,NR)] TO [VT(NR,NF)]
+C	- RIGHT-MULTIPLY WITH AN ARRAY AF {AR} = [VT]*{AF}
+C     ----------------------------------------------------------------
+C	INPUT ARGUMENTS
+C	---------------
+C	V	= ARBITRARY MATRIX (EX: EIGENVECTOR MATRIX)
+C	AF  = INPUT VECTOR IN FULL SIZE (EX: LOAD VECTOR)
+C	NF  = FULL SIZE
+C	NR  = REDUCED SIZE
+C
+C	OUPUT ARGUMENTS
+C	---------------
+C	AR(NR)	= OUTPUT REDUCED (OR PROJECTED) VECTOR(EX: MODAL LOAD VECTOR)
+C
+	DIMENSION V(NF,NR),AF(NF),AR(NR),VT(NR,NF)
+C	---------------------------------
+C	TRANSPOSE
+
+	CALL CLEARMAT(VT,NR,NF)
+	CALL MATRAN (V,VT,NF,NR,1)
+
+C	RIGHT-MULTIPLY WITH ARRAY AF {AR} = [VT]*{AF}
+	CALL CLEARA(AR,NR)
+	CALL MATMULT(VT,AF,AR,NR,NF,1,CONST,1)
+
+	RETURN
+      END
+C=====================================================================
+      SUBROUTINE RDAMCO(EIGV,NROOT,NITEM)     
+      IMPLICIT REAL*8(A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	--------------------------------------------------------------------------
+C     PROGRAM TO CALCULATE RAYLEIGH DAMPING COEFFICIENT USING MODAL DAMPING RATIOS:
+C	---------------------------------------------------------------------------
+C	INPUT:
+C	EIGV    = EIGENVALUE ARRAY
+C     NROOT   = NUMBER OF EIGENVALUES REQUIRED
+C     NITEM   = NUMBER OF SUBSPACE ITERATIONS PERMITTED
+C				IF NITEM.LE.0, TWO EIGENVALUES SHOULD BE INPUTTED
+C	OUTPUT:
+C	RDM		= RAYLEIGH DAMPING COEFFCIENT PROPORTIONAL TO MASS (ALPHA)
+C	RDK		= RAYLEIGH DAMPING COEFFCIENT PROPORTIONAL TO STIFFNESS (BETA)
+
+C	INDEX:
+C	ZET1	= FIRST MODAL DAMPING RATIO OF BRIDGE
+C	ZET2	= SECOND MODAL DAMPING RATIO OF BRIDGE
+C	-------------------------------------------------------------------------
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+	COMMON /BRI3/ H4,ECC,ZET1,ZET2,RDM,RDK,NELW
+C
+      DIMENSION EIGV(NROOT),ROOT(NROOT)  
+C	--------------------------------------------------------------------------
+      PI=3.141592654
+      WRITE(100,2010)
+
+      IF(NITEM.LE.0) THEN
+C	READ INPUT CIRCULAR FREQUENCIES OF BRIDGE
+	  READ(ITI,*)
+        READ(ITI,1000) (ROOT(I),I=1,NROOT) 
+
+	  DO 20 I=1,NROOT
+		EIGV=ROOT(I)**2
+		FREQ=ROOT(I)/(2.*PI)
+		PERI=1./FREQ
+		WRITE(ISO,2020) I,PERI,FREQ,ROOT(I),EIGV
+   20	  CONTINUE
+        GOTO 100
+      ENDIF
+
+C	CALCULATE CIRCULAR FREQUENCIES OF BRIDGE
+	WRITE(ITO,*)'SOLVE FOR THE SMALLEST EIGENVALUES BY SUBSPACE'
+      WRITE(10,*)'SOLVE FOR THE SMALLEST EIGENVALUES BY SUBSPACE'
+      DO 40 I=1,NROOT
+        ROOT(I)=DSQRT(EIGV(I))
+        TEMQ=ROOT(I)/(2.*PI)
+        TEMR=1./TEMQ
+        WRITE(100,2020) I,TEMR,TEMQ,ROOT(I),EIGV(I)
+   40 CONTINUE
+
+C      DO 40 I=1,NROOT
+C        TEMP=DSQRT(ROOT(I))
+C        TEMQ=TEMP/(2.*PI)
+C        TEMR=1./TEMQ
+C        WRITE(100,2020) I,TEMR,TEMQ,TEMP,ROOT(I)
+C   40 CONTINUE
+
+C      DO 60 I=1,NROOT
+C        ROOT(I)=DSQRT(ROOT(I))
+C   60 CONTINUE
+
+  100 TEMP=2.*(ROOT(1)*ROOT(2))/(ROOT(2)**2-ROOT(1)**2)
+      RDM =TEMP*(ROOT(2)*ZET1-ROOT(1)*ZET2)
+      RDK =TEMP*(-ZET1/ROOT(2)+ZET2/ROOT(1))
+
+C  100 TEMP=2.*(ROOT(1)*ROOT(4))/(ROOT(4)**2-ROOT(1)**2)
+C      RDM =TEMP*(ROOT(4)*ZET1-ROOT(1)*ZET2)
+C      RDK =TEMP*(-ZET1/ROOT(4)+ZET2/ROOT(1))
+
+	WRITE(100,2030) RDM,RDK
+
+ 1000 FORMAT(2F10.0)
+ 2010 FORMAT(//,' MODE   PERIOD         FREQUENCY      FREQUENCY',
+     1  '      EIGENVALUE',/
+c    2  '        (TIME)         (CYC/TIME)     (RAD/TIME)     ', !changed next 20Jan08
+     2  '        (TIME)        (Hz~Cyc/Time)    (RAD/TIME)     ',
+     3  '(RAD/TIME)**2')
+ 2020 FORMAT(I5,4(2X,E13.6))
+
+ 2030 FORMAT(//,6X,'RAYLEIGH DAMPING COEFFICIENTS',/
+     18X,'Mass proportional       RDM  = ',E12.5/
+     28X,'Stiffness proportional  RDK  = ',E12.5)
+       
+	RETURN
+      END
+C   
+C	=======================================================================
+      SUBROUTINE REBRI3D
+      IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     -----------------------------------------------------
+C     TO READ ADDITIONAL PARAMETERS OF BRIDGE FOR 3D MODEL
+C	-----------------------------------------------------
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+	COMMON /BRI3/ H4,ECC,ZET1,ZET2,RDM,RDK,NELW
+C	-----------------------------------------------------
+C	READ ECCENTRICITY OF LANE FROM CENTER (DISTANCE & ANGLE)
+	READ(ITI,*) 
+c	READ(ITI,100) DL0,PI0
+c	Previous changed to next 6Mar06
+c	READ(ITI,*) DL0,PI0,ZET1,ZET2 !changed to next 19Jan08 for easier input
+	READ(ITI,*) H4,ECC,ZET1,ZET2
+  100 FORMAT(2F10.0)
+	WRITE(ITO,*)'READ BRIDGE PARAMETERS: ECCENTRICITIES, MODAL DAMPING 
+	1RATIOS'
+      WRITE(10,*)'READ BRIDGE PARAMETERS: ECCENTRICITIES, MODAL DAMPING 
+	1RATIOS'
+
+c	Vertical distance from Bridge shear center to deck surface ~ mass center of wheelset
+c	H4 = DL0*DSIN(PI0) !Removed 19Jan08, already input
+c	Lateral eccentricity (Distance from Bridge center to center of track)
+c	ECC =DL0*DCOS(PI0) !Removed 19Jan08, already input
+
+c	WRITE(ISO,1010) DL0,PI0 !Changed to next 19Jan08 for easier input
+	WRITE(ISO,1010) H4,ECC
+
+      WRITE(ISO,1020) ZET1,ZET2
+
+c 1010 FORMAT(//,
+c     +	21X,'ECCENTRICITY OF LANE FROM CENTER',/
+c     +	(1H#,19X,34(1H-))/
+c     +1X,'LENGTH(DL0,m):DISTANCE FROM NEUTRAL AXIS OF BRIDGE TO TRAIN
+c     + WHEEL     = ',F10.4/
+c     +1X,'ANGLE(Rad):ANGLE FROM NEUTRAL AXIS OF BRIDGE TO TRAIN WHEEL
+c     +           = ',F10.4)
+C	----->>Changed to next 19Jan08
+ 1010 FORMAT(//,
+     +	21X,'ECCENTRICITY OF LANE FROM CENTER',/
+     +	(1H#,19X,34(1H-))/
+     +1X,'LENGTH(DL0,m):VERTICAL DISTANCE FROM NEUTRAL AXIS OF BRIDGE TO 
+     + DECK SURFACE/ MASS CENTER OF WHEEL-SET     = ',F10.4/
+     +1X,'LATERAL ECCENTRICITY: LATERAL DISTANCE FROM NEUTRAL AXIS OF 
+     + BRIDGE TO CENTER OF TRACK = ',F10.4)
+
+ 1020 FORMAT(//,1X,'INPUTTED MODAL DAMPING RATIOS OF BRIDGE',/
+     &1X,'FIRST DAMPING RATIO  = ',F10.5/
+     &1X,'SECOND DAMPING RATIO = ',F10.5)
+
+      RETURN	
+	END
+C
+C	=======================================================================
+	SUBROUTINE RDAMBR (MAXA,ALFA,BETA,NWK,NWM,NEQ,AA,BB,CC,
+	1				   TYP1,TYP2,TYP3)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+	CHARACTER*4 TYP1,TYP2,TYP3
+C     ----------------------------------------------------------------
+C     * FORM RAYLEIGH DAMPING MATRIX (PROPORTIONAL DAMPING ONLY)
+C     * FORM TOTAL SYSTEM DAMPING MATRIX [C] FROM 
+C		+ MATERIAL PROPORTIONAL DAMPING MATRIX [Cp] (RAYLEIGH - K,M PROPORTIONAL)
+C		+ MATERIAL (INTERNALLY) SELF-FORMULATED DAMPING	[Cni]
+C		+ EXTERNALLY NON-PROPORTIONAL DAMPING MATRIX [Cne]
+C	(Modified from RAYDAM by NguyenDV, intentionally use for bridge)
+C	----------------------------------------------------------------
+C	INPUT:
+C     MAXA(NEQ1) = DIAGONAL ADDRESSES
+C     AA(NWK)	= STIFFNESS MATRIX STRORED IN COMPACTED FORM
+C     BB(NWM)	= MASS MATRIX STRORED IN COMPACTED FORM
+C	CC(NWK) = SYSTEM DAMPING MATRIX FROM MATERIAL (ELEMENT-WISE) [Cni]
+C	ALFA	= MASS PROPORTIONAL CONSTANT
+C	BETA	= STIFFNESS PROPORTINAL CONSTANT
+
+C	OUTPUT:
+C	CC(NWK) = TOTAL SYSTEM DAMPING MATRIX (AFTER ADDED PROPORTIONAL DAMP & DAMPERS)
+C	[C] = [Cni]+[Cne]+(ALFA*[M]+BETA*[K]) = [Cni]+[Cne]+(ALFA*[BB]+BETA*[AA])
+C     ----------------------------------------------------------------
+C     ----------------------------------------------------------------
+	DIMENSION MAXA(1),AA(1),BB(1),CC(1),DNDIAG(1),DNARR(1)
+C	----------------------------------------------------------------
+C	BETA = 0.01
+	
+	IF (ALFA.EQ.0.0) GOTO 200
+C	------------------------------
+C	ADD MASS PROPORTIONAL DAMPING
+C	------------------------------
+C	CONSTISTENT MASS MATRIX
+C	DO I = 1,NWM
+C		CC(I) = CC(I) + ALFA*BB(I) 
+C	ENDDO
+	CALL MDOPER(TYP3,TYP3,TYP2,1.0D0,ALFA,'ADD')
+
+
+  200	IF (BETA.EQ.0.0) GOTO 400
+C	-----------------------------------
+C	ADD STIFFNESS PROPORTIONAL DAMPING
+C	-----------------------------------
+C	DO I = 1,NWK
+C		CC(I) = CC(I) + BETA*AA(I)
+C	ENDDO
+	CALL MDOPER(TYP3,TYP3,TYP1,1.0D0,BETA,'ADD')
+
+
+  400	RETURN
+	END
+C
+C	=======================================================================
+      SUBROUTINE DECOMP(A,IDIAG,NN,ISH,IOUT)
+      IMPLICIT REAL*8(A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+c
+c	Next common added 18Jan06
+C      COMMON /SOLU/ NEQ,NEQ1,NBLOCK,MK,BM,NWK,NWM,ISTOR,NFAC,
+C     +              NRED,KPOSD,DETK,DET1,DAVR,STOL
+C	---------------------------------------------------------------------
+C	PROGRAM TO CALCULATE [L]*[D]*[L]**T  FACTORIZATION OF STIFFNESS MATRIX 
+C	---------------------------------------------------------------------    
+CMKIM 2000. 3. 7
+C     DIMENSION A(1),IDIAG(1)
+      DIMENSION A(*),IDIAG(*)
+C      DIMENSION A(nwktr),IDIAG(nn+1)
+C      DIMENSION AA(nwktr)
+C      DIMENSION AA(nwk)
+
+C	ISH : IF SHIFT IS NOT APPLIED, ISH=0
+C      IF SHIFT IS APPLIED, ISH=1
+
+C	Next added 4Feb06 to test
+CN	CALL MOVE(A,AA,nwktr)
+cn	CALL MOVE(A,AA,nwk)
+
+      IF(NN.EQ.1) RETURN
+      DO 200 N=1,NN
+        KN=IDIAG(N)
+        KL=KN+1
+        KU=IDIAG(N+1)-1
+        KH=KU-KL
+        IF(KH) 304,240,210
+  210   K=N-KH
+        IC=0
+        KLT=KU
+        DO 260 J=1,KH
+          IC=IC+1
+          KLT=KLT-1
+          KI=IDIAG(K)
+          ND=IDIAG(K+1)-KI-1
+          IF(ND.GT.0) THEN
+            KK=MIN0(IC,ND)
+            C=0.D0
+		  DO 280 L=1,KK
+  280         C = C + A(KI+L)*A(KLT+L)
+            A(KLT)=A(KLT)-C
+          ENDIF
+  260   K=K+1
+  240   K=N
+        B=0.D0
+        DO 300 KK=KL,KU
+          K=K-1
+          KI=IDIAG(K)
+          C=A(KK)/A(KI)
+          IF(DABS(C).GT.1.D07) THEN
+            WRITE(*,2010) N,C
+            STOP
+          ENDIF
+          B = B+C*A(KK)
+  300   A(KK)=C
+        A(KN)=A(KN)-B
+  304   IF(A(KN).LE.0.D0) THEN
+        GOTO 305
+          IF(ISH.EQ.0) THEN
+            WRITE(*,2000) N,A(KN)
+cn	      WRITE(*,*) AA(KN),KN,B			!added 4Feb06 to test
+            STOP
+          ELSE
+            IF(A(KN).EQ.0.D0) A(KN)=-1.D-16
+          ENDIF
+305          IF(A(KN).EQ.0.D0) A(KN)=-1.D-16
+        ENDIF
+  200 CONTINUE
+C
+      RETURN
+ 2000 FORMAT(//1X,'*** STOP1 IN "DECOMP"',
+     &       //,1X,'STOP-STIFFNESS MATRIX NOT POSITIVE DEFINITE',
+     &       //,1X,'NONPOSITIVE DEFINITE PIVOT FOR EQUATION',
+     &       I4,//1X,'PIVOT=',E20.12)
+ 2010 FORMAT(//1X,'STOP-STURM SEQUENCE CHECK FAILED BECAUSE OF
+     &      MULTIPLIER GROWTH FOR COLUMN NUMBER',I4,//,1X,'
+     &      MULTIPLIER =',E20.8)
+      END
+C
+C	=======================================================================
+      SUBROUTINE IDWHEEL(NELW,NEID,PELW,WHPOS,IDWHPOS,XI,NWHEEL)
+
+      IMPLICIT REAL*8(A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	-----------------------------------------------------------------------
+C	INPUT:
+C	------
+C	NEID(2,NELW) : NODE NUMBER OF SEGMENT WHERE WHEEL RUNS
+C	WHPOS(NWHEEL) : WHEEL POSITION COORDINATE
+C	NELW : NUMBER OF SEGMENT WHERE WHEEL RUNS
+C	NWHEEL : NUMBER OF WHEELS
+
+C	OUTPUT:
+C	-------
+C	IDWHPOS(NWHEEL) : ID NUMBER OF ELEMENT CORRESPONDING TO WHEEL POSITION
+C	XI(NWHEEL) : NATURAL COORDINATE OF WHEEL POSITION
+
+C	INDEX
+C	NNBE : NUMBER OF NODES MAKING A BEAM ELEMENT(=2)
+C	-----------------------------------------------------------------------
+      COMMON /DMCO/ IDMA,IANA,IDSO,NNBR,NNRA,NEBEBR,NPBEBR,NLRB,
+     +			  NEWKTK,NPWKTK,NEBERA,NPBERA,NDOF,NNBE,NNWK
+
+      COMMON /IOUNIT/IN,IOUT,NSTIF
+
+      DIMENSION NEID(2,1),PELW(4,1),WHPOS(NWHEEL),IDWHPOS(NWHEEL),XI(NWHEEL)
+      
+      DIMENSION XL(NELW+1),DXYZ(3)
+C	-----------------------------------------------------------------------
+
+      XL(1) = 0.0D0 
+      DO I =1,NELW
+          SLEN = PELW(4,I)
+          XL(I+1) = XL(I) + SLEN
+      ENDDO
+      
+C     ------------------------------
+      DO 20 I=1,NWHEEL
+        XI(I) = 0.0
+        IDWHPOS(I) = 0
+        
+        DO 30 J=1,NELW
+          XXI = XL(J)
+          XXJ = XL(J+1)
+          IF(XXI.LE.WHPOS(I).AND.WHPOS(I).LT.XXJ) THEN
+            IDWHPOS(I)=J
+            GOTO 40
+          ENDIF
+   30   CONTINUE
+   40   CONTINUE
+        
+        IF(IDWHPOS(I).GT.0) THEN
+          IENUM=IDWHPOS(I)
+          XXI = XL(IENUM)
+          XXJ = XL(IENUM+1)
+          XI(I)=DABS(WHPOS(I)-XXI)
+          XI(I)=XI(I)/DABS(XXJ-XXI)
+        ENDIF 
+   20 CONTINUE
+C     ------------------------------
+         
+	
+      RETURN  
+      END  
+C
+C	=======================================================================
+      SUBROUTINE MULTDM(TT,B,RR,IDIAG,NN,NWM)
+      IMPLICIT REAL*8(A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	-----------------------------------------------------------
+C	PROGRAM TO EVALUATE PRODUCT OF B TIMES RR AND STORE	 
+C	RESULT IN TT
+C		TT(NN)=B(NN*NN)*RR(NN), IDIAG(NN+1)      
+C		NWM = NUMBER OF ELEMENTS OF MATRIX B 
+C	---------------------------------------------------------    
+      DIMENSION TT(1),B(1),RR(1),IDIAG(1)  
+C
+      IF(NWM.GT.NN) GO TO 20
+      DO 10 I=1,NN
+   10 TT(I)=B(I)*RR(I)
+      RETURN
+C
+   20 DO 40 I=1,NN
+   40 TT(I)=0.
+      DO 100 I=1,NN
+      KL=IDIAG(I)
+      KU=IDIAG(I+1)-1
+      II=I+1
+      CC=RR(I)
+      DO 100 KK=KL,KU
+      II=II-1
+  100 TT(II)=TT(II)+B(KK)*CC
+      IF(NN.EQ.1) RETURN
+      DO 200 I=2,NN
+      KL=IDIAG(I)+1
+      KU=IDIAG(I+1)-1
+      IF(KU-KL) 200,210,210
+  210 II=I
+      AA=0.
+      DO 220 KK=KL,KU
+      II=II-1
+  220 AA=AA+B(KK)*RR(II)
+      TT(I)=TT(I)+AA
+  200 CONTINUE
+C
+      RETURN
+      END
+C
+C	=======================================================================
+      SUBROUTINE REDBAK(A,V,IDIAG,NN)
+      IMPLICIT REAL*8(A-H,O-Z)
+	IMPLICIT INTEGER*4 (I-N)
+C	-----------------------------------------------------------------------
+C	PROGRAM TO REDUCE AND BACK SUBSTITUTE ITERATION VECTORS
+C	V=INV(A)*V
+C	-----------------------------------------------------------------------
+      DIMENSION A(1),V(1),IDIAG(1)
+C
+      DO 400 N=1,NN
+      KL=IDIAG(N)+1
+      KU=IDIAG(N+1)-1
+      IF(KU-KL) 400,410,410
+  410 K=N
+      C=0.
+      DO 420 KK=KL,KU
+      K=K-1
+  420 C=C+A(KK)*V(K)
+      V(N)=V(N)-C
+  400 CONTINUE
+C
+      DO 480 N=1,NN
+      K=IDIAG(N)
+  480 V(N)=V(N)/A(K)
+      IF(NN.EQ.1) RETURN
+      N=NN
+      DO 500 L=2,NN
+      KL=IDIAG(N)+1
+      KU=IDIAG(N+1)-1
+      IF(KU-KL) 500,510,510
+  510 K=N
+      DO 520 KK=KL,KU
+      K=K-1
+  520 V(K)=V(K)-A(KK)*V(N)
+  500 N=N-1
+C
+      RETURN 
+      END
+C
+C	=======================================================================
+      SUBROUTINE EFFSTIF(AM,AC,AK,ND,DELT,ALPHA,BETA,NEQ,NWK)
+
+      IMPLICIT REAL*8(A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	-----------------------------------------------------------------------
+C	INPUT:
+C	------
+C	AM(NWK) : MASS MATRIX
+C	AC(NWK) : DAMPING MATRIX
+C	AK(NWK) : STIFFNESS MATRIX
+C	ND(NEQ+1) : VECTOR CONTAINING ADRESSES OF DIAGONAL ELEMENTS OF STIFFNESS MATRIX
+C	DELT : INCREMENTAL TIME
+C	ALPHA : NEWMARK COEFFICIENT
+C	BETA
+C	NEQ : NUMBER OF EQUATIONS
+C	NWK : NUMBER OF ELEMENTS OF STIFFNESS MATRIX
+
+C	OUTPUT
+C	AK(NWK) : [L]*[D]*[L]**T OF EFFECTIVE STIFFNESS MATRIX
+
+C	AVERAGE ACCELERATION METHOD : UNCONDITIONALLY STABLE(RECOMMENDED)
+C	ALPHA=1/4, BETA=1/2
+
+C	LINEAR ACCELERATION METHOD : CONDITIONALLY STABLE
+C	ALPHA=1/6, BETA=1/2
+C	-----------------------------------------------------------------------
+      COMMON /IOUNIT/IN,IOUT,NSTIF
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+
+      DIMENSION AM(*),AC(*),AK(*),ND(*)
+c      DIMENSION AM(NWK),AC(NWK),AK(NWK),ND(NEQ+1) !7Nov2005
+C	-----------------------------------------------------------------------
+      IF(ALPHA.GT.0.25.AND.BETA.NE.0.5) THEN
+        WRITE(*,1000) ALPHA,BETA
+        STOP
+      ENDIF
+
+      A1=1./(ALPHA*DELT**2)
+      A3=BETA/(ALPHA*DELT)
+
+C	CALCULATE EFFECTIVE STIFFNESS MATRIX
+      DO 10 ITE=1,NWK
+
+	    AK(ITE)=A1*AM(ITE)+A3*AC(ITE)+AK(ITE)
+
+   10 CONTINUE
+
+C	DECOMPOSE EFFECTIVE STIFFNESS MATRIX INTO [L]*[D]*[L]**T
+C	ISH              : EIGENVALUE SHIFT INDEX(ISH=0:NOT USED,ISH=1:USED)
+
+      ISH=0
+	CALL DECOMP(AK,ND,NEQ,ISH,IOUT)
+
+c      CALL COLSOL (ND,AK,AM,0,0,1,INDPD)
+
+      RETURN
+ 1000 FORMAT(//,1X,'INPUT ERROR IN NEWMARK COEFFICIENT',/
+     &1X,'RECOMMENDED VALUES ALPHA = 0.15, BETA=0.5 BUT INPUT VALUES',/
+     &1X,'ARE AS FOLLOWING',/
+     &1X,'  ALPHA = ',F10.3/
+     &1X,'  BETA  = ',F10.3)
+      END
+C
+C	=======================================================================
+      SUBROUTINE NMSOL(AM,AC,AKE,R,RN,FN,ND,DELT,ALPHA,BETA,NEQ,NWM,NWK)
+      IMPLICIT REAL*8(A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	----------------------------------------------------------------------
+C	INPUT
+C	------
+C	AM(NWK)          : MASS MATRIX
+C	AC(NWK)          : DAMPING MATRIX
+C	AKE(NWK)         : [L]*[D]*[L]**T OF EFFECTIVE STIFFNESS MATRIX
+C	R(NEQ,3)         : (I)TH RESPONCE[DIS,VEL,ACCE]
+C	FN(NEQ)          : (I+1)TH EXTERNAL FORCE
+C	ND(NEQ+1)        : VECTOR CONTAINING ADDRESSES OF DIAGONAL ELEMENTS
+C	DELT             : TIME INCREMENT
+C	ALPHA            : NEWMARK COEFFICIENT
+C	BETA     
+C	NEQ              : NUMBER OF EQUATIONS
+C	NWK              : NUMBER OF ELEMENTS OF STIFFNESS MATRIX
+C	NWM              : NUMBER OF ELEMENTS OF MASS MATRIX
+C					   = NWK FOR CONSISTENT MASS MATRIX
+C					   = NEQ FOR LUMPED MASS MATRIX
+
+C	OUTPUT
+C	-------
+C	RN(NEQ,3)        : (I+1)TH RESPONCE[DIS,VEL,ACCE]
+C	-----------------------------------------------------------------------
+CN      COMMON /IOUNIT/IN,IOUT,NSTIF
+C
+C     DIMENSION AM(NWK),AC(NWK),AKE(NWK),R(NEQ,3),RN(NEQ,3),FN(NEQ) !CHANED TO NEXT 13OCT2005
+      DIMENSION AM(NWM),AC(NWK),AKE(NWK),R(NEQ,3),RN(NEQ,3),FN(NEQ)
+      DIMENSION ND(NEQ+1)
+C	-----------------------------------------------------------------------
+      A1=1./(ALPHA*DELT**2)
+      A2=1./(ALPHA*DELT)
+      A3=BETA*A2
+      A4=1./(2.*ALPHA)-1.
+      A5=BETA/ALPHA-1.
+      A6=BETA/ALPHA-2.
+      A7=1.-BETA
+      A8=1.-BETA/(2.*ALPHA)
+      A8=A8*DELT
+
+      DO 5 JTE=1,3
+        DO 5 ITE=1,NEQ
+          RN(ITE,JTE)=0.0D0          
+    5 CONTINUE
+      DO 10 ITE=1,NEQ
+        RN(ITE,2)=A1*R(ITE,1)+A2*R(ITE,2)+A4*R(ITE,3)
+   10 CONTINUE
+C      CALL MULTDM(RN(1,3),AM,RN(1,2),ND,NEQ,NWK)
+C	Previous line changed to the next by Nguyen DV 13Oct2005 for various mass matrix
+      IF(NEQ.EQ.1) THEN
+        RN(1,3) = AM(1)*RN(1,2)
+      ELSE
+        CALL MULTDM(RN(1,3),AM,RN(1,2),ND,NEQ,NWM)
+      ENDIF
+
+      DO 15 ITE=1,NEQ
+        RN(ITE,1)=FN(ITE)+RN(ITE,3)
+   15 CONTINUE
+
+      DO 20 ITE=1,NEQ
+        RN(ITE,2)=A3*R(ITE,1)+A5*R(ITE,2)+A6*DELT/2.*R(ITE,3)
+   20 CONTINUE
+
+      IF(NEQ.EQ.1) THEN
+        RN(1,3) = AC(1)*RN(1,2)
+      ELSE
+        CALL MULTDM(RN(1,3),AC,RN(1,2),ND,NEQ,NWK)
+      ENDIF
+	
+      DO 25 ITE=1,NEQ
+        RN(ITE,1)=RN(ITE,1)+RN(ITE,3)
+   25 CONTINUE
+
+      IF(NEQ.EQ.1) THEN
+        RN(1,1) = AKE(1)*RN(1,1)
+      ELSE
+        CALL REDBAK(AKE,RN(1,1),ND,NEQ)
+      ENDIF      
+      
+
+      DO 30 ITE=1,NEQ
+c        RN(ITE,2)=A3*(RN(ITE,1)-R(ITE,1))-A5*R(ITE,2)+A8*R(ITE,3)
+c        RN(ITE,3)=A1*(RN(ITE,1)-R(ITE,1))-A2*R(ITE,2)-A4*R(ITE,3)
+C	  PREVIOUS CHANGED TO THE NEXT (use previous, the structure vibrate nagatively only???)
+CMKIM 2001. 7. 13.
+      RN(ITE,3)=A1*(RN(ITE,1)-R(ITE,1))-A2*R(ITE,2)-A4*R(ITE,3) !Re-activated for DMF1D
+      RN(ITE,2)=R(ITE,2)+A7*DELT*R(ITE,3)+BETA*DELT*RN(ITE,3)
+
+CMKIM THERE IS A SUBROUTINE TO CALCULATE THE ACCELERATION FROM THE EQUILIBRIUM EQUATION
+CMKIM OUTSIDE OF THIS SUBROUTINE.
+CMKIM THE NAME OF THAT SUBROUTINE IS CALACC.
+   30 CONTINUE
+
+      RETURN
+      END
+C
+C	=======================================================================
+      SUBROUTINE CALACC(F,RN,AM,AC,AK,TT,ND,NEQ,NWM,NWK)
+      IMPLICIT REAL*8(A-H,O-Z)
+c	---------------------------------------------------------------------
+C	PROGRAM TO RE-CALCULATE THE ACCELERATION BY THE EQUILIBRIUM EQUATION:
+C	---------------------------------------------------------------------
+C	INPUT:
+C	-------
+C	F(NEQ)	  = (I+1)TH EXTERNAL FORCE
+C	RN(NEQ,3) = (I+1)TH RESPONSES(DIS,VEL,ACC)
+C                 THIS RESULTS ARE CALCULATED IN THE NEWMARK BETA METHOD
+C	AM(NWK)   = DECOMPOSED MASS MATRIX
+C	AC(NWK)   = DAMPING MATRIX
+C	AK(NWK)   = STIFFNESS MATRIX
+C	ND(NEQ+1) = VECTOR CONTAINING ADDRESSES OF DIAGONAL ELEMENTS
+C	NEQ		  = NUMBER OF EQUATIONS
+C	NWK		  = NUMBER OF ELEMENTS
+C	NWM       = NUMBER OF ELEMENTS OF MASS MATRIX
+C				= NWK FOR CONSISTENT MASS MATRIX
+C				= NEQ FOR LUMPED MASS MATRIX
+
+C	OUTPUT:
+C	-------
+C	RN(1,3)	  = ACCELERATION CALCULATED FROM EQUILIBRIUM EQUATION
+
+C	INDEX:
+C	TT(NEQ)   = AUXILIARY VECTOR
+C	------------------------------------------------------------------
+c      COMMON /IOUNIT/IN,IOUT,NSTIF
+C
+      DIMENSION F(NEQ),RN(NEQ,3),AM(NWM),AC(NWK),AK(NWK),TT(NEQ),
+     &  ND(NEQ+1)
+
+C	CALCULATE TT=AC*RN(1,2)
+
+	CALL MULTDM(TT,AC,RN(1,2),ND,NEQ,NWK)
+
+      DO 10 I=1,NEQ
+        F(I)=F(I)-TT(I)
+   10 CONTINUE
+
+C	CALCULATE TT=AK*RN(1,1)
+      CALL MULTDM(TT,AK,RN(1,1),ND,NEQ,NWK)
+
+
+      DO 20 I=1,NEQ
+        F(I)=F(I)-TT(I)
+   20 CONTINUE
+
+C	RE-CALCULATE ACCELERATION BY THE EQUILIBRIUM EQUATION
+C	changed 13Oct0025 by NguyenDV to for lumped mass matrix
+
+	IF(NWM.EQ.NWK) THEN			 !Consistent mass matrix
+
+		CALL REDBAK(AM,F,ND,NEQ)
+
+
+	ELSE IF(NWM.EQ.NEQ) THEN  !lumped mass matrix,{Dis(i)}= {Force(i)}/{AM(i)}
+		DO 50 IROW = 1,NEQ
+
+			F(IROW) = F(IROW)/AM(IROW)
+
+
+   50		CONTINUE	
+	ENDIF
+
+C	RESOTRE ACCELERATION TO RN(1,3)
+      DO 30 I=1,NEQ
+        RN(I,3)=F(I)
+   30 CONTINUE
+
+      RETURN
+      END
+C
+C	=======================================================================
+
+	SUBROUTINE WHELFIX(WW,XI,IDR,VR,ELN,FIXG,ECC,OPTN)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+      CHARACTER*4 OPTN
+C	==============================================================
+	DIMENSION VR(3),VS(3),VT(3)
+	DIMENSION COEF(6),TRANS(14,14)
+	DIMENSION FIXG(14),FIXD(14)
+
+      
+
+	CALL FMVEVR(VR,VS,VT)
+
+      RANG = 0.0D0
+	CALL ROMBAC(VR,VS,VT,RANG)
+
+	CALL TRANLG(VR,VS,VT,TRANS)
+
+C     TRANSFORM GLOBAL LOAd INTO LOCAL DIRECTION	
+	WR = VR(IDR)*WW
+	WS = VS(IDR)*WW
+	WT = VT(IDR)*WW
+      MR = -WS*ECC
+
+	FIXD = 0.0
+	
+	SELECTCASE(OPTN)
+	
+	CASE('NODE')
+C     ---------------------------------	
+      CI = 1.0-XI !1.0-AL/ELN
+      CJ = XI     !AL/ELN
+      
+C	LOCAL AXIAL FORCE
+	FIXD(1) = CI*WR
+	FIXD(8) = CJ*WR
+
+C	SHEAR IN S-AXIS AND MOMENT IN T-AXIS
+	FIXD(2)  = CI*WS
+	FIXD(9)  = CJ*WS
+	
+C	SHEAR IN T-AXIS AND MOMENT IN S-AXIS
+	FIXD(3)  = CI*WT
+	FIXD(10) = CJ*WT
+			
+C	LOCAL TORQUE
+	FIXD(4)  = CI*MR
+	FIXD(11) = CJ*MR
+	
+	CASE('BEAM')
+C     ---------------------------------	
+      AL = XI*ELN
+C	LOCAL AXIAL FORCE
+	CALL WHLCONT(WR,AL,ELN,COEF)
+	FIXD(1) = COEF(5)
+	FIXD(8) = COEF(6)
+
+C	SHEAR IN S-AXIS AND MOMENT IN T-AXIS
+	CALL WHLCONT(WS,AL,ELN,COEF)
+	FIXD(2)  = COEF(1)
+	FIXD(6)  = COEF(2)
+	FIXD(9)  = COEF(3)
+	FIXD(13) = COEF(4)	
+
+C	SHEAR IN T-AXIS AND MOMENT IN S-AXIS
+	CALL WHLCONT(WT,AL,ELN,COEF)
+	FIXD(3)  = COEF(1)
+	FIXD(5)  =-COEF(2)
+	FIXD(10) = COEF(3)
+	FIXD(12) =-COEF(4)
+C     ---------------------------------		
+
+C	LOCAL TORQUE      
+      CI = 1.0-XI !1.0-AL/ELN
+      CJ = XI     !AL/ELN
+	FIXD(4)  = CI*MR
+	FIXD(11) = CJ*MR
+	
+      ENDSELECT
+      
+      
+	FIXG = 0.0
+	FIXG = MATMUL(TRANS,FIXD)
+	
+
+      RETURN
+      END
+
+C	=====================================================================
+C	=====================================================================
+C	=====================================================================
+	SUBROUTINE WHLCONT(WW,AL,ELN,COEF)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	=====================================================================
+	DIMENSION C(6),COEF(6)
+C	=====================================================================
+
+	DM  = AL
+	DM2 = DM*DM
+	DM3 = DM*DM2
+	DM4 = DM*DM3
+		
+	ELN2 = ELN*ELN
+	ELN3 = ELN*ELN2
+
+C	---------------------------------------------------------
+
+	C(1) = DM*(-4.0D0*DM*ELN+3.0D0*DM2)/2.0D0/ELN3 + 
+	1(2.0D0*ELN3-2.0D0*DM2*ELN+DM3)/2.0D0/ELN3
+
+	C(2) = DM2*(-8.0D0*ELN+6.0D0*DM)/12.0D0/ELN2 + 
+	12.0D0*DM*(6.0D0*ELN2-8.0D0*DM*ELN+3.0D0*DM2)/12.0D0/ELN2
+
+	C(3) = DM3*(1.0D0)/2.0D0/ELN3 + 3.0D0*DM2*(-2.0D0*ELN+DM)/2.0D0/ELN3
+
+	C(4) = DM3*(3.0D0)/12.0D0/ELN2 + 
+	13.0D0*DM2*(-4.0D0*ELN+3.0D0*DM)/12.0D0/ELN2
+
+	C(5) = DM*(1.0D0)/2.0D0/ELN + (-2.0D0*ELN+DM)/2.0D0/ELN
+
+	C(6) = 2.0D0*DM/2.0D0/ELN
+
+C	---------------------------------------------------------
+
+	COEF(1) = ( C(1) )*WW
+	COEF(2) = ( C(2) )*WW
+	COEF(3) = (-C(3) )*WW
+	COEF(4) = ( C(4) )*WW
+
+	COEF(5) = (-C(5) )*WW
+	COEF(6) = ( C(6) )*WW
+
+
+	RETURN
+	END
+C	=====================================================================
+C	=====================================================================
+C	=====================================================================
+      SUBROUTINE IDWHEELF(NELW,NEID,PELW,WHPOS,WHWIDTH,IDWHPOS,XI,IDWSEG,XISG,NWHEEL)
+
+      IMPLICIT REAL*8(A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	-----------------------------------------------------------------------
+C	INPUT:
+C	------
+C	NEID(2,NELW) : NODE NUMBER OF SEGMENT WHERE WHEEL RUNS
+C	WHPOS(NWHEEL) : WHEEL POSITION COORDINATE
+C	NELW : NUMBER OF SEGMENT WHERE WHEEL RUNS
+C	NWHEEL : NUMBER OF WHEELS
+
+C	OUTPUT:
+C	-------
+C	IDWHPOS(NWHEEL) : ID NUMBER OF ELEMENT CORRESPONDING TO WHEEL POSITION
+C	XI(NWHEEL) : NATURAL COORDINATE OF WHEEL POSITION
+
+C	INDEX
+C	NNBE : NUMBER OF NODES MAKING A BEAM ELEMENT(=2)
+C	-----------------------------------------------------------------------
+      COMMON /DMCO/ IDMA,IANA,IDSO,NNBR,NNRA,NEBEBR,NPBEBR,NLRB,
+     +			  NEWKTK,NPWKTK,NEBERA,NPBERA,NDOF,NNBE,NNWK
+
+      COMMON /IOUNIT/IN,IOUT,NSTIF
+
+      DIMENSION NEID(2,1),PELW(4,1),WHPOS(NWHEEL),WHWIDTH(NWHEEL),IDWHPOS(NWHEEL),XI(NWHEEL)
+      DIMENSION IDWSEG(NWHEEL,NELW),XISG(NWHEEL,2*NELW) !FOR UNIFORM LOAD
+      DIMENSION XL(NELW+1),DXYZ(3)
+C	-----------------------------------------------------------------------
+
+      XL(1) = 0.0D0 
+      DO I =1,NELW
+          SLEN = PELW(4,I)
+          XL(I+1) = XL(I) + SLEN
+      ENDDO
+      TLEN = XL(NELW+1)
+      
+C     ------------------------------
+      DO 20 I=1,NWHEEL
+        IF(WHWIDTH(I).EQ.0.0) THEN !FOR POINT LOAD
+            
+            XI(I) = 0.0
+            IDWHPOS(I) = 0
+            
+            DO J=1,NELW
+              XXI = XL(J)
+              XXJ = XL(J+1)
+              IF(XXI.LE.WHPOS(I).AND.WHPOS(I).LT.XXJ) THEN
+                IDWHPOS(I)=J
+                EXIT
+              ENDIF
+            ENDDO
+            
+            IF(IDWHPOS(I).GT.0) THEN
+              IENUM=IDWHPOS(I)
+              XXI = XL(IENUM)
+              XXJ = XL(IENUM+1)
+              XI(I)=DABS(WHPOS(I)-XXI)
+              XI(I)=XI(I)/DABS(XXJ-XXI)
+            ENDIF 
+        
+        ELSEIF(WHWIDTH(I).GT.0.0) THEN !FOR UNIFORM LOAD
+            
+            IDWHPOS(I) = 0
+            
+            WPOSI = WHPOS(I)
+            WPOSJ = WHPOS(I) - WHWIDTH(I)
+            
+            IF(WPOSI.GT.TLEN.AND.WPOSJ.LT.TLEN ) WPOSI = 0.999*TLEN
+            IF(WPOSI.LT.TLEN.AND.WPOSJ.LT.0.0D0) WPOSJ = 0.0D0
+            
+            IDWI = 0
+            DO J=1,NELW
+              XXI = XL(J)
+              XXJ = XL(J+1)
+              IF(XXI.LE.WPOSI.AND.WPOSI.LT.XXJ) THEN
+                IDWI = J  !Segment No. at end I
+                EXIT
+              ENDIF
+            ENDDO
+            IDWJ = 0
+            DO J=1,NELW
+              XXI = XL(J)
+              XXJ = XL(J+1)
+              IF(XXI.LE.WPOSJ.AND.WPOSJ.LT.XXJ) THEN
+                IDWJ = J  !Segment No. at end J
+                EXIT
+              ENDIF
+            ENDDO      
+            
+            
+            IDWSEG(I,1:NELW) = 0
+            XISG(I,1:2*NELW) = 0.0D0
+            IF(IDWI.GT.0.AND.IDWJ.GT.0) THEN
+                
+                NWSG = IDWI - IDWJ + 1
+                
+                IDWHPOS(I) = -NWSG  !STORE NUMBER OF ELEMENT OCCUPIED BY UNIFORM LOAD (PUT MINUS SIGN TO PREVENT CONFLICT WITH POINT LOAD)
+                
+                IF(IDWI.EQ.IDWJ) THEN !LOAD FALLING INTO SAME SEGMENT
+                    IDWSEG(I,1) = IDWI
+
+                    XXI = XL(IDWI)
+                    XXJ = XL(IDWI+1)
+                    XISG(I,1)=DABS(WPOSI-XXI)/DABS(XXJ-XXI)
+
+                    XXI = XL(IDWJ)
+                    XXJ = XL(IDWJ+1)
+                    XISG(I,2)=DABS(WPOSJ-XXI)/DABS(XXJ-XXI)
+                ENDIF
+                
+                IF(IDWI.NE.IDWJ) THEN !LOAD NOT FALLING INTO SAME SEGMENT
+                    IDWSEG(I,1) = IDWI
+                    XXI = XL(IDWI)
+                    XXJ = XL(IDWI+1)
+                    XISG(I,1) = DABS(WPOSI-XXI)/DABS(XXJ-XXI)
+                    XISG(I,2) = 0.0D0
+                    
+                    II = 1
+                    DO ISEG = IDWJ+1,IDWI-1
+                        II = II + 1
+                        IDWSEG(I,II) = ISEG
+                        XISG(I,2*II-1) = 1.0D0
+                        XISG(I,2*II-0) = 0.0D0           
+                    ENDDO
+                    
+                    IDWSEG(I,NWSG) = IDWJ
+                    XXI = XL(IDWJ)
+                    XXJ = XL(IDWJ+1)
+                    XISG(I,2*NWSG-1) = 1.0D0
+                    XISG(I,2*NWSG-0) = DABS(WPOSJ-XXI)/DABS(XXJ-XXI)
+                ENDIF
+            
+            ENDIF
+  
+        ENDIF
+   20 CONTINUE
+C     ------------------------------
+         
+	
+      RETURN  
+      END  
+C
+C	=====================================================================
+C	=====================================================================
+C	=====================================================================
+
+	SUBROUTINE UNIFFIX(WW,XII,XIJ,IDR,VR,ELN,FIXG,ECC)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+      CHARACTER*4 OPTN
+C	==============================================================
+	DIMENSION VR(3),VS(3),VT(3)
+	DIMENSION COEF(6),TRANS(14,14)
+	DIMENSION FIXG(14),FIXD(14)
+
+      
+
+	CALL FMVEVR(VR,VS,VT)
+
+      RANG = 0.0D0
+	CALL ROMBAC(VR,VS,VT,RANG)
+
+	CALL TRANLG(VR,VS,VT,TRANS)
+
+C     TRANSFORM GLOBAL LOAd INTO LOCAL DIRECTION	
+	WR = VR(IDR)*WW
+	WS = VS(IDR)*WW
+	WT = VT(IDR)*WW
+      MR = -WS*ECC
+      
+	FIXD = 0.0
+	
+C     ---------------------------------	
+      AL = XIJ*ELN
+      BL = XII*ELN
+      CI = (BL - 0.5*BL*BL/ELN) - (AL - 0.5*AL*AL/ELN)
+      CJ = (0.5*BL*BL/ELN) - (0.5*AL*AL/ELN)
+      
+C	LOCAL AXIAL FORCE
+	FIXD(1) = CI*WR
+	FIXD(8) = CJ*WR
+
+C	SHEAR IN S-AXIS AND MOMENT IN T-AXIS
+	FIXD(2)  = CI*WS
+	FIXD(9)  = CJ*WS
+	
+C	SHEAR IN T-AXIS AND MOMENT IN S-AXIS
+	FIXD(3)  = CI*WT
+	FIXD(10) = CJ*WT
+			
+C	LOCAL TORQUE
+	FIXD(4)  = CI*MR
+	FIXD(11) = CJ*MR
+			
+	FIXG = 0.0
+	FIXG = MATMUL(TRANS,FIXD)
+	
+
+      RETURN
+      END
+
+C	=====================================================================
+C	=====================================================================
+C	=====================================================================
+
+
+
+

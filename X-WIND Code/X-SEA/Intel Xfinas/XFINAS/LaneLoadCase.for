@@ -1,0 +1,1557 @@
+C	=====================================================================
+C	=====================================================================
+C	=====================================================================
+	SUBROUTINE VEHDAT
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     ----------------------------------------------------------------
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+	COMMON /VEHDATA/ NVEH,NVEHC,MAXVEH(20),LALV1(20),LALV2(20)
+C     ----------------------------------------------------------------
+	DIMENSION VEHX(500,10),VCLS(1000,10),DPARK(2)
+	DIMENSION SCALM(4),LNNO(50)
+
+
+	LALV1(1) = 1
+	LALV2(1) = 1
+
+	MAX1 = 3
+	MAX2 = 1
+	MAXVEH(1) = MAX1
+	MAXVEH(2) = MAX2
+
+	NAXDT = 5 
+
+	NAMAX = 0
+	READ(ITI,*)
+	READ(ITI,*) NVEH
+	WRITE(*,*) 'READ VEHICLE DATA'
+C	IF(NVEH.EQ.0) RETURN
+
+	LALV1(2) = LALV1(1) + MAX1*NVEH    !NUMAX
+	LALV2(2) = LALV2(1) + 2*NVEH       !DPARK 
+
+
+	IF(NVEH.GT.0) READ(ITI,*)
+	
+	DO IVEH = 1,NVEH
+
+	READ(ITI,*) NUMAX,IVLAN,IPARK,DPARK(1)
+	IF(NUMAX.GT.NAMAX) NAMAX = NUMAX
+	DPARK(2) = 0.0D0
+	NUM = 0
+	DO IAX = 1,NUMAX
+	READ(ITI,*) IX,WF,WL,DIST,IND
+	VEHX(1+NUM,IVEH) = WF
+	VEHX(2+NUM,IVEH) = WL
+	VEHX(3+NUM,IVEH) = DIST
+	VEHX(4+NUM,IVEH) = FLOAT(IND)
+	NUM = NUM + NAXDT
+	DPARK(2) = DPARK(2) + WL + DIST
+	ENDDO
+	CALL PUTVEH1(NUMAX,IVLAN,IPARK,DPARK,IVEH,1)
+
+	ENDDO 
+
+	NVCDT = 5 
+
+	NVMAX = 0
+	READ(ITI,*)
+	READ(ITI,*) NVEHC
+	WRITE(*,*) 'READ VEHICLE CLASS DATA'
+C	IF(NVEHC.EQ.0) RETURN
+	LALV1(3) = LALV1(2) + MAX2*NVEHC            !NUM VEH
+
+	IF(NVEHC.GT.0) READ(ITI,*)
+	DO IVEHC = 1,NVEHC
+
+	READ(ITI,*) NVH
+	CALL PUTVEH2(NVH,IVEHC,1)
+	IF(NVH.GT.NVMAX) NVMAX = NVH
+	NUM = 0
+	DO IVH = 1,NVH
+	READ(ITI,*) ID,IMVH,SFAC
+	VCLS(1+NUM,IVEHC) = FLOAT(IMVH)
+	VCLS(2+NUM,IVEHC) = SFAC
+	NUM = NUM + NVCDT
+	ENDDO
+
+	ENDDO 
+
+	MAXVEH(3) = NAMAX
+	MAXVEH(4) = NAMAX*NAXDT
+	MAXVEH(5) = NVMAX
+	MAXVEH(6) = NVMAX*NVCDT
+
+
+	LALV2(3) = LALV2(2) + NAXDT*NAMAX*NVEH
+	LALV2(4) = LALV2(3) + NVCDT*NVMAX*NVEHC
+     
+
+	DO IVEH = 1,NVEH
+	CALL PUTVEH1(NUMAX,IVLAN,IPARK,DPARK,IVEH,0)
+	NUM = 0
+	DO IAX = 1,NUMAX
+	WF   = VEHX(1+NUM,IVEH)
+	WL   = VEHX(2+NUM,IVEH)
+	DIST = VEHX(3+NUM,IVEH)
+	IND  = INT(VEHX(4+NUM,IVEH))
+	CALL PUTVEH3(WF,WL,DIST,IND,IAX,IVEH,1)
+	NUM = NUM + NAXDT
+	ENDDO
+	ENDDO
+
+
+	DO IVEHC = 1,NVEHC
+	CALL PUTVEH2(NVH,IVEHC,0)
+	NUM = 0
+	DO IVH = 1,NVH
+	IMCH = INT(VCLS(1+NUM,IVEHC))
+	SFAC = VCLS(2+NUM,IVEHC)
+	CALL PUTVEH4(IMCH,SFAC,IVH,IVEHC,1)
+	NUM = NUM + NVCDT
+	ENDDO
+	ENDDO
+
+C	----------------------------------------------------
+
+
+	CALL INTFILL('LNMX',NFIL8 ,1 ,8 ,0)
+
+	READ(ITI,*) 
+	READ(ITI,*) NTLC
+	WRITE(*,*) 'READ VEHICLE CASE DATA'
+	WRITE(NFIL8)  NTLC
+	DO 1000 ITLC = 1,NTLC
+
+	READ(ITI,*)
+	READ(ITI,*) LCSNO,NSBL
+	WRITE(NFIL8)  LCSNO,NSBL
+	READ(ITI,*)
+	READ(ITI,*) SCALM(1:4)
+	WRITE(NFIL8)  SCALM(1:4)
+
+	READ(ITI,*)
+	DO ISBL = 1,NSBL
+	READ(ITI,*) NVCS,FACS,NVLN,MINL,MAXL
+	WRITE(NFIL8)  NVCS,FACS,NVLN,MINL,MAXL
+	READ(ITI,*) LNNO(1:NVLN)
+	WRITE(NFIL8)  LNNO(1:NVLN)
+	ENDDO
+
+1000	CONTINUE
+C	----------------------------------------------------
+
+      RETURN
+      END
+C
+
+C	=====================================================================
+C	=====================================================================
+C	=====================================================================
+	SUBROUTINE PUTVEH1(NAX,IVLAN,IPARK,DPARK,IVEH,IND)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     ----------------------------------------------------------------
+	COMMON /VEHDATA/ NVEH,NVEHC,MAXVEH(20),LALV1(20),LALV2(20)
+	COMMON /VEHCOMM/ IVEHIC(1000),AVEHIC(10000)
+C     ----------------------------------------------------------------
+	DIMENSION DPARK(2)
+
+	LV11 = LALV1(1)
+	LV21 = LALV2(1)
+
+	MAX1 = MAXVEH(1)
+	NUM = MAX1*(IVEH-1)
+	NUM = LV11 + NUM
+
+	MAXA = 2
+	NUA  = MAXA*(IVEH-1)
+	NUA  = LV21 + NUA
+
+	SELECTCASE(IND)
+	
+	CASE(0)
+	NAX   = IVEHIC(NUM+0)
+	IVLAN = IVEHIC(NUM+1)
+	IPARK = IVEHIC(NUM+2)
+	DPARK(1) = AVEHIC(NUA+0)
+	DPARK(2) = AVEHIC(NUA+1)
+
+
+	CASE(1)
+	IVEHIC(NUM+0) = NAX
+	IVEHIC(NUM+1) = IVLAN
+	IVEHIC(NUM+2) = IPARK
+	AVEHIC(NUA+0) = DPARK(1)
+	AVEHIC(NUA+1) = DPARK(2)
+
+
+	ENDSELECT
+
+C
+      RETURN
+      END
+C
+
+
+C	=====================================================================
+C	=====================================================================
+C	=====================================================================
+	SUBROUTINE PUTVEH2(NVH,IVEH,IND)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     ----------------------------------------------------------------
+	COMMON /VEHDATA/ NVEH,NVEHC,MAXVEH(20),LALV1(20),LALV2(20)
+	COMMON /VEHCOMM/ IVEHIC(1000),AVEHIC(10000)
+C     ----------------------------------------------------------------
+
+	LV12 = LALV1(2)
+
+	MAX2 = MAXVEH(2)
+	NUM = MAX2*(IVEH-1)
+	NUM = LV12 + NUM
+
+	SELECTCASE(IND)
+	
+	CASE(0)
+	NVH = IVEHIC(NUM)
+
+	CASE(1)
+	IVEHIC(NUM) = NVH
+
+	ENDSELECT
+
+C
+      RETURN
+      END
+C
+
+
+C	=====================================================================
+C	=====================================================================
+C	=====================================================================
+	SUBROUTINE PUTVEH3(WF,WL,DIST,MND,IAX,IVEH,IND)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     ----------------------------------------------------------------
+	COMMON /VEHDATA/ NVEH,NVEHC,MAXVEH(20),LALV1(20),LALV2(20)
+	COMMON /VEHCOMM/ IVEHIC(1000),AVEHIC(10000)
+C     ----------------------------------------------------------------
+	DIMENSION DAT(1)
+
+	LV22 = LALV2(2)
+
+	MAX3 = MAXVEH(3)
+	MAX4 = MAXVEH(4)
+
+	NUM = MAX4*(IVEH-1) + MAX4/MAX3*(IAX-1)
+	NUM = LV22 + NUM
+
+	SELECTCASE(IND)
+	
+	CASE(0)
+	WF   = AVEHIC(NUM+0)
+	WL   = AVEHIC(NUM+1)
+	DIST = AVEHIC(NUM+2)
+	MND  = INT(AVEHIC(NUM+3))
+
+	CASE(1)
+	AVEHIC(NUM+0) = WF
+	AVEHIC(NUM+1) = WL
+	AVEHIC(NUM+2) = DIST
+	AVEHIC(NUM+3) = FLOAT(MND)
+
+	ENDSELECT
+
+C
+      RETURN
+      END
+C
+
+
+C	=====================================================================
+C	=====================================================================
+C	=====================================================================
+	SUBROUTINE PUTVEH4(NVH,SFAC,IVH,IVEHC,IND)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     ----------------------------------------------------------------
+	COMMON /VEHDATA/ NVEH,NVEHC,MAXVEH(20),LALV1(20),LALV2(20)
+	COMMON /VEHCOMM/ IVEHIC(1000),AVEHIC(10000)
+C     ----------------------------------------------------------------
+	DIMENSION DAT(1)
+
+	LV23 = LALV2(3)
+
+	MAX5 = MAXVEH(5)
+	MAX6 = MAXVEH(6)
+
+	NUM = MAX6*(IVEHC-1) + MAX6/MAX5*(IVH-1)
+	NUM = LV23 + NUM
+
+	SELECTCASE(IND)
+	
+	CASE(0)
+	NVH   = INT(AVEHIC(NUM+0))
+	SFAC  = AVEHIC(NUM+1)
+
+	CASE(1)
+	AVEHIC(NUM+0) = FLOAT(NVH)
+	AVEHIC(NUM+1) = SFAC
+
+	ENDSELECT
+
+C
+      RETURN
+      END
+C
+C	=====================================================================
+C	=====================================================================
+C	=====================================================================
+	SUBROUTINE VCALCLS1(IDSET,DIRCOS,ID,MAXA,D,NEQ,AA)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	=============================================================
+	COMMON /NUMB/ HED(20),MODEX,NRE,NSN,NEG,NBS,NLS,NLA,
+     1              NSC,NSF,IDOF(9),LCS,ISOLOP,LSYMM
+      COMMON /ITER/ RHO,RHOP,RHOPREV,RTOL,ETOL,DLMAX,ALP,
+	1              NSTEP,NPRIN,NDRAW,
+	2			  KONEQ,NIREF,ITOPT,ICONV,NOLIN,KSTEP,
+     3              LIMEQ(2),ITEMAX,NUMREF,NUMITE,ITETOT,LIMET
+      COMMON /LOCA/ LID,LDS,LEL,LDC,LXY,LCH,LNU,LMP,LGP,LMS,LGS,
+     1              LCO,LEX,LLM,LES,LEC,LED,LEI,LEE,LMA,LLF,LLV,
+     2              LRE,LDI,LDL,LDT,LDK,LER,LEV,LTT,LWV,LAR,LBR,
+     3              LVE,LDD,LRT,LBU,LBC,LVL,LAL,LEF,LDU,LPR,LLO,
+	4              LRV,LRT1,LRET,LRET1,LDM,LDPT,LVL1,LMV,LXI,LCM,LCC,
+	5			    LCN,LDIM,LFRE,LSFC,LLOF
+      COMMON /FLAG/ IFPRI,ISPRI,IFPLO,IFREF,IFEIG,ITASK,IFFLAG
+
+	COMMON /LANPRIN/  LAN_PRN,ILPL,MLANE,NPL,LAN_OPT
+
+	COMMON A(9000000),IA(9000000)
+
+	COMMON /VEHDATA/ NVEH,NVEHC,MAXVEH(20),LALV1(20),LALV2(20)
+	COMMON /MGRAV/ NGRAV
+	COMMON /BF_SMOTH/ NP_SMH
+C	=============================================================
+	DIMENSION  LM(14),LRPIN(14)
+	DIMENSION  VR(3),XYZ(6)
+	DIMENSION  LANEP(5,1)
+	DIMENSION  IDSET(1),DIRCOS(1)
+	DIMENSION  LEDD(3000),LEDR(3000),RG(10000),RL(10000),RS(10000)
+	DIMENSION  RHS(NEQ),D(NEQ)
+	DIMENSION  MAXA(NEQ+1),ID(NSF,NSN)
+	DIMENSION  DPARK(2)
+	DIMENSION  PLNLG(10),SPANF(101)
+	DIMENSION  VG(3),VE(3)
+	DIMENSION  AA(1)
+	
+	ALLOCATABLE EGDATA(:,:)
+
+      ALLOCATABLE XXP(:),MPF(:),FCP(:),FCPA(:),FCPL(:)
+      
+	ALLOCATABLE KITG(:),LITG(:,:)
+	
+	ALLOCATABLE VBLOCK(:),DBLOCK(:),SBLOCK(:),VBNPL(:),LVBLOCK(:,:)
+
+      ALLOCATABLE FCPW(:,:),LCPW(:,:),MPFW(:),WBLOCK(:,:)
+
+	CALL INTFILL('LNMX',NFIL3 ,1 ,3 ,0)  !RESPONSE DUE TO UNIT LOAD	
+	CALL INTFILL('LNMX',NFIL4 ,1 ,4 ,0)  
+	CALL INTFILL('LNMX',NFIL5 ,1 ,5 ,0)  
+	CALL INTFILL('LNMX',NFIL7 ,1 ,7 ,0)  
+	
+
+	VG(1:3)   = 0.0D0
+	VG(NGRAV) =-1.0D0
+
+	INDPD   = 0 !POSITIVE DEFINITE STIFF
+	LAN_PRN = 1
+	ILPL    = 1
+	
+	NNN = 0
+
+	CALL INTFILL('LANE',NLANE ,1 ,1,0)  !NUMBER OF LANE
+	CALL INTFILL('LANE',NEDATA,1 ,2,0)  !NUMBER OF DATA FOR ELEMENT
+	CALL INTFILL('LANE',NSPANX,1 ,3,0)  !MAX NUMBER OF SPAN
+
+	DO 5000 ILANE = 1,NLANE
+
+	WRITE(*,*) ' '
+	WRITE(*,*) 'VEHICLE LOAD OF LANE NO.',ILANE
+
+	MLANE = ILANE
+
+
+	CALL INTFILL('LNMX',NFIL1 ,1 ,1 ,0)
+	LP1 = NFIL1 + ILANE
+	REWIND(LP1)
+	READ(LP1) IL,NLNS,NE,IDREC,NPL,IOPT,NSPAN,WTHLN		!IDREC  1= NORMAL  2= REVERSE  3= BOTH---NPL NUMBER OF INFLUENCE POINT ON THE LANE
+	LAN_OPT = IOPT
+	READ(LP1) (SPANF(J),J=1,NSPAN+1)
+	READ(LP1) (PLNLG(J),J=1,NLNS)
+	PLNAV = 0.0D0
+	DO J = 1,NLNS
+	PLNAV = PLNAV + PLNLG(J)
+	ENDDO
+	PLNAV = PLNAV/FLOAT(NLNS)
+
+	
+	ALLOCATE(EGDATA(NEDATA,NE))
+	DO IE = 1,NE
+	READ(LP1) (EGDATA(JJ,IE),JJ=1,NEDATA)
+	ENDDO
+
+	DO 4000 IVEH = 1,NVEH
+	CALL PUTVEH1(NUMAX,IVLAN,IPARK,DPARK,IVEH,0)
+
+C     TOTAL LENGTH OF VEHICLE FOR TRAIN&TRUCK LOAD ONLY
+      VEHLEN = 0.0D0
+      DO IAX = 1,NUMAX
+	    CALL PUTVEH3(WF,WL,DIST,IND,IAX,IVEH,0)    !IND  -- 1 = POINT  2 = UNIFORM
+	    IF(IAX.EQ.1    .AND.IND.EQ.2) THEN !FIRST DIST LOAD WILL AUTO ADJUST THE LENGTH
+	      WL = 0.0D0
+	    ENDIF
+	    IF(IAX.EQ.NUMAX.AND.IND.EQ.2) THEN !LAST DIST LOAD WILL AUTO ADJUST THE LENGTH
+	      WL = 0.0D0
+	    ENDIF
+          IF(WL.GT.PLNAV) WL = PLNAV !MODIFY IF VEHICLE LENGTH GREATER THAN LANE LANGTH
+	    IF(IAX.NE.NUMAX) VEHLEN = VEHLEN + WL + DIST
+	    IF(IAX.EQ.NUMAX) VEHLEN = VEHLEN + WL         !NO NEED TO ADD THE SPACING FOR LAST AXLE
+	ENDDO
+	
+	LP4 = IVEH + NVEH*(ILANE-1)
+	FACTOR = 0.0D0
+	CALL INIOPER(NFIL4,LP4,FACTOR,'CLEF','OLDF')  !CLEAR DUMMY FILE FOR 2 SET 
+
+	SELECTCASE(IVLAN)
+
+	CASE(0)                   !CASE(IVLAN)     VEHICLE LOAD
+
+
+            TTM1 = SECOND() 
+
+	WRITE(*,*) 'VEHICLE NO. (TRUCK LOAD)',IVEH
+
+      NMXSIZE = 30000000
+      
+      CALL BLOCKVEH(NPL,NMXSIZE,NVBLOCK,LVBLOCK,'NUMB')
+      ALLOCATE(VBNPL(NMXSIZE),LVBLOCK(2,NVBLOCK))
+      CALL BLOCKVEH(NPL,NMXSIZE,NVBLOCK,LVBLOCK,'MATB')
+      
+      DO 3970 IVBLOCK = 1,NVBLOCK
+      
+      LVB1 = LVBLOCK(1,IVBLOCK) ; LVB2 = LVBLOCK(2,IVBLOCK) 
+      NVBSIZE = LVB2 - LVB1 + 1
+      ALLOCATE(VBLOCK(NVBSIZE),DBLOCK(NVBSIZE),
+	1SBLOCK(NVBSIZE),WBLOCK(NVBSIZE,2))
+      SBLOCK(1:NVBSIZE) = 0.0D0
+      
+      DO IPOINT = 1,NPL
+        LP3 = IPOINT + NPL*(ILANE-1)
+        CALL BLOCKSORT(VBLOCK,LVB1,LVB2,NFIL3,LP3,'CALL')
+        LVBL1 = 1 + NVBSIZE*(IPOINT-1)
+        LVBL2 = LVBL1 + NVBSIZE - 1
+        VBNPL(LVBL1:LVBL2) = VBLOCK(1:NVBSIZE)
+      ENDDO
+      CALL BLOCKSORT(DBLOCK,LVB1,LVB2,0,0,'SORT')
+      
+                
+	MDREC = 1
+	IF(IDREC.EQ.3) MDREC = 2
+	DO 3950 IDRC = 1,MDREC
+
+	RI = 0.0D0
+	NBEGN = 1
+	NENDS = NUMAX
+	IF(IPARK.EQ.0) NENDS = 1      !IPARK  0=NO MOVE, 1=EXACT, 2=PIVOT
+	IF(IPARK.EQ.2) NENDS = 1 
+	IF(IPARK.EQ.2) RI    = DPARK(1)
+	DO 3900 IAX = NBEGN,NENDS
+	CALL PUTVEH3(WF,WL,DIST,IND,IAX,IVEH,0)    !IND  -- 1 = POINT  2 = UNIFORM
+
+		  IF(IAX.EQ.1    .AND.IND.EQ.2) THEN !FIRST DIST LOAD WILL AUTO ADJUST THE LENGTH
+	      WL = 0.0D0
+	    ENDIF
+	    IF(IAX.EQ.NUMAX.AND.IND.EQ.2) THEN !LAST DIST LOAD WILL AUTO ADJUST THE LENGTH
+	      WL = 0.0D0
+	    ENDIF
+
+      IF(WL.GT.PLNAV) WL = PLNAV !MODIFY IF VEHICLE LENGTH GREATER THAN LANE LANGTH
+      
+	IIND = IND
+	IF(IPARK.EQ.0) IIND = 1 
+	IF(IPARK.EQ.2) IIND = 1 
+	DO 3800 IAW = 1,IIND
+	RI = RI + WL*(IAW-1)
+      
+      
+	DLEN = PLNAV/FLOAT(NPL-1)
+	NNPL = NPL
+	IF(IPARK.EQ.0) NNPL = 1 
+	IF(IPARK.EQ.2) NNPL = NPL + INT(VEHLEN/DLEN) + 1 !INCREASE THE LENGTH AFTER PASS OVER THE LANE (BY ADDING VEHICLE LENGTH DPARK(2))
+	DO 2000 IPL = 1,NNPL
+      
+	CALL CLEROUT
+	
+	FLEN  = DLEN*(IPL-1)
+	IF(IPARK.EQ.0) FLEN = DPARK(1)
+
+
+
+      ALLOCATE(FCPA(NPL),FCPW(3*NPL,3),LCPW(3*NPL,3),MPFW(2))
+      FCPA(1:NPL) = 0.0D0
+      
+      MPFW(1:2) = 0
+      LCPW(1:3*NPL,1:3) = 0
+      FCPW(1:3*NPL,1:3) = 0.0D0
+      
+	RJ = 0.0D0
+	DO 1900 JAX = 1,NUMAX
+	CALL PUTVEH3(WFJ,WLJ,DISTJ,INJ,JAX,IVEH,0)    !IND  -- 1 = POINT  2 = UNIFORM
+
+		  IF(JAX.EQ.1    .AND.INJ.EQ.2) THEN !FIRST DIST LOAD WILL AUTO ADJUST THE LENGTH
+	      WLJ = 0.0D0
+	    ENDIF
+	    IF(JAX.EQ.NUMAX.AND.INJ.EQ.2) THEN !LAST DIST LOAD WILL AUTO ADJUST THE LENGTH
+	      WLJ = 0.0D0
+	    ENDIF
+	    
+      IF(WLJ.GT.PLNAV) WLJ = PLNAV !MODIFY IF VEHICLE LENGTH GREATER THAN LANE LANGTH
+      
+	FWN1 = FLEN + RI - RJ
+	FWN2 = FWN1 - WLJ
+	
+		  IF(JAX.EQ.1    .AND.INJ.EQ.2) THEN !FIRST DIST LOAD WILL AUTO ADJUST THE LENGTH
+	      IF(FWN1.LT.PLNAV) FWN1 = PLNAV
+	      IF(FWN2.GT.FWN1) FWN1 = FWN2
+	    ENDIF
+	    IF(JAX.EQ.NUMAX.AND.INJ.EQ.2) THEN !LAST DIST LOAD WILL AUTO ADJUST THE LENGTH
+	      IF(FWN2.GT.0.0D0) FWN2 = 0.0D0
+	      IF(FWN2.GT.FWN1) FWN2 = FWN1
+	    ENDIF	
+	    
+	IF(IDREC.EQ.2.OR.(IDREC.EQ.3.AND.IDRC.EQ.2)) THEN !FLIP DIRECTION FOR BACKWARD RUNNING
+	    FWN2 = (PLNAV - FLEN) - RI + RJ
+	    FWN1 = FWN2 + WLJ
+
+		      IF(JAX.EQ.1    .AND.INJ.EQ.2) THEN !FIRST DIST LOAD WILL AUTO ADJUST THE LENGTH
+	          IF(FWN2.GT.0.0D0) FWN2 = 0.0D0
+	          IF(FWN2.GT.FWN1) FWN2 = FWN1
+	ENDIF
+	        IF(JAX.EQ.NUMAX.AND.INJ.EQ.2) THEN !LAST DIST LOAD WILL AUTO ADJUST THE LENGTH
+	          IF(FWN1.LT.PLNAV) FWN1 = PLNAV
+	          IF(FWN2.GT.FWN1) FWN1 = FWN2
+	        ENDIF	
+	ENDIF
+	
+	
+	RJ   = RJ + WLJ + DISTJ
+
+      IF(INJ.EQ.2.AND.FWN1.EQ.FWN2) GOTO 1900
+
+
+      ALLOCATE(XXP(2),MPF(3*NPL),FCP(3*NPL))
+
+        SELECTCASE(INJ)
+            CASE(1)
+                NXP = 1
+                XXP(1) = FWN1
+            CASE(2)
+                NXP = 2
+                XXP(1:2) = [FWN1,FWN2]
+        ENDSELECT
+        CALL INTGFACT(XXP,NXP,PLNAV,NPL,NPF,MPF,FCP)
+
+        DO IPF = 1,NPF
+          IPOINT = MPF(IPF)
+	    FACTOR = FCP(IPF)*WFJ
+	    IF(INJ.EQ.1) THEN
+	    FCPA(IPOINT) = FCPA(IPOINT) + FACTOR
+	    ELSE
+	      IF(JAX.EQ.1) THEN
+	          MPFW(1) = NPF
+	          LCPW(IPF,1) = IPOINT
+	          FCPW(IPF,1) = FACTOR
+	      ELSEIF(JAX.EQ.NUMAX) THEN
+	          MPFW(2) = NPF
+	          LCPW(IPF,2) = IPOINT
+	          FCPW(IPF,2) = FACTOR
+	      ELSE
+	          FCPA(IPOINT) = FCPA(IPOINT) + FACTOR
+	      ENDIF
+	    ENDIF
+	  ENDDO
+	
+      DEALLOCATE(XXP,MPF,FCP)
+
+
+1900	CONTINUE
+
+      VBLOCK(1:NVBSIZE) = 0.0D0
+      DO IPOINT = 1,NPL
+        IF(FCPA(IPOINT).NE.0.0D0) THEN
+            FACTOR = FCPA(IPOINT)
+            LVBL1 = 1 + NVBSIZE*(IPOINT-1)
+            LVBL2 = LVBL1 + NVBSIZE - 1
+            INCX = 1 ; INCY = 1
+C            DO IVBSIZE = 1,NVBSIZE
+C            IF(VBNPL(LVBL1+IVBSIZE-1).NE.0.0D0) VBLOCK(IVBSIZE) = VBLOCK(IVBSIZE) + FACTOR*VBNPL(LVBL1+IVBSIZE-1)
+C            ENDDO
+            CALL DAXPY(NVBSIZE,FACTOR,VBNPL(LVBL1),INCX,VBLOCK,INCY)
+        ENDIF
+      ENDDO
+      
+C      INCX = 1 ; INCY = 1
+C      FACTOR = 1.0D0
+C      CALL DGEMV('N',NVBSIZE,NPL,FACTOR,VBNPL,NVBSIZE,FCPA,INCX,FACTOR,VBLOCK,NCY)
+          
+	IF(IDREC.EQ.2.OR.(IDREC.EQ.3.AND.IDRC.EQ.2)) THEN !FLIP DIRECTION FOR BACKWARD RUNNING
+          NPFW = MPFW(1)
+          LCPW(1:NPFW,3) = LCPW(1:NPFW,1)
+          FCPW(1:NPFW,3) = FCPW(1:NPFW,1)
+          JPFW = NPFW
+          DO IPFW = 1,NPFW
+            LCPW(IPFW,1) = LCPW(JPFW,3)
+            FCPW(IPFW,1) = FCPW(JPFW,3)
+            JPFW = JPFW-1
+          ENDDO
+      ELSE
+	    NPFW = MPFW(2)
+          LCPW(1:NPFW,3) = LCPW(1:NPFW,2)
+          FCPW(1:NPFW,3) = FCPW(1:NPFW,2)
+          JPFW = NPFW
+          DO IPFW = 1,NPFW
+            LCPW(IPFW,2) = LCPW(JPFW,3)
+            FCPW(IPFW,2) = FCPW(JPFW,3)
+            JPFW = JPFW-1
+          ENDDO
+      ENDIF
+      
+      
+      WBLOCK(1:NVBSIZE,1:2) = 0.0D0  
+      DO IVBSIZE = 1,NVBSIZE
+      
+        IF(MPFW(1).EQ.0.AND.MPFW(2).EQ.0) EXIT
+        
+          DO KPFW = 1,2
+          NPFW = MPFW(KPFW)
+          
+              IBREAKP = 0   
+              IBREAKN = 0   
+              DO IPFW = 1,NPFW
+                  IPOINT = LCPW(IPFW,KPFW)
+                  FACTOR = FCPW(IPFW,KPFW)
+                  IF(FACTOR.NE.0.0D0) THEN
+                  
+                      LVBL1 = 1 + NVBSIZE*(IPOINT-1)
+                      LVBL2 = LVBL1 + NVBSIZE - 1
+
+                      VAL = VBNPL(LVBL1+IVBSIZE-1)
+                      IF(VAL.EQ.0.0D0) EXIT
+                      
+                      IF(IBREAKP.EQ.0) THEN !POSITIVE
+                          IF(VAL.GT.0.0D0) THEN
+                            WBLOCK(IVBSIZE,1) = WBLOCK(IVBSIZE,1) + FACTOR*VAL
+                          ELSE
+                            IBREAKP = 1
+                          ENDIF
+                      ENDIF
+                      
+                      IF(IBREAKN.EQ.0) THEN !NEGATIVE
+                          IF(VAL.LT.0.0D0) THEN
+                            WBLOCK(IVBSIZE,2) = WBLOCK(IVBSIZE,2) + FACTOR*VAL
+                          ELSE
+                            IBREAKN = 1
+                          ENDIF
+                      ENDIF
+                      
+                      IF(IBREAKP.EQ.1.AND.IBREAKN.EQ.1) EXIT
+                      
+                  ELSE
+                    EXIT
+                  ENDIF
+              ENDDO
+              
+          ENDDO
+      
+      ENDDO
+      
+                   
+      DEALLOCATE(FCPA,FCPW,LCPW,MPFW)
+
+      
+      DO IVBSIZE = 1,NVBSIZE
+        IF(DBLOCK(IVBSIZE).GT.0.0D0) THEN
+            VAL = VBLOCK(IVBSIZE) + WBLOCK(IVBSIZE,1)
+            IF( VAL.GE.SBLOCK(IVBSIZE) ) SBLOCK(IVBSIZE) = VAL
+            VAL = VBLOCK(IVBSIZE) + WBLOCK(IVBSIZE,2)
+            IF( VAL.GE.SBLOCK(IVBSIZE) ) SBLOCK(IVBSIZE) = VAL
+        ENDIF
+        IF(DBLOCK(IVBSIZE).LT.0.0D0) THEN
+            VAL = VBLOCK(IVBSIZE) + WBLOCK(IVBSIZE,1)
+            IF( VAL.LE.SBLOCK(IVBSIZE) ) SBLOCK(IVBSIZE) = VAL
+            VAL = VBLOCK(IVBSIZE) + WBLOCK(IVBSIZE,2)
+            IF( VAL.LE.SBLOCK(IVBSIZE) ) SBLOCK(IVBSIZE) = VAL
+        ENDIF 
+      ENDDO
+
+      
+2000	CONTINUE
+
+3800	CONTINUE
+
+	RI = RI + DIST !!!!!!!
+3900	CONTINUE
+3950	CONTINUE
+
+      CALL BLOCKSORT(SBLOCK,LVB1,LVB2,NFIL4,LP4,'WRIT')
+	DEALLOCATE(VBLOCK,SBLOCK,DBLOCK,WBLOCK)
+3970  CONTINUE
+	DEALLOCATE(VBNPL,LVBLOCK)
+
+
+            TTM2 = SECOND() 
+C            WRITE(*,*) 'ELAPSE TIME= ',(TTM2-TTM1)/60.0
+      
+	CASE(1)                   !CASE(IVLAN)   LANE PRESSURE LOAD
+
+C
+	WRITE(*,*) 'VEHICLE NO. (LANE LOAD) ',IVEH
+
+C     FIRST LOOP IS FOR GENERAL LANE POINT LOAD (ALL RESULT IS USED IN BRIDGE DESIGN) --- IND=NUM AXLE > 1
+	DO IAX = 1,NUMAX
+	CALL PUTVEH3(VFAC,WL,DIST,IND,IAX,IVEH,0)    
+	IF(IND.GT.1) 
+	1CALL SPANSORT(NFIL4,LP4,VFAC,IND,NSPAN,ILANE,NSPANX,'GENL')  !LOOP OVER *GENERAL* POINT LOAD
+	ENDDO
+C     SECOND LOOP IS FOR *SHEAR* LANE POINT LOAD (ONLY FRAME SHEAR FORCE RESULT IS USED IN BRIDGE DESIGN) --- IND=NUM AXLE = 1
+	DO IAX = 1,NUMAX
+	CALL PUTVEH3(VFAC,WL,DIST,IND,IAX,IVEH,0)    
+	IF(IND.EQ.1) 
+	1CALL SPANSORT(NFIL4,LP4,VFAC,IND,NSPAN,ILANE,NSPANX,'SHER')  !LOOP OVER *SHEAR* POINT LOAD
+	ENDDO
+C     THIRD LOOP IS FOR LANE DISTRIBUTED LOAD (ALL RESULT IS USED IN BRIDGE DESIGN)
+	DO IAX = 1,NUMAX
+	CALL PUTVEH3(VFAC,WL,DIST,IND,IAX,IVEH,0)    
+	LP5 = ILANE
+	IF(IND.EQ.0) CALL LANELCAL(NFIL4,LP4,NFIL5,LP5,VFAC)			   !LOOP OVER DISTRIBUTION LOAD
+	ENDDO
+
+
+	ENDSELECT
+
+
+
+4000	CONTINUE
+
+	
+	DEALLOCATE(EGDATA)
+5000	CONTINUE
+
+
+
+
+	DO ILANE = 1,NLANE
+	    DO IVEHC = 1,NVEHC
+	    
+	        LP7 = IVEHC + NVEHC*(ILANE-1)
+	        FACTOR = 0.0D0
+	        CALL INIOPER(NFIL7,LP7,FACTOR,'CLEF','OLDF')  !CLEAR DUMMY FILE FOR 2 SET 
+
+	        CALL PUTVEH2(NVH,IVEHC,0)
+	        DO IVH = 1,NVH
+	            CALL PUTVEH4(IMCH,SFAC,IVH,IVEHC,0)
+	            LP4 = IMCH + NVEH*(ILANE-1)
+	            FACTOR = 1.0D0
+	            CALL INIOPER(NFIL4,LP4,FACTOR,'CALL','OLDF')  !CLEAR DUMMY FILE FOR 2 SET 
+	            FACTOR = SFAC
+	            CALL INIOPER(NFIL7,LP7,FACTOR,'SORT','OLDF')  !CLEAR DUMMY FILE FOR 2 SET 
+	        ENDDO
+	    ENDDO
+	ENDDO
+
+
+
+	RETURN
+
+	END
+
+
+
+C	=============================================================
+C	=============================================================
+C	=============================================================
+	SUBROUTINE SPANSORT(NFIL,ISET,FAC,NML,NSPAN,ILANE,NSPANX,IOPT)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+      CHARACTER*4 IOPT
+C     ----------------------------------------------------------------
+C     ----------------------------------------------------------------
+      ALLOCATABLE LSAM(:,:)
+ 
+C     FILE NUMBER FOR MAX RESPONSE FOR EACH SPAN DUE TO UNIT LOAD     
+	CALL INTFILL('LNMX',NFIL6,1,6,0)   
+
+C     FILE NUMBER FOR SORT MAX RESPONSE FOR EACH SPAN DUE TO SHEAR POINT LOAD     
+	CALL INTFILL('LNMX',NFIL9,1,9,0) 
+      FACTOR = 0.0D0
+      IF(IOPT.EQ.'SHER') CALL INIOPER(NFIL9,1,FACTOR,'CLEF','OLDF')  !CLEAR DUMMY FILE 
+      
+	
+C     GET THE LIST OF SAPN WHICH WILL USE FOR SORTING AND COMBINATION
+C     GIVEN TOTAL NSPAN, THEN CHOOSE SAMPLING NGET 
+      NTOL = NSPAN
+	NGET = NML                       !NUMBER OF SPAN FOR POINT LOAD
+	IF(NGET.GT.NTOL) NGET = NTOL
+      CALL SAMPLIN(NSAM,LSAM,NGET,NTOL,'GETN')
+      
+      ALLOCATE(LSAM(NGET,NSAM))
+      
+      CALL SAMPLIN(NSAM,LSAM,NGET,NTOL,'GETL')
+      
+
+      DO 5000 ISAM = 1,NSAM
+      
+	CALL CLEROUT
+      DO 1000 IGET = 1,NGET
+          ISPAN = LSAM(IGET,ISAM)
+	    FACTOR = FAC
+	    LP6 = ISPAN + NSPANX*ILANE
+	    CALL INIOPER(NFIL6,LP6,FACTOR,'ACUM','OLDF')  !ACCUMULATE DATA FOR EACH SPAN POINT LOAD
+1000  CONTINUE
+      
+      FACTOR = 1.0D0
+	IF(IOPT.EQ.'GENL') CALL INIOPER(NFIL ,ISET,FACTOR,'SORT','OLDF')  !SORT RESULT TO SPECIFIC FILE RECORD (FOR GENERAL LANE POINT LOAD)
+	IF(IOPT.EQ.'SHER') CALL INIOPER(NFIL9,1   ,FACTOR,'SORT','OLDF')  !SORT RESULT TO DUMMY    FILE RECORD (FOR *SHEAR* LANE POINT LOAD)      
+5000  CONTINUE
+
+      FACTOR = 1.0D0
+	IF(IOPT.EQ.'SHER') CALL INIOPER(NFIL9,1   ,FACTOR,'CALL','OLDF')  !CALL DATA FROM DUMMY    FILE RECORD (FOR *SHEAR* LANE POINT LOAD)      
+	IF(IOPT.EQ.'SHER') CALL INIOPER(NFIL ,ISET,FACTOR,'REPL','OLDF')  !REPLACE RESULT TO SPECIFIC FILE RECORD (FOR *SHEAR* LANE POINT LOAD)  
+
+      DEALLOCATE(LSAM)
+      
+
+      RETURN
+      END
+C
+
+C	=====================================================================
+C	=====================================================================
+C	=====================================================================
+	SUBROUTINE INFINTG0(DAT,FLN1,FLN2,NPL,AREA,IND)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     ---------------------------------------------------------------------
+C     ---------------------------------------------------------------------
+	DIMENSION  DAT(2,1),DD(2,1000)
+
+C	IPO = 0 UNIFORM LOAD
+C	IPO = 1 POINT LOAD
+	IPO = 0
+	IF(FLN1.EQ.FLN2) IPO = 1
+
+	AREA = 0.0D0
+	VMAX = DAT(1,NPL)
+	VMIN = DAT(1,1)
+
+	IF(IPO.EQ.1.AND.FLN1.LT.VMIN) RETURN
+	IF(IPO.EQ.1.AND.FLN1.GT.VMAX) RETURN
+
+	IF(FLN1.LT.VMIN) FLN1 = VMIN
+	IF(FLN1.GT.VMAX) FLN1 = VMAX
+
+	IF(FLN2.LT.VMIN) FLN2 = VMIN
+	IF(FLN2.GT.VMAX) FLN2 = VMAX	
+
+	CALL INTERPOL(FLN1,VV1,DAT,NPL,IT1)
+	CALL INTERPOL(FLN2,VV2,DAT,NPL,IT2)
+	IT2 = IT2 + 1
+
+
+	IF(IPO.EQ.1) THEN
+	AREA = VV1
+	SELECTCASE(IND)   !IND  0 = BOTH  1 = POSITIVE  2 = NEGATIVE 
+	CASE(1)
+	IF(AREA.LT.0.0D0) AREA = 0.0D0 
+	CASE(2)
+	IF(AREA.GT.0.0D0) AREA = 0.0D0	 
+	ENDSELECT
+	RETURN
+	ENDIF
+
+	NUM = 2 + (IT2-IT1-1)
+
+	DD(1,1)		= FLN1
+	DD(2,1)		= VV1
+	DD(1,NUM)	= FLN2
+	DD(2,NUM)	= VV2
+
+	DO I = 1,NUM-2
+	DD(1,I+1) = DAT(1,IT1+I)
+	DD(2,I+1) = DAT(2,IT1+I)
+	ENDDO
+
+
+	DO I = 1,NUM-1
+	F1 = DD(1,I-0)
+	F2 = DD(1,I-1)
+	FL = F2 - F1
+	IF(FL.LE.0.0D0) GOTO 150
+	H1 = DD(2,I-0)
+	H2 = DD(2,I-1)
+	AA = 0.5*FL*(H1+H2)
+
+	SELECTCASE(IND)   !IND  0 = BOTH  1 = POSITIVE  2 = NEGATIVE 
+
+	CASE(1)
+	IF(H1.LT.0.0D0.AND.H2.LT.0.0D0) GOTO 150
+	IF(H1.LT.0.0D0) THEN
+	XL = FL*H2/(H2-H1)
+	AA = 0.5*H2*XL
+	ENDIF
+	IF(H2.LT.0.0D0) THEN
+	XL = FL*H1/(H1-H2)
+	AA = 0.5*H1*XL
+	ENDIF
+		 
+	CASE(2)
+	IF(H1.GT.0.0D0.AND.H2.GT.0.0D0) GOTO 150
+	IF(H1.GT.0.0D0) THEN
+	XL = FL*H2/(H2-H1)
+	AA = 0.5*H2*XL
+	ENDIF
+	IF(H2.GT.0.0D0) THEN
+	XL = FL*H1/(H1-H2)
+	AA = 0.5*H1*XL
+	ENDIF 
+
+	ENDSELECT
+
+	AREA = AREA + AA
+150	CONTINUE
+	ENDDO
+
+
+      RETURN
+
+      END
+C
+
+C	=====================================================================
+C	=====================================================================
+C	=====================================================================
+	SUBROUTINE VEHCASE(AA)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     ----------------------------------------------------------------
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+      COMMON /SOLU/ NEQ,NEQ1,NBLOCK,MK,BM,NWK,NWM,ISTOR,NFAC,
+     +              NRED,KPOSD,DETK,DET1,DAVR,STOL
+      COMMON /LOCA/ LID,LDS,LEL,LDC,LXY,LCH,LNU,LMP,LGP,LMS,LGS,
+     1              LCO,LEX,LLM,LES,LEC,LED,LEI,LEE,LMA,LLF,LLV,
+     2              LRE,LDI,LDL,LDT,LDK,LER,LEV,LTT,LWV,LAR,LBR,
+     3              LVE,LDD,LRT,LBU,LBC,LVL,LAL,LEF,LDU,LPR,LLO,
+	4              LRV,LRT1,LRET,LRET1,LDM,LDPT,LVL1,LMV,LXI,LCM,LCC,
+	5			    LCN,LDIM,LFRE,LSFC,LLOF
+
+	COMMON A(9000000),IA(9000000)
+C     ----------------------------------------------------------------
+	COMMON /VEHDATA/ NVEH,NVEHC,MAXVEH(20),LALV1(20),LALV2(20)
+C     ----------------------------------------------------------------
+	DIMENSION AA(1)
+	DIMENSION SCALM(4)
+	DIMENSION FACL(5000),FACS(20),NVCS(20)
+	DIMENSION NV(20),NW(20),NAPP(20),MAPP(20) 
+	ALLOCATABLE LNNO(:),MSCB(:,:),LCCB(:,:),LL(:),LNCS(:),KSCB(:)
+
+	CALL VCALCLS1(IA(LDS),A(LDC),IA(LID),IA(LMA),A(LDK),NEQ,AA)
+
+
+
+	CALL INTFILL('NOUT',NFIL1,1 ,1,0)    !LOAD CASE OUTPUT FILE
+
+	CALL INTFILL('LNMX',NFIL7,1 ,7,0)  
+	CALL INTFILL('LNMX',NFIL8,1 ,8,0)  
+
+	CALL INTFILL('LANE',NLANE ,1 ,1,0)  !NUMBER OF LANE
+	CALL INTFILL('LANE',NEDATA,1 ,2,0)  !NUMBER OF DATA FOR ELEMENT
+	CALL INTFILL('LANE',NSPANX,1 ,3,0)  !MAX NUMBER OF SPAN
+C	--------------------------------------------------------
+
+	ALLOCATE( LNNO(NLANE),MSCB((2**NLANE)*NLANE,20) )
+	ALLOCATE( LCCB(NLANE,5000),LL(NLANE),LNCS(NLANE) )
+
+	REWIND(NFIL8)
+
+	READ(NFIL8) NTLC
+
+	DO 1000 ITLC = 1,NTLC
+	READ(NFIL8) LCSNO,NSBL
+	READ(NFIL8) SCALM(1:4)
+
+	ALLOCATE( KSCB((2**NSBL)*NSBL) )
+
+	CALL GREYCODE(NSBL,KSCB,NSBL)
+
+	DO ISBL = 1,NSBL
+	READ(NFIL8) NVCS(ISBL),FACS(ISBL),NVLN,MINL,MAXL
+	IF(MINL.LT.0)    MINL = 0
+	IF(MINL.GT.NVLN) MINL = NVLN
+	IF(MAXL.GT.NVLN) MAXL = NVLN
+	READ(NFIL8) LNNO(1:NVLN) 
+	CALL SUBGEN(NVLN,MINL,MAXL,LNNO,MSCB(1,ISBL),NLANE,ISBL,NV(ISBL))
+	ENDDO
+
+
+	MLC = 0
+	NUM = 0
+	DO 900 IS = 1,2**NSBL
+
+	NN = 0
+	MM = 1
+	DO J = 1,NSBL
+	NUM = NUM + 1
+	IF(KSCB(J+NSBL*(IS-1)).NE.0) THEN
+	NN = NN + 1
+	MAPP(NN) = J
+	NAPP(NN) = NV(J)
+	MM = MM*NV(J)
+	ENDIF
+	ENDDO
+
+	
+	IF(NN.EQ.1.AND.NSBL.GT.1) GOTO 900
+	
+	NW(1:NN) = 1
+	DO 800 IM = 1,MM
+
+	IF1 = 0
+	LL(1:NLANE) = 0
+	DO J = 1,NN
+	IF2 = 0
+	IL = MAPP(J)
+	NDUM = NLANE*(NW(J)-1)
+	DO K = 1,NLANE
+	IF(MSCB(K+NDUM,IL).NE.0.AND.LL(K).NE.0) IF1 = 1
+	LL(K) = LL(K) + MSCB(K+NDUM,IL)
+	IF(LL(K).NE.0) IF2 = IF2 + 1
+	ENDDO 
+	ENDDO 
+
+	IF(IF1.EQ.0.AND.IF2.NE.0) THEN
+	MLC = MLC + 1
+	LCCB(1:NLANE,MLC) = LL(1:NLANE)
+	IF(IF2.GT.4) IF2 = 4
+	FACL(MLC) = SCALM(IF2)
+	ENDIF
+
+
+	NW(NN) = NW(NN) + 1
+	DO J = 1,NN-1
+	JJ = J - 1
+	IF(NW(NN-JJ).GT.NAPP(NN-JJ)) THEN
+	NW(NN-JJ) = 1
+	NW(NN-JJ-1) = NW(NN-JJ-1) + 1
+	ENDIF
+	ENDDO
+		
+
+800	CONTINUE
+
+
+900	CONTINUE
+
+
+
+	CALL INTFILL('LNMX',NFIL9 ,1 ,9 ,0) 
+	CALL INTFILL('LNMX',NFIL10,1 ,10,0) 
+	FACTOR = 0.0D0
+	CALL INIOPER(NFIL9 ,1 ,FACTOR,'CLEF','OLDF')  !CLEAR DUMMY FILE FOR 2 SET 
+
+	DO ILC = 1,MLC
+	FACTOR = 0.0D0
+	CALL INIOPER(NFIL10,1 ,FACTOR,'CLEF','OLDF')  !CLEAR DUMMY FILE FOR 2 SET 
+
+	WRITE(*,*) ' '
+	WRITE(*,*) 'TRAFFIC LOAD COMBINATION NO.',ILC
+	WRITE(*,*) 'LANE-FACTOR','  LANE VEHICLE CLASS'
+	LNCS(1:NLANE) = 0
+
+	DO J = 1,NLANE
+	ISBL = LCCB(J,ILC)
+	IF(ISBL.NE.0) THEN
+	IVC  = NVCS(ISBL)
+	FF   = FACS(ISBL)
+	LP7  = IVC + NVEHC*(J-1)
+	FACTOR = 1.0D0
+	CALL INIOPER(NFIL7 ,LP7,FACTOR,'CALL','OLDF')  !CLEAR DUMMY FILE FOR 2 SET 
+	FACTOR = FF
+	CALL INIOPER(NFIL10,1  ,FACTOR,'COMB','OLDF')  !CLEAR DUMMY FILE FOR 2 SET 
+	LNCS(J) = IVC
+	ENDIF	
+	ENDDO
+
+	WRITE(*,112) FACL(ILC),LNCS(1:NLANE)
+
+	FACTOR = 1.0D0
+	CALL INIOPER(NFIL10,1 ,FACTOR,'CALL','OLDF')  !CLEAR DUMMY FILE FOR 2 SET 
+	FACTOR = FACL(ILC)
+	CALL INIOPER(NFIL9 ,1 ,FACTOR,'SORT','OLDF')  !CLEAR DUMMY FILE FOR 2 SET 
+
+	ENDDO
+
+	LP1 = LCSNO
+	FACTOR = 1.0D0
+	CALL INIOPER(NFIL9,1  ,FACTOR,'CALL','OLDF')  !CLEAR DUMMY FILE FOR 2 SET 
+	FACTOR = 1.0D0
+	CALL INIOPER(NFIL1,LP1,FACTOR,'COMB','OLDF')  !ADD TO LOADCASE FILE
+
+
+
+	DEALLOCATE(KSCB)
+
+1000	CONTINUE
+
+
+	DEALLOCATE(LNNO,MSCB)
+	DEALLOCATE(LCCB,LL,LNCS)
+
+
+110	FORMAT(X,100I5) 
+111	FORMAT(X,F5.3,2X,100I5) 
+112	FORMAT(4X,F5.3,4X,100I3)
+
+      RETURN
+	END
+C	====================================================
+C	====================================================
+C	====================================================
+	SUBROUTINE SUBGEN(NVLN,MINL,MAXL,LNNO,MSCB,NLANE,IS,NUM)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+	DIMENSION LNNO(NVLN),MSCB(NLANE,1),LANE(NLANE)
+
+	CALL GREYCODE(NVLN,MSCB,NLANE)
+
+
+	NN  = 2**NVLN
+	NUM = 0
+	
+	DO II = 1,NN
+
+	MX = 0
+	DO J = 1,NVLN
+	IF(MSCB(J,II).NE.0) MX = MX + 1
+	ENDDO
+
+	IF(MX.LT.MINL.OR.MX.GT.MAXL) GOTO 500
+
+	LANE(1:NLANE) = 0
+	NUM = NUM + 1
+
+	DO J = 1,NVLN
+	IF(MSCB(J,II).NE.0) THEN
+	LANO = LNNO(J)
+	LANE(LANO) = IS
+	ENDIF
+	ENDDO
+
+	
+	DO J = 1,NLANE
+	MSCB(J,NUM) = LANE(J)
+	ENDDO	
+
+500	CONTINUE
+	ENDDO
+
+      
+	
+	RETURN
+	END
+C	====================================================
+C	====================================================
+C	====================================================
+	SUBROUTINE GREYCODE(N,LGREY,M)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+	COMMON /INOUT/ ITI,ITO
+
+
+	DIMENSION LGREY(M,1)
+	DIMENSION NV(10),IV(100,10)
+
+
+	LGREY(1,1) = 0
+	LGREY(1,2) = 1
+
+
+	DO I = 2,N
+
+	NN = 2**(I-1)
+	DO J = 1,I-1
+	DO K = 1,NN
+	LGREY(J,K+NN) = LGREY(J,K)
+	ENDDO
+	ENDDO
+
+	DO K = 1,NN
+	LGREY(I,K)    = 0
+	LGREY(I,K+NN) = 1
+	ENDDO
+
+	ENDDO
+
+
+      RETURN
+	END
+C	=====================================================================
+C	=====================================================================
+C	=====================================================================
+	SUBROUTINE VEHCFIX(W11,W12,ALL,BLL,ECT,IDR,IPRO,
+	1				   VR,ELN,RG,ANG,LREAS,VE)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	==============================================================
+	DIMENSION VR(3),VS(3),VT(3),RG(7,2)
+	DIMENSION COEF(6),TRANS(14,14)
+	DIMENSION FIXG(14),FIXD(14)
+	DIMENSION ECCMT(3,3)
+	DIMENSION VPRO(3),VE(3),VME(3)
+	DIMENSION TRANH(14,14),LREAS(14)
+
+	AL = ALL
+	BL = BLL
+	W1 = W11
+	W2 = W12
+
+	RANG = ANG
+
+	ECT  = 0.0D0
+	ECS  = 0.0D0
+	IMOM = 0
+
+	ECCMT = 0.0
+	ECCMT(1,1) =  0.0
+	ECCMT(1,2) = -ECT
+	ECCMT(1,3) =  ECS
+	ECCMT(2,1) =  ECT
+	ECCMT(3,1) = -ECS
+
+	DO I = 1,3
+	VPRO(I) = 0.0
+	ENDDO
+
+	VPRO(IDR) = 1.0
+
+
+	COST = VR(1)*VPRO(1) +  VR(2)*VPRO(2) + VR(3)*VPRO(3)
+	COST = SQRT(1.0 - COST*COST)
+
+
+	IF(IPRO.EQ.1) THEN  !IPRO  1 = POINT  2 = UNIFORM
+	DX = ELN*1.0E-8
+	BL = BL+DX
+	W2 = W1/DX
+	W1 = W1/DX
+	ENDIF
+
+	CALL FMVEVR(VR,VS,VT)
+
+	CALL ROMBAC(VR,VS,VT,RANG)
+
+	CALL TRANLG(VR,VS,VT,TRANS)
+
+	W1R = VR(IDR)*W1
+	W1S = VS(IDR)*W1
+	W1T = VT(IDR)*W1
+
+	W1MR = ECCMT(1,1)*W1R + ECCMT(1,2)*W1S + ECCMT(1,3)*W1T
+	W1MS = ECCMT(2,1)*W1R + ECCMT(2,2)*W1S + ECCMT(2,3)*W1T 
+	W1MT = ECCMT(3,1)*W1R + ECCMT(3,2)*W1S + ECCMT(3,3)*W1T 
+
+	W2R = VR(IDR)*W2
+	W2S = VS(IDR)*W2
+	W2T = VT(IDR)*W2
+
+	W2MR = ECCMT(1,1)*W2R + ECCMT(1,2)*W2S + ECCMT(1,3)*W2T
+	W2MS = ECCMT(2,1)*W2R + ECCMT(2,2)*W2S + ECCMT(2,3)*W2T 
+	W2MT = ECCMT(3,1)*W2R + ECCMT(3,2)*W2S + ECCMT(3,3)*W2T 
+
+	FIXD = 0.0
+
+	IF(IMOM.EQ.1) THEN
+	W1MR = W1R
+	W1MS = W1S
+	W1MT = W1T
+
+	W2MR = W2R
+	W2MS = W2S
+	W2MT = W2T
+	GOTO 100
+	ENDIF
+
+
+C	FROM CONCENTRIC LOAD
+
+C	LOCAL AXIAL FORCE
+	CALL FXCONT(W1R,W2R,AL,BL,ELN,COEF)
+	FIXD(1) = COEF(5)
+	FIXD(8) = COEF(6)
+
+
+C	SHEAR IN S-AXIS AND MOMENT IN T-AXIS
+	CALL FXCONT(W1S,W2S,AL,BL,ELN,COEF)
+	FIXD(2)  = COEF(1)
+	FIXD(6)  = COEF(2)
+	FIXD(9)  = COEF(3)
+	FIXD(13) = COEF(4)	
+
+C	SHEAR IN T-AXIS AND MOMENT IN S-AXIS
+	CALL FXCONT(W1T,W2T,AL,BL,ELN,COEF)
+	FIXD(3)  = COEF(1)
+	FIXD(5)  =-COEF(2)
+	FIXD(10) = COEF(3)
+	FIXD(12) =-COEF(4)	
+
+
+100	CONTINUE
+C	FROM ECCENTRICITY MOMENT
+
+C	LOCAL AXIAL MOMENT
+	CALL FMCONT(W1MR,W2MR,AL,BL,ELN,COEF)
+	FIXD(4)  = FIXD(4)  + COEF(5)
+	FIXD(11) = FIXD(11) + COEF(6)
+
+
+C	SHEAR IN T-AXIS AND MOMENT IN S-AXIS
+	CALL FMCONT(W1MS,W2MS,AL,BL,ELN,COEF)
+	FIXD(3)  = FIXD(3)  - COEF(1)
+	FIXD(5)  = FIXD(5)  + COEF(2)
+	FIXD(10) = FIXD(10) - COEF(3)
+	FIXD(12) = FIXD(12) + COEF(4)
+
+
+C	SHEAR IN S-AXIS AND MOMENT IN T-AXIS
+	CALL FMCONT(W1MT,W2MT,AL,BL,ELN,COEF)
+	FIXD(2)  = FIXD(2)  + COEF(1)
+	FIXD(6)  = FIXD(6)  + COEF(2)
+	FIXD(9)  = FIXD(9)  + COEF(3)
+	FIXD(13) = FIXD(13) + COEF(4)
+
+C	------------------------------------------------------------
+C	TRANSFORM CORRESPONDING RELEASE CONDITION
+C	------------------------------------------------------------
+	CALL TRNHIG(TRANH,ELN,LREAS)
+	CALL TRNMUL(TRANH,FIXD,2)
+
+
+	FIXG = MATMUL(TRANS,FIXD)
+
+
+	DO I = 1,7
+	RG(I,1) = 0.0
+	RG(I,2) = 0.0
+	RG(I,1) = FIXG(I)
+	RG(I,2) = FIXG(I+7)
+	ENDDO
+
+
+	CALL VECPRD(VE,RG(1,1),VME)
+	DO I = 1,3
+	RG(3+I,1) = RG(3+I,1) + VME(I) 
+	ENDDO
+
+	CALL VECPRD(VE,RG(1,2),VME)
+	DO I = 1,3
+	RG(3+I,2) = RG(3+I,2) + VME(I) 
+	ENDDO
+
+
+      RETURN
+      END
+
+C	=====================================================================
+C	=====================================================================
+C	=====================================================================
+	SUBROUTINE VEHCFIN(W11,W12,ALL,BLL,ECT,IDR,IPRO,
+	1				   VR,ELN,RG,VE)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	==============================================================
+	DIMENSION VR(3),VS(3),VT(3),RG(7,2)
+	DIMENSION COEF(6),TRANS(14,14)
+	DIMENSION FIXG(14),FIXD(14)
+	DIMENSION ECCMT(3,3)
+	DIMENSION VPRO(3),VE(3),VME(3)
+	DIMENSION TRANH(14,14)
+
+	AL = ALL
+	BL = BLL
+	W1 = W11
+	W2 = W12
+
+	ECT  = 0.0D0
+	ECS  = 0.0D0
+	IMOM = 0
+
+	ECCMT = 0.0
+	ECCMT(1,1) =  0.0
+	ECCMT(1,2) = -ECT
+	ECCMT(1,3) =  ECS
+	ECCMT(2,1) =  ECT
+	ECCMT(3,1) = -ECS
+
+	DO I = 1,3
+	VPRO(I) = 0.0
+	ENDDO
+
+	VPRO(IDR) = 1.0
+
+
+	COST = VR(1)*VPRO(1) +  VR(2)*VPRO(2) + VR(3)*VPRO(3)
+	COST = SQRT(1.0 - COST*COST)
+
+	DX = BL - AL
+	IF(IPRO.EQ.1) THEN  !IPRO  1 = POINT  2 = UNIFORM
+	DX = ELN*1.0E-8
+	BL = BL+DX
+	W2 = W1/DX
+	W1 = W1/DX
+	ENDIF
+
+	DO I = 1,7
+	RG(I,1) = 0.0
+	RG(I,2) = 0.0
+	ENDDO	
+
+	CALL TRAPIZ(DX,DX,W1,W2,W1,AREA,DISA)
+	CL2 = (AL + DISA)/ELN
+	CL1 = 1.0D0 - CL2
+
+	CL1 = AREA*CL1
+	CL2 = AREA*CL2
+
+	RG(IDR,1) = CL1
+	RG(IDR,2) = CL2
+
+	CALL VECPRD(VE,RG(1,1),VME)
+	DO I = 1,3
+	RG(3+I,1) = RG(3+I,1) + VME(I) 
+	ENDDO
+
+	CALL VECPRD(VE,RG(1,2),VME)
+	DO I = 1,3
+	RG(3+I,2) = RG(3+I,2) + VME(I) 
+	ENDDO
+
+      RETURN
+      END
+
+C	=====================================================================
+C	=====================================================================
+C	=====================================================================
+      SUBROUTINE SAMPLIN(NSAM,LSAM,NGET,NTOL,IOPT)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+      CHARACTER*4 IOPT
+C     ==> PURPOSE
+C     CALCULATE THE NUMBER OF SAMPLING (GIVEN NTOL, THEN CHOOSE FOR NGET)
+C     ==> INPUT
+C     NTOL = NUMBER OF TOTAL SAMPLING
+C     NGET = NUMBER OF SAMPLING TO GET
+C     ==> OUTPUT
+C     NSAM = NUMBER OF POSSIBLE SAMPLING TO GET
+C     LSAM = LIST OF POSSIBLE SAMPLING TO GET
+C     ==> LOCAL VARIABLE
+      DIMENSION LSAM(NGET,1)
+      DIMENSION LGRY(NTOL,(2**NTOL))
+
+
+	CALL GREYCODE(NTOL,LGRY,NTOL)
+	
+	MSAM = 0
+	
+	DO I = 1,2**NTOL
+	    IGET = 0
+	    DO ITOL = 1,NTOL
+                IF(LGRY(ITOL,I).NE.0) IGET = IGET+1
+	    ENDDO
+	    IF(IGET.EQ.NGET) THEN
+	        MSAM = MSAM + 1
+	        IF(IOPT.EQ.'GETL') THEN
+	            IGET = 0
+	            DO ITOL = 1,NTOL
+                      IF(LGRY(ITOL,I).NE.0) THEN
+                          IGET = IGET + 1 
+                          LSAM(IGET,MSAM) = ITOL
+                      ENDIF
+	            ENDDO
+	        ENDIF
+	    ENDIF
+	ENDDO
+      
+      IF(IOPT.EQ.'GETN') NSAM = MSAM
+      
+      RETURN
+      END
+C     =========================================================
+C     =========================================================
+C     =========================================================
+
+	SUBROUTINE BLOCKVEH(NPL,NMSIZ,NB,IDAT,OPTN)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+      CHARACTER*4 OPTN
+      
+	DIMENSION IDAT(2,1)
+      
+	CALL INTFILL('NPLN',NUMDAT,1,20,0)
+	
+	
+      NDSIZ = NMSIZ/NPL
+      
+10    II = 0
+      LSIZ = 0
+      DO IPL = 1,NPL
+      LSIZ = LSIZ + NDSIZ
+      ENDDO
+      IF(LSIZ.GT.NMSIZ) THEN
+      II = II + 1
+      NDSIZ = NMSIZ/(NPL+II)
+      GOTO 10
+      ENDIF
+      
+      NB = 1
+      L1 = 1
+      L2 = NDSIZ
+20    IF(OPTN.EQ.'MATB') IDAT(1:2,NB) = [L1,L2]
+      L1 = L2 + 1
+      L2 = L1 + NDSIZ - 1
+      IF(L1.LE.NUMDAT) THEN
+          NB = NB + 1
+          GOTO 20
+      ENDIF
+      IF(OPTN.EQ.'NUMB') RETURN
+      
+      IF(IDAT(2,NB).GT.NUMDAT) IDAT(2,NB) = NUMDAT
+
+      
+C      WRITE(*,*) NB,NDSIZ
+C      DO IB = 1,NB
+C      WRITE(*,*) IB,IDAT(1:2,IB)
+C      ENDDO
+      
+      RETURN
+
+	END
+
+
+C	================================================================
+C	================================================================
+C	================================================================
+

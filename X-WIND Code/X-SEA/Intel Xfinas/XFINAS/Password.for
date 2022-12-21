@@ -1,0 +1,436 @@
+C	-------------------------------------------------------------	
+	SUBROUTINE SECURE
+
+      USE DFWIN
+
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+
+	CHARACTER*50    VOLUME 
+	INTEGER*4 SERIAL
+
+	CHARACTER*50   LPSZDRIVENAME 
+	CHARACTER*50   LPSZSYSTEMNAME 
+	CHARACTER(256) LPSZSYSTEMDIRECTORY 
+
+	CHARACTER(256) TESECURITYP
+	CHARACTER(256) TESECURITYT 
+
+	CHARACTER*10   IDE,TME,IZN      !!!
+
+	LOGICAL         CHECK
+	LOGICAL(4)      BRC 
+
+
+	COMMON /SECUR/ NDLIN,NDNOL,NDPRE,NDDYN,IPPAS
+
+
+	DIMENSION IDT(8)                !!!
+C	
+C	GET SYSTEM FILE NAME
+C	------------------------------------------------
+	BRC = GETSYSTEMDIRECTORY(LPSZSYSTEMDIRECTORY, 80) 
+	
+	LPSZDRIVENAME = LPSZSYSTEMDIRECTORY(1:3) 
+	RET = LSTRCPY(LPSZSYSTEMNAME, "                               "C) 
+
+C	GET SYSTEM INFORMATIONS,HARDDRIVE SERIAL NUMBER
+C	----------------------------------------------------
+	BRC = GETVOLUMEINFORMATION(LPSZDRIVENAME, VOLUME, 50, LOC(SERIAL),
+     1          NULL, NULL, LPSZSYSTEMNAME, 50)	
+	
+
+C	CREATE THE LOCATION TO SAVE THE SECURITY FILE UNDER FILE NAME abfinas011.dll
+C	AND PATH IS C:\WINDOWS\SYSTEM32\AB0923DWFT.DLL
+C	EXTENSION WITH PERMISSION TO TEMPORARY
+C	------------------------------------------------------------------
+	TESECURITYP=LPSZSYSTEMDIRECTORY(1:(LSTRLEN(LPSZSYSTEMDIRECTORY)
+     1      ))//'\abfinas011.dll' 
+
+C	STORE TIME
+C	-----------------------------------------------------------------
+	TESECURITYT=LPSZSYSTEMDIRECTORY(1:(LSTRLEN(LPSZSYSTEMDIRECTORY)
+     1      ))//'\abfinas012.dll'
+
+
+C	CHECK WETHER SECURITY FILE IS ALREADY EXSISTS OR NOT
+C	----------------------------------------------------
+	INQUIRE(FILE=TESECURITYP,EXIST=CHECK)
+
+C	=============================================
+C	=============================================	
+	ICMNAME = SERIAL
+
+	IPCOM = (2*ICMNAME + 2)**2 
+
+	IF(IPCOM.GT.999999999) THEN
+	DO II = 1,20000000
+	IPCOM = IPCOM - 10000
+	IF(IPCOM.LT.999999999) GO TO 100 
+	ENDDO
+100	CONTINUE
+	ENDIF
+	
+
+	CALL DATE_AND_TIME(IDE,TME,IZN,IDT)
+C	=============================================
+C	=============================================
+
+
+	IF(CHECK.EQ.FALSE) GOTO 600 
+
+	OPEN(UNIT=202, FILE=TESECURITYP,STATUS='OLD')
+	READ(202,*) IXFINAS
+
+
+	IF(IXFINAS.EQ.IPCOM) THEN
+	READ(1,*)
+	IPPAS = 1 
+	WRITE(*,*) ' XFINAS PERMANENT VERSION '
+	GO TO 500
+	ENDIF
+
+
+600	CONTINUE
+
+
+!	WRITE(*,*) 
+!	1 ' THIS VERSION HAS LIMIT ON MAXIMUM NUMBER OF NODE & ELEMENT '
+
+
+	NDLIN = 500
+	
+	NDNOL = 100
+	NDPRE = 50
+	NDDYN = 100
+	IPPAS = 0
+
+
+	IPPAS = 1
+
+500	CONTINUE
+
+
+	CLOSE(202)
+
+
+	RETURN
+
+	END
+
+C	===============================================================
+C	===============================================================
+C	===============================================================
+	SUBROUTINE NODCHEK(ISOLOP,NSN)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+
+C	SECURITY CHECK SONGSAK MAR2006
+	COMMON /SECUR/ NDLIN,NDNOL,NDPRE,NDDYN,IPPAS
+
+	IF(IPPAS.EQ.0) THEN
+C	======================================================
+
+C	SECURITY CHECK OF MAXIMUM NODAL NUMBER SONGSAK MAR2006
+	IF(NSN.GT.NDLIN) THEN
+	WRITE(*,*)
+	WRITE(*,*) 'NUMBER OF NODE IS GREATER THAN MAXIMUM ALLOWABLE (500 NODES)'
+	WRITE(*,*) '========================PROGRAM STOP========================'
+	STOP
+	ENDIF
+
+
+C	======================================================
+	ENDIF
+
+
+
+	RETURN
+
+	END
+
+C	===============================================================
+C	===============================================================
+C	===============================================================
+	SUBROUTINE ELMCHEK(ISOLOP,NSN,NEG,ITYPE,ISTYP,NNM,NELE)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+
+C	SECURITY CHECK SONGSAK MAR2006
+	COMMON /SECUR/ NDLIN,NDNOL,NDPRE,NDDYN,IPPAS
+
+
+	COMMON /LINEAT/ KTRAF,KEATH,KCSAL,KOFFL,KSPEC,KDESIGN,KFATM,KFATJ,KFATL,KFAST,KOREV !SONGSAK AUG2007 RESPONSE SPECTRUM FOR ISOLOP 1 !SONGSAK AUG2007 RESPONSE SPECTRUM FOR ISOLOP 1
+
+      RETURN
+	IF(IPPAS.NE.0) RETURN
+
+
+
+	ITESE = 1
+
+	SELECTCASE(ITYPE)
+
+	CASE(2) !TRUSS
+	NEMAX = 100
+	IF(ISTYP.EQ.3) NEMAX = 100	!TRUSS
+	IF(ISTYP.EQ.4) NEMAX = 20	!CABLE
+
+	CASE(5)	!FRAME
+	NEMAX = 50
+
+	CASE(6)	!PLANE
+	NEMAX = 50
+	IF(NNM.GT.4) NEMAX = 25	!HIGHER ORDER
+
+	CASE(8)	!CONSO 2D
+	NEMAX = 64
+	IF(NNM.GT.4) NEMAX = 30	!HIGHER ORDER
+
+	CASE(9)	!SHELL
+	NEMAX = 100
+	IF(NNM.GT.4) NEMAX = 50	!HIGHER ORDER
+
+	CASE(10)	!SOLID
+	NEMAX = 200	
+
+	CASE(11)	!CONSO 3D
+	NEMAX = 100
+
+	CASE(13)	!SEEPAGE 2D
+	NEMAX = 64
+	IF(NNM.LT.4) NEMAX = 200	!LOWER ORDER
+	IF(NNM.GT.4) NEMAX = 30		!HIGHER ORDER
+
+	CASE(14)	!SEEPAGE 3D
+	NEMAX = 200
+C	IF(NNM.GE.10) NEMAX = 100	!HIGHER ORDER
+
+	CASE(15)	!HEAT 2D
+	NEMAX = 64
+	IF(NNM.LT.4) NEMAX = 200	!LOWER ORDER
+	IF(NNM.GT.4) NEMAX = 30		!HIGHER ORDER
+
+	CASE(16)	!HEAT 3D
+	NEMAX = 200
+C	IF(NNM.GE.10) NEMAX = 100	!HIGHER ORDER
+
+	CASE DEFAULT
+	NEMAX = 20
+
+	ENDSELECT
+
+C	---
+	IF(NELE.LE.NEMAX/NEG) ITESE = 0
+C	---
+	IF(ITESE.EQ.1) THEN
+	WRITE(*,*)
+	WRITE(*,*) 'NUMBER OF ELEMENT IS GREATER THAN MAXIMUM ALLOWABLE'
+	WRITE(*,*) '====================PROGRAM STOP==================='
+	STOP
+	ENDIF
+C	---
+
+
+	RETURN
+
+	END
+
+C	===============================================================
+C	===============================================================
+C	===============================================================
+C	-------------------------------------------------------------	
+	SUBROUTINE SECURETIME
+
+      USE DFWIN
+
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+
+	CHARACTER*50    VOLUME 
+	INTEGER*4 SERIAL
+
+	CHARACTER*50   LPSZDRIVENAME 
+	CHARACTER*50   LPSZSYSTEMNAME 
+	CHARACTER(256) LPSZSYSTEMDIRECTORY 
+	CHARACTER(256) TESECURITYFILE 
+	CHARACTER(256) PSECURITYFILE
+	CHARACTER(256) TESECURITY1 
+
+
+	LOGICAL         CHECK
+	LOGICAL(4)      BRC 
+
+
+	COMMON /SECUR/ NDMAX,NMMAX
+
+
+C	
+C	GET SYSTEM FILE NAME
+C	------------------------------------------------
+	BRC = GETSYSTEMDIRECTORY(LPSZSYSTEMDIRECTORY, 80) 
+	
+	LPSZDRIVENAME = LPSZSYSTEMDIRECTORY(1:3) 
+	RET = LSTRCPY(LPSZSYSTEMNAME, "                               "C) 
+
+C	GET SYSTEM INFORMATIONS,HARDDRIVE SERIAL NUMBER
+C	----------------------------------------------------
+	BRC = GETVOLUMEINFORMATION(LPSZDRIVENAME, VOLUME, 50, LOC(SERIAL),
+     1          NULL, NULL, LPSZSYSTEMNAME, 50)	
+	
+
+C	CREATE THE LOCATION TO SAVE THE SECURITY FILE UNDER FILE NAME AB0923DWF.DLL
+C	AND PATH IS C:\WINDOWS\SYSTEM32\AB0923DWFt.DLL
+C	EXTENSION WITH PERMISSION TO TEMPORY
+C	------------------------------------------------------------------
+	TESECURITYFILE =LPSZSYSTEMDIRECTORY(1:(LSTRLEN(LPSZSYSTEMDIRECTORY)
+     1      ))//'\AB0923DWFT.OVT' 
+
+C	STORE TIME
+C	-----------------------------------------------------------------
+	TESECURITY1=LPSZSYSTEMDIRECTORY(1:(LSTRLEN(LPSZSYSTEMDIRECTORY)
+     1      ))//'\AB0923DWFPS.OVT'
+
+
+C	CHECK WETHER SECURITY FILE IS ALREADY EXSISTS OR NOT
+C	----------------------------------------------------
+	INQUIRE(FILE=TESECURITYFILE,EXIST=CHECK)
+
+C	=============================================
+C	=============================================	
+	ICMNAME = SERIAL
+
+	ITEST = ICMNAME*ICMNAME
+
+	IPAS1 = (3*ITEST + 5)**2 !STUDENT
+	IPAS2 = (2*ITEST + 2)**2 !PERMANENT
+
+	IF(IPAS1.GT.999999999) THEN
+	DO II = 1,20000000
+	IPAS1 = IPAS1 - 10000
+	IF(IPAS1.LT.999999999) GO TO 100 !STUDENT
+	ENDDO
+100	CONTINUE
+	ENDIF
+
+	IF(IPAS2.GT.999999999) THEN
+	DO II = 1,20000000
+	IPAS2 = IPAS2 - 10000
+	IF(IPAS2.LT.999999999) GO TO 200 !PERMANENT
+	ENDDO
+200	CONTINUE
+	ENDIF
+C	=============================================
+C	=============================================
+
+	
+	IF(CHECK.EQ.FALSE) GOTO 600  ! 1ST TIME USE	
+
+	OPEN(UNIT=202, FILE=TESECURITYFILE, STATUS='OLD')
+	READ(202,*) IPASOLD
+	IF(IPASOLD.EQ.IPAS2) THEN
+	READ(1,*)
+	NDMAX = 500000
+	NMMAX = 500000
+	GO TO 500
+	ENDIF
+
+	WRITE(*,*) '  PASSWORD FILE HAS BEEN CHANGED '
+	WRITE(*,*) '=======PROGRAM WILL STOP========='
+	STOP
+
+
+
+C	FIRST TIME USE
+600	CONTINUE
+
+	READ(1,*) IPSWORD
+
+C	CHECK WETHER SECURITY FILE IS ALREADY EXSISTS OR NOT
+C	----------------------------------------------------
+	INQUIRE(FILE=TESECURITY1,EXIST=CHECK)
+
+
+	IF(IPSWORD.EQ.IPAS1) THEN
+
+C	CALL IDATE(I,J,K)
+	K = 1
+	I = 1
+	J = 1
+	JULDTE = K*365 + I*30 + J
+
+	IF(CHECK.EQ.FALSE) THEN  ! 1ST TIME USE	
+	INTTE = JULDTE
+			OPEN(UNIT = 505,FILE=TESECURITY1,STATUS = 'UNKNOWN')
+			WRITE (505,111) JULDTE 
+	ELSE
+	OPEN(UNIT=203, FILE=TESECURITY1, STATUS='OLD')
+	READ(203,*) INTTE
+	ENDIF
+
+
+	IDTALW = 60
+
+	NDMAX = 100
+	NMMAX = 100
+
+	WRITE(*,*) '         THIS VERSION IS STUDENT VERSION         '
+	WRITE(*,*) '  MAXIMUM NUMBER OF NODES PERMITED IS 100 NODES  '
+	WRITE(*,*) 'MAXIMUM NUMBER OF ELEMENT PERMITED IS 100 ELEMENT'
+
+	
+	IDIFF = JULDTE - INTTE
+	IDRMN = IDTALW - IDIFF
+	IF(IDIFF.GT.IDTALW) THEN
+	WRITE(*,*) '=======YOUR TIME USAGE IS REACH THE LIMIT========'
+	WRITE(*,*) '===============PROGRAM WILL STOP================='
+	STOP
+	ENDIF
+
+	WRITE(*,1000) IDRMN
+C	WRITE(*,*) '===========PRESS ANY KEY TO CONTINUE============='
+C	PAUSE 
+
+	GO TO 500
+
+
+	ENDIF
+
+
+
+
+	IF(IPSWORD.EQ.IPAS2) THEN
+
+	NDMAX = 500000
+	NMMAX = 500000
+	WRITE(*,*) '         THIS VERSION IS FULL VERSION        '
+	WRITE(*,*) 'YOU CAN ENJOY WITH THE FULL FEATURE OF XFINAS'
+C	WRITE(*,*) '========PRESS ANY KEY TO CONTINUE============'
+C	PAUSE
+
+			OPEN(UNIT = 303, FILE = TESECURITYFILE, STATUS = 'UNKNOWN')
+			WRITE (303,111) IPAS2
+
+	GO TO 500
+
+	ENDIF
+
+	WRITE(*,*) '  YOUR PASSWORD IS NOT CORRECT   '
+	WRITE(*,*) 'PLEASE INPUT THE CORRECT PASSWORD'
+	WRITE(*,*) '=======PROGRAM WILL STOP========='
+	STOP
+	
+
+500	CONTINUE
+
+1000	FORMAT('YOUR TIME REMAINING IS =',I8,X,'DAYS')
+111	FORMAT(I30)
+
+	RETURN
+
+	END
+
+C	===============================================================
+C	===============================================================
+C	===============================================================
+

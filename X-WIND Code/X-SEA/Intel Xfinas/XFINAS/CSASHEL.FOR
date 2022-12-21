@@ -1,0 +1,2175 @@
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================
+      SUBROUTINE SHEOPT1(IEG,IEL,COORD,EDIS,IAX,AAX)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+	DIMENSION COORD(3,1),EDIS(1),IAX(1),AAX(1)
+
+
+	CALL INTFILL('%GRP',ISTYP,2 ,IEG,0) 
+
+	SELECTCASE(ISTYP)
+
+	CASE(1)
+	CALL SHLOPT1(IEG,IEL,COORD,EDIS,IAX,AAX)
+
+	CASE(4)
+	CALL QSHLOPT1(IEG,IEL,COORD,EDIS,IAX,AAX)
+
+	ENDSELECT
+
+
+
+	RETURN
+	END
+
+
+
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================
+      SUBROUTINE SHEOPT2(IEG,IEL,IAX,AAX)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+      DIMENSION IAX(1),AAX(1)
+
+	CALL INTFILL('%GRP',ISTYP,2 ,IEG,0) 
+
+
+	SELECTCASE(ISTYP)
+
+	CASE(1)
+	CALL SHLOPT2(IEG,IEL,IAX,AAX)
+
+	CASE(4)
+	CALL QSHLOPT2(IEG,IEL,IAX,AAX)
+
+	ENDSELECT
+
+
+
+	RETURN
+	END
+
+
+
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================
+      SUBROUTINE SHLOPT1(IEG,IEL,COORD,EDIS,IAX,AAX)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	LTMOPT(1)  WORKING ON MECHANICAL DATA
+C	 0 = NO UPDATE STRESS & MATERIAL STATE
+C	 1 = UPDATE STRESS & MATERIAL STATE
+C	 2 = STIFFNESS ONLY
+
+	COMMON /GASEC/  GAUSP(10,10),GAUSW(10,10)
+
+	DIMENSION COORD(3,1),EDIS(1),IAX(1),AAX(1)
+
+	DIMENSION EPS(8),NPM(10),NPI(10)
+	DIMENSION RRN(4),SSN(4),FJ(4),XJI(4)
+	DIMENSION H(8),HD(2,8),VR(3),VS(3),VT(3)
+	DIMENSION VRN(3),VSN(3),VTN(3)
+	DIMENSION HR(4),HS(4),B(240),BA(4,120),BDRL(54)
+	DIMENSION DISD(12)
+
+	ALLOCATABLE IF3(:),AF4(:),AF7(:)
+	ALLOCATABLE REDIS(:),NODEX(:)
+C	----------------------------------------
+C	GROUP DATA
+C	----------------------------------------
+	CALL INTFILL('%GRP',ITYPE,1 ,IEG,0) !
+	CALL INTFILL('%GRP',ISTYP,2 ,IEG,0) !
+	CALL INTFILL('%GRP',NELE ,3 ,IEG,0) !
+	CALL INTFILL('%GRP',MPRT ,4 ,IEG,0) ! MAXP
+	CALL INTFILL('%GRP',MGAS ,5 ,IEG,0) !
+	CALL INTFILL('%GRP',MFIB ,6 ,IEG,0) !
+	CALL INTFILL('%GRP',NEF  ,7 ,IEG,0) !
+	CALL INTFILL('%GRP',NNM  ,8 ,IEG,0) !
+	CALL INTFILL('%GRP',NNF  ,9 ,IEG,0) !
+	CALL INTFILL('%GRP',NGR  ,10,IEG,0) !
+	CALL INTFILL('%GRP',NGS  ,11,IEG,0) !
+	CALL INTFILL('%GRP',NGT  ,12,IEG,0) !
+C	GROUP FILE
+      CALL INTFILL('%GRF',N3   ,3 ,IEG,0) !
+	CALL INTFILL('%GRF',N4   ,4 ,IEG,0) !
+	CALL INTFILL('%GRF',N5   ,5 ,IEG,0) !
+	CALL INTFILL('%GRF',N7   ,7 ,IEG,0) !
+
+	CALL INTFILL('%GRF',NDX3 ,13,IEG,0) !
+	CALL INTFILL('%GRF',NDX4 ,14,IEG,0) !
+	CALL INTFILL('%GRF',NDX5 ,15,IEG,0) !
+	CALL INTFILL('%GRF',NDX7 ,17,IEG,0) !
+C	----------------------------------------
+	ALLOCATE(IF3(N3),AF4(N4),AF7(N7))
+	ALLOCATE(REDIS(NEF))
+	NDEX = NNM - 4 + 1
+	ALLOCATE(NODEX(NDEX))
+
+
+C	CALLING LOPT1
+      CALL INTFILL('%SOL',LOPT1,1,1,0)
+      
+C	---------------------------------------------------------
+	NPM(1) = N3
+	NPI(1) = N3
+	CALL CALLINTG(IF3,IAX,NDX3,NPM,NPI,1,'READ') !ELEMENT DATA
+
+	ISEC = IF3(2)     !SECTION SET
+	NPRT = IF3(6)     !NUMBER OF PART
+C	----------------------------------------------------------
+	CALL RELFILL('$SSC',THETA,9,ISEC,0)
+	CALL RELFILL('$SSC',GXOPT,10,ISEC,0)
+	LXOPT = INT(GXOPT)
+	CALL SHNEWBV(COORD,VRN,VSN,VTN,THETA,LXOPT)
+
+C	TRANSFER DIRECTLY ELEMENT TOTAL DISPLACEMENT (EDIS) TO ELEMENT PURE DEFORMATION (REDIS)
+      DO I = 1,24
+	REDIS(I)=EDIS(I)
+	ENDDO
+
+C	INITILIZE ARRAY
+	EPS(1:8) = 0.0				!STRAIN
+
+C	----------------------------------------------
+C	ASSUMED SHEAR STRAIN
+C	----------------------------------------------
+      RRN(1:4)= [ 1.0D0,-1.0D0, 0.0D0, 0.0D0]
+      SSN(1:4)= [ 0.0D0, 0.0D0, 1.0D0,-1.0D0]
+
+	 FJ(1:4) = 0.0D0
+	XJI(1:4) = 0.0D0
+	BA(1:4,1:120) = 0.0D0
+
+ 	NSP=4
+      DO 6 I=1,NSP
+	CALL SHAP2D (RRN(I),SSN(I),H,HD,NODEX,NNM) 
+      CALL SHJACO (NNM,COORD,HD,VR,VS,VT,XJI,DET,RR,SS,SNA,1,FJ)
+	CALL SHBMATS(NNM,H,HD,VR,VS,VT,XJI,HR,HS,BA,I,FJ)
+ 6    CONTINUE
+
+C     ----------------------------------------------------------
+C     LOOP OVER GAUSS TO DET. STIFFNESS & FORCE VECTOR
+C     ----------------------------------------------------------
+	IPT = 0
+      DO 400 IGR = 1,NGR
+      DO 400 IGS = 1,NGS
+	RI = GAUSP(IGR,NGR)
+	SI = GAUSP(IGS,NGS)
+	WT = GAUSW(IGR,NGR)*GAUSW(IGS,NGS)
+	IPT = IPT + 1
+
+	NPM(1:2) = [N7,MGAS]
+	NPI(1:2) = [N7,IPT ]
+	CALL CALLREAL(AF7,AAX,NDX7,NPM,NPI,2,'READ')  
+	N7_R = 1           !POINTER OF RIGIDITY
+	N7_S = 1 + 40       !POINTER OF MECHANICAL STRESS
+	N7_N = 1 + 40 + 8   !POINTER OF NON-MECHANICAL STRESS
+
+	N7_V = 1 + 40 + 8 + 8
+
+	N7_DR= 1 + 40 + 8 + 8 + 18            !OLD DRILLING STRAIN
+	N7_DS= 1 + 40 + 8 + 8 + 18 + 1        !OLD DRILLING STRESS
+	N7_D = 1 + 40 + 8 + 8 + 18 + 1 + 1    !DRILLING STRESS
+	
+	AF7(N7_R:N7_R+40-1) = 0.0D0	!INITIALIZE OF RIGIDITY
+	AF7(N7_S:N7_S+8 -1) = 0.0D0	!INITIALIZE OF MECHANICAL STRESS
+
+C     -----------------------------------------------------
+C     SHAPE FUNCTIONS (H) , SHAPE FUNCTION DERIVATIVES (HD)
+C     -----------------------------------------------------
+      CALL SHAP2D (RI,SI,H,HD,NODEX,NNM)
+C     ----------------------------------------------------
+C     INVERSE JACOBIAN (XJI) , JACOBIAN coefficient F, 
+C	DETERMINANT (DET) AND STRAIN-DISPLACEMENT MATRIX (B)
+C     ----------------------------------------------------
+      CALL SHJACO (NNM,COORD,HD,VR,VS,VT,XJI,DET,RR,SS,SNA,1,FJ)
+      DVOL=WT*DET
+
+	CALL SHBMAT1 (NNM,H,HD,VR,VS,VT,XJI,HR,HS,B,RI,SI,BA,NEF)
+      CALL SHBMAT2 (NNM,H,HD,VR,VS,VT,XJI,HR,HS,B)
+C     ------------------------------------------------------------
+C     STRAIN TERMS MEMBRANE - BENDING - SHEAR
+C     ------------------------------------------------------------
+	CALL CLEARA (DISD,12)
+      K=1
+      M=1
+      DO 200 I=1,NNM
+      DO 190 J=1,3
+      L=K+3
+      DISD(1)=DISD(1)+B(M)*REDIS(K)
+      DISD(2)=DISD(2)+B(M+1)*REDIS(K)
+      DISD(3)=DISD(3)+(B(M+2)-HR(I)*VS(J))*REDIS(K)
+      DISD(4)=DISD(4)+(B(M+2)-HS(I)*VR(J))*REDIS(K)
+      DISD(5)=DISD(5)+B(M+15)*REDIS(L)
+      DISD(6)=DISD(6)+B(M+16)*REDIS(L)
+      DISD(7)=DISD(7)+B(M+17)*REDIS(L)
+      DISD(9)=DISD(9)+B(M+3)*REDIS(K)
+      DISD(10)=DISD(10)+B(M+18)*REDIS(L)
+      DISD(11)=DISD(11)+B(M+4)*REDIS(K)
+      DISD(12)=DISD(12)+B(M+19)*REDIS(L)
+      K=K+1
+ 190  M=M+5
+      K=K+3
+ 200  M=M+15
+
+C     -------------------
+C     LINEAR STRAIN TERMS
+C     -------------------
+      EPS(1) = DISD(1)
+      EPS(2) = DISD(2)
+      EPS(3) = DISD(3)+DISD(4)
+      EPS(4) = DISD(5)
+      EPS(5) = DISD(6)
+      EPS(6) = DISD(7)
+      EPS(7) = DISD(9) +DISD(10)
+      EPS(8) = DISD(11)+DISD(12)
+	
+	DO 300 IPRT = 1,NPRT
+
+
+	NPM(1:2) = [N4,MPRT]
+	NPI(1:2) = [N4,IPRT]
+	CALL CALLREAL(AF4,AAX,NDX4,NPM,NPI,2,'READ')
+	IXIST   = INT(AF4(1))   !EXISTING FLAG
+
+	IF (IXIST.EQ. 0) GOTO 300 !PART HAS NEVER EXISTED & CURRENTLY REMOVED
+
+	NPM(1:4) = [N5,MFIB,MGAS,MPRT]
+	NPI(1:4) = [N5,   0,IPT ,IPRT]   !NFIB TO BE MODIFIED IN NEXT SUBRUTINE
+	CALL LAYOPT1(NPM,NPI,ISEC,AF7(N7_R),
+	1			 AF7(N7_S),EPS,LOPT1,AAX,NDX5)
+
+
+300	CONTINUE
+
+C	COMPONENTS OF DRILLING STRESS
+      CALL SHBDRL (NNM,H,HR,HS,VR,VS,VT,BDRL)
+      DRILR = AF7(N7_DR) !OLD DRILLING STRAIN
+      DRILS = AF7(N7_DS) !OLD DRILLING STRESS
+	DRILN = 0.0D0
+	DO IEF = 1,NEF
+	DRILN = DRILN + BDRL(IEF)*REDIS(IEF)
+	ENDDO
+	DRILD = DRILN - DRILR
+	DFAC = 10.0*AF7(N7_R+14)   !AF7(N7_R+14) IS THE RIGIDITY OF IN PLANE SHEAR
+
+C	AF7(N7_D) = DRILS + DRILD*DFAC     !INCREMENTAL FORM
+	AF7(N7_D) = DRILN*DFAC             !TOTAL FORM
+	 
+	IF(LOPT1.EQ.1) THEN
+	AF7(N7_DR) = DRILN        !BACKUP OLD DRILLING STRAIN IF NEED (LOPT1 = 1)
+	AF7(N7_DS) = AF7(N7_D)    !BACKUP OLD DRILLING STRESS IF NEED (LOPT1 = 1)
+	ENDIF
+	
+
+	AF7(N7_V+0:N7_V+2) = VR(1:3) 
+	AF7(N7_V+3:N7_V+5) = VS(1:3) 
+	AF7(N7_V+6:N7_V+8) = VT(1:3) 
+
+	AF7(N7_V+9 :N7_V+11) = VRN(1:3) 
+	AF7(N7_V+12:N7_V+14) = VSN(1:3) 
+	AF7(N7_V+15:N7_V+17) = VTN(1:3) 
+
+C	--------------------------------
+C	STORE HERE JAN09 LOADCOMB
+C	--------------------------------
+	IC = 0
+	CALL INTFILL('@COM',IC,1,1,0)
+	IF(IC.GT.0) THEN
+
+C	PREVIOUS
+	MS1_P = N7 - 8*11 + 8*(IC-1) + 1
+	MS2_P = N7 - 8*11 + 8*(IC-1) + 8
+C	CURRENT
+	MS1_C = N7 - 8*11 + 8*(11-1) + 1
+	MS2_C = N7 - 8*11 + 8*(11-1) + 8
+
+      IF(IC.EQ.8) THEN !FOR CREEP&SHRINKAGE PRIMARY  STORE DIRECTLY TOTAL NON-MECHANICAL STRESS RESULTANT
+	AF7(MS1_P:MS2_P) = AF7(N7_S:N7_S+8 -1)
+      ELSE
+	AF7(MS1_P:MS2_P) = AF7(MS1_P:MS2_P) + AF7(N7_S:N7_S+8 -1) -
+	1				   AF7(MS1_C:MS2_C)			!BACK UP THE STRESS RESULTANT HERE FOR LOAD COMBINATION
+      ENDIF
+      
+	ELSEIF(IC.EQ.-1) THEN
+
+C	CURRENT
+	MS1_C = N7 - 8*11 + 8*(11-1) + 1
+	MS2_C = N7 - 8*11 + 8*(11-1) + 8
+	AF7(MS1_C:MS2_C) = AF7(N7_S:N7_S+8 -1)
+
+	ENDIF
+C	--------------------------------
+
+	NPM(1:2) = [N7,MGAS]
+	NPI(1:2) = [N7,IPT ]
+	CALL CALLREAL(AF7,AAX,NDX7,NPM,NPI,2,'WRIT')   !BACK UP HERE RIGIDITY AND MCHA STRESS
+C     ----------------------------------------------------------
+400	CONTINUE
+C     ----------------------------------------------------------
+
+	DEALLOCATE(IF3,AF4,AF7)
+	DEALLOCATE(REDIS)
+	DEALLOCATE(NODEX)
+
+
+	RETURN
+
+	END
+
+
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================
+      SUBROUTINE LAYOPT1(NPM,NPI,ISEC,PA,SA,EPS,LOPT1,AAX,NDX5)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	LTMOPT(1)  WORKING ON MECHANICAL DATA
+C	 0 = NO UPDATE STRESS & MATERIAL STATE
+C	 1 = UPDATE STRESS & MATERIAL STATE
+
+	DIMENSION EPS(8),PA(1),SA(1)
+	DIMENSION NPM(1),NPI(1),AAX(1)
+
+	DIMENSION EMP(5),ENP(5),SCP(5),EPSK(5),EPCP(5),SINC(5)
+	DIMENSION EMC(5),DMC(5),SCR(5),DMATX(5,5),DP(8,8),EC(5)
+
+C	FOR FLOW VECTOR
+	DIMENSION AVECT(5)
+
+	ALLOCATABLE AF5(:)
+
+	N5 = NPM(1)
+	ALLOCATE(AF5(N5))
+
+	
+	CALL RELFILL('$SSC',TH  ,1,ISEC,0)           !THICKNESS
+	CALL RELFILL('$SSC',FMAT,2,ISEC,0)           !MAT NO
+	CALL RELFILL('$SSC',FTYP,3,ISEC,0)           !MAT TYPE  0=CONCRETE 1=STEEL
+	CALL RELFILL('$SSC',FLAY,4,ISEC,0)           !NUMBER OF LAYER FOR THIS PART (ONLY 1 PART FOR SHELL)
+	CALL RELFILL('$SSC',SRTO,5,ISEC,0)           !STEEL RATIO
+	CALL RELFILL('$SSC',FATS,6,ISEC,0)           !MAT No. FOR STEEL
+
+	IF(SRTO.GT.0.0D0) FLAY = FLAY/2  !!
+
+	MATN = INT(FMAT)
+	MTYP = INT(FTYP)
+	NLAY = INT(FLAY)
+	MATS = INT(FATS)
+
+	DZETA = 2.0D0/FLAY
+
+	ZETAD  = -1.0D0
+	DO 1000 ILAY = 1,NLAY
+
+	ZETA  = ZETAD + DZETA/2.0
+	ZETAG = 0.5*TH*ZETA
+	DZETG = 0.5*TH*DZETA
+
+	NPI(2) = ILAY
+	CALL CALLREAL(AF5,AAX,NDX5,NPM,NPI,4,'READ')    !CALLING DATA OF THIS PART
+
+C	----------------------------------------
+C	CALLING DATA FROM WORKING ARRAY HERE
+
+	NSTAT	= INT(AF5(1)) !MATERIAL STATE NUMBER
+	EMOD    = AF5(2)
+	POISN   = AF5(3)
+	FPC     = AF5(4)
+	FPT     = AF5(5)
+	EMODP   = AF5(6)     !YOUNG MODULUS RESPECTED TO CODE
+C	FUNLO   = AF5(7)     !TO BE CALCULATE IN THIS SUBROUTINE
+
+
+	EMP(1:5) = AF5(11:15)     !TOTAL MECHANICAL STRAIN
+	ENP(1:5) = AF5(16:20)     !TOTAL NON-MECHANICAL STRAIN
+	SCP(1:5) = AF5(21:25)     !OLD STRESS
+	EPSK(1:5)= AF5(26:30)     !TOTAL SHRNK STRAIN
+	EPCP(1:5)= AF5(31:35)     !TOTAL CREEP STRAIN
+	SINC(1:5)= AF5(36:40)     !INCREMENTAL EFF. STRESS FOR CREEP CALCULATION
+	 
+C	------------------------------------------------------------------
+C	COMPUTE STRAINS AT THE MIDDLE OF LAYER
+C	------------------------------------------------------------------
+	DO 10 I = 1,3  !TOTAL STRAIN
+10	EC(I)  = EPS(I) + ZETAG*EPS(I+3)
+	EC(4)  = EPS(7)
+	EC(5)  = EPS(8)
+
+	DO 11 I = 1,5  !MECHANICAL STRAIN
+11	EMC(I)  = EC(I)  - ENP(I)
+
+	DO 12 I = 1,5  !INCREMENTAL MECHANICAL STRAIN
+12	DMC(I)  = EMC(I) - EMP(I)
+
+	EMP(1:5) = EMC(1:5) !UPDATE  TOTAL MECHANICAL STRAIN
+C	----------------------------------------	
+
+C	--------------------------------------------
+C	MATERIAL STATE & STRESS & STIFFNESS
+	SELECTCASE(MTYP)
+
+C	-------------
+	CASE(0) !CONC	
+C	TRACKING STRESS FROM CORRESPONDING MATERIAL STATE (TO BE MODIFIED)
+	NSTAT = 1
+	EMOD  = EMODP !*********
+
+	CALL SHMODUC(DMATX,EMOD,POISN)
+
+	CALL RELFILL('%FNC',C1,11,MATN,0) !CALL CONC. PROPERTIES
+	CALL RELFILL('%FNC',C2,12,MATN,0)
+	CALL RELFILL('%FNC',R1,13,MATN,0)
+
+	DO I = 1,5
+C	SCR(I) = SCP(I) !INCREMENTAL FORM
+	SCR(I) = 0.0D0  !TOTAL FORM
+	DO J = 1,5
+C	SCR(I) = SCR(I) + DMATX(I,J)*DMC(J) !INCREMENTAL FORM
+	SCR(I) = SCR(I) + DMATX(I,J)*EMC(J) !TOTAL FORM
+	ENDDO
+	ENDDO
+
+C	DO I = 1,2
+C	IF(ABS(SCR(I)).GT.0.6*FPC.AND.SCR(I).NE.0.0D0) THEN
+C	SCR(I) = 0.6*FPC*SCR(I)/ABS(SCR(I))
+C	ENDIF
+C	ENDDO
+
+
+	DO I = 1,5
+	SN1 = SCR(I)
+      IF(SN1.LT.0.D0) THEN
+         IF(ABS(SN1) .GT. R1*FPC) SN1 = C1*SN1 + C2*FPC 
+      ENDIF
+	SN2 = SCP(I)
+      IF(SN2.LT.0.D0) THEN
+         IF(ABS(SN2) .GT. R1*FPC) SN2 = C1*SN2 + C2*FPC
+      ENDIF
+	SINC(I) = SN1 - SN2
+	ENDDO
+
+C	DRUCKER PRAGER YIELD SURFACE
+	ALPI1 = 0.0D0
+	CALL SHYSURF(SCR,SN1,AVECT,ALPI1)  !GET SN1 HERE
+	CALL SHYSURF(SCP,SN2,AVECT,ALPI1)  !GET SN2  HERE
+	FUNLO = 0.0D0
+	IF(SN1.GE.SN2) FUNLO = 1.0D0
+
+C	-------------	
+	CASE(1) !STEEL
+
+C	TRACKING STRESS FROM CORRESPONDING MATERIAL STATE (TO BE MODIFIED)
+	NSTAT = 1
+	CALL RELFILL('%MSL',EMOD,1,MATN,0) !***********
+	CALL RELFILL('%MSL',POISN,8,MATN,0) !***********
+	CALL SHMODUC(DMATX,EMOD,POISN)
+
+	DO I = 1,5
+C	SCR(I) = SCP(I) !INCREMENTAL FORM
+	SCR(I) = 0.0D0  !TOTAL FORM
+	DO J = 1,5
+C	SCR(I) = SCR(I) + DMATX(I,J)*DMC(J) !INCREMENTAL FORM
+	SCR(I) = SCR(I) + DMATX(I,J)*EMC(J) !TOTAL FORM
+	ENDDO
+	ENDDO
+	SINC(1:5) = 0.0D0
+
+	ENDSELECT
+C	--------------------------------------------
+
+	IC = 0
+	CALL INTFILL('@COM',IC,1,1,0)
+	IF(IC.EQ.8) THEN                 !FOR CREEP&SHRINKAGE PRIMARY  CALLING TOTAL NON-MECHANICAL STRESS
+	SCR(1:5) = AF5(221:225)
+	ENDIF
+	
+	
+	SCP(1:5) = SCR(1:5)  !UPDATE STRESS HERE
+
+C	------------------------------------------------------------------
+C	------------------------------------------------------------------
+C	INITIALIZE ELASTO-PLASTIC RIGIDITY MATRIX	
+C	------------------------------------------------------------------
+	FA = DZETG
+	FC = FA*ZETAG
+	FB = FC*ZETAG
+	FE = DZETG*DZETG*DZETG/12.0
+
+	DP(1:8,1:8) = 0.0D0
+	K = 0
+	DO I = 1,6
+	DO J = 1,6
+	K = K + 1
+	DP(I,J) = PA(K)
+	ENDDO
+	ENDDO
+	DO I = 7,8
+	DO J = 7,8
+	K = K + 1
+	DP(I,J) = PA(K)
+	ENDDO
+	ENDDO
+
+C	------------------------------------------------------------------
+C	MEMBRANE & BENDING RIGIDITY
+C	------------------------------------------------------------------
+	DO 300 I = 1,3
+	DO 300 J = 1,3
+	K = I+3
+	L = J+3
+	DP(I,J) = DP(I,J) + DMATX(I,J)*FA
+300	DP(K,L) = DP(K,L) + DMATX(I,J)*(FB+FE)
+
+C	------------------------------------------------------------------
+C	SHEAR RIGIDITY
+C	------------------------------------------------------------------
+	DO 350 I = 4,5
+	DO 350 J = 4,5
+	K = I+3
+	L = J+3
+350	DP(K,L) = DP(K,L) + DMATX(I,J)*FA
+
+C	------------------------------------------------------------------
+C	COUPLE MEMBRANE AND BENDING RIGIDITY
+C	(UPPER PART OF TRIANGLE)
+C	------------------------------------------------------------------
+	DO 380 I = 1,3
+	DO 380 J = 1,3
+	L = J+3
+380	DP(I,L) = DP(I,L) + DMATX(I,J)*FC
+
+C	------------------------------------------------------------------
+C	FILL IN LOWER PART OF RIGIDITY MATRIX
+C	------------------------------------------------------------------
+	DO 400 I = 1,6
+	DO 400 J = 1,6
+400	DP(J,I) = DP(I,J)
+
+
+	K = 0
+	DO I = 1,6
+	DO J = 1,6
+	K = K + 1
+	PA(K) = DP(I,J)
+	ENDDO
+	ENDDO
+	DO I = 7,8
+	DO J = 7,8
+	K = K + 1
+	PA(K) = DP(I,J)
+	ENDDO
+	ENDDO
+C	------------------------------------------------------------------
+C	------------------------------------------------------------------
+
+
+C	MECHANICAL STRESS CONTRIBUTION
+	DO 150 I = 1,3
+	J = I+3
+	SA(I) = SA(I) + SCR(I)*DZETG
+150	SA(J) = SA(J) + SCR(I)*DZETG*ZETAG
+	SA(7) = SA(7) + SCR(4)*DZETG
+	SA(8) = SA(8) + SCR(5)*DZETG
+
+
+C	UPDATE WORKING ARRAY
+C	----------------------------------------
+	AF5(1)	= FLOAT(NSTAT)	!MATERIAL STATE NUMBER
+	AF5(2)	= EMOD  !UPDATE YOUNG MODULUS    
+	AF5(3)	= POISN !UPDATE POISN  
+	AF5(7)  = FUNLO !UNLOADING FLAG --> 0.0 FOR UNLOAD, 1.0 FOR LOADING 
+
+	AF5(11:15)	= EMP(1:5)      !TOTAL MECHANICAL STRAIN
+	AF5(16:20)	= ENP(1:5)      !TOTAL NON-MECHANICAL STRAIN
+	AF5(21:25)	= SCP(1:5)      !OLD STRESS
+	AF5(26:30)	= EPSK(1:5)     !TOTAL SHRNK STRAIN
+	AF5(31:35)	= EPCP(1:5)     !TOTAL CREEP STRAIN
+	AF5(36:40)  = SINC(1:5)     !INCREMENTAL EFF. STRESS FOR CREEP CALCULATION
+C	----------------------------------------
+
+C	===============================================
+C	STORE WORKING ARRAY
+	IF(LOPT1.EQ.1) THEN
+
+	CALL CALLREAL(AF5,AAX,NDX5,NPM,NPI,4,'WRIT')    !UPDATE DATA OF THIS LAYER
+	   
+	ELSEIF(LOPT1.EQ.2) THEN	!NO BACK UP ...ONLY CALLING STIFFNESS  (BACKUP ONLY STRESS) JAN09 LOADCOMB
+
+	CALL CALLREAL(AF5,AAX,NDX5,NPM,NPI,4,'READ')    !CALLING DATA OF THIS LAYER
+
+C	--------------------------------
+C	STORE HERE JAN09 LOADCOMB
+C	--------------------------------
+	IC = 0
+	CALL INTFILL('@COM',IC,1,1,0)
+	IF(IC.GT.0) THEN
+
+	N5 = NPM(1)
+C	PREVIOUS
+	MS1_P = N5 - 5*11 + 5*(IC-1) + 1
+	MS2_P = N5 - 5*11 + 5*(IC-1) + 5
+C	CURRENT
+	MS1_C = N5 - 5*11 + 5*(11-1) + 1
+	MS2_C = N5 - 5*11 + 5*(11-1) + 5
+	
+      IF(IC.EQ.8) THEN !FOR CREEP&SHRINKAGE PRIMARY  STORE DIRECTLY TOTAL NON-MECHANICAL STRESS
+	AF5(MS1_P:MS2_P) = SCP(1:5)
+      ELSE
+	AF5(MS1_P:MS2_P) = AF5(MS1_P:MS2_P) + SCP(1:5) - 
+	1				   AF5(MS1_C:MS2_C)		!BACK UP THE STRESS HERE FOR LOAD COMBINATION
+      ENDIF
+      
+	ELSEIF(IC.EQ.-1) THEN
+
+	N5 = NPM(1)
+C	CURRENT
+	MS1_C = N5 - 5*11 + 5*(11-1) + 1
+	MS2_C = N5 - 5*11 + 5*(11-1) + 5
+	AF5(MS1_C:MS2_C) = SCP(1:5)
+
+	ENDIF
+C	--------------------------------
+
+	CALL CALLREAL(AF5,AAX,NDX5,NPM,NPI,4,'WRIT')    !UPDATE DATA OF THIS LAYER (ONLY STRESS) 
+
+	ENDIF
+C	===============================================
+
+
+
+	ZETAD  = ZETA + DZETA/2.0D0
+
+1000	CONTINUE
+
+
+	IF(SRTO.LE.0.0D0) THEN
+	DEALLOCATE(AF5)
+	RETURN
+	ENDIF
+
+C	--------------------------------------------------------------
+C	START FOR STEEL LAYER
+C	--------------------------------------------------------------
+
+	NLAY1 = NLAY + 1
+	NLAY2 = NLAY + NLAY
+
+	DZETA = 2.0D0/FLAY
+
+	ZETAD  = -1.0D0
+	DO 2000 ILAY = NLAY1,NLAY2
+
+	ZETA  = ZETAD + DZETA/2.0
+	ZETAG = 0.5*TH*ZETA
+	DZETG = 0.5*TH*DZETA*SRTO
+
+	NPI(2) = ILAY
+	CALL CALLREAL(AF5,AAX,NDX5,NPM,NPI,4,'READ')    !CALLING DATA OF THIS PART
+
+C	----------------------------------------
+C	CALLING DATA FROM WORKING ARRAY HERE
+
+	NSTAT	= INT(AF5(1)) !MATERIAL STATE NUMBER
+	EMOD    = AF5(2)
+	POISN   = AF5(3)
+	FPC     = AF5(4)
+	FPT     = AF5(5)
+	EMODP   = AF5(6)     !YOUNG MODULUS RESPECTED TO CODE
+
+	EMP(1:5) = AF5(11:15)     !TOTAL MECHANICAL STRAIN
+	ENP(1:5) = AF5(16:20)     !TOTAL NON-MECHANICAL STRAIN
+	SCP(1:5) = AF5(21:25)     !OLD STRESS
+	EPSK(1:5)= AF5(26:30)     !TOTAL SHRNK STRAIN
+	EPCP(1:5)= AF5(31:35)     !TOTAL CREEP STRAIN
+	SINC(1:5)= AF5(36:40)     !INCREMENTAL EFF. STRESS FOR CREEP CALCULATION
+	 
+	
+C	------------------------------------------------------------------
+C	COMPUTE STRAINS AT THE MIDDLE OF LAYER
+C	------------------------------------------------------------------
+	DO 20 I = 1,3  !TOTAL STRAIN
+20	EC(I)  = EPS(I) + ZETAG*EPS(I+3)
+	EC(4)  = EPS(7)
+	EC(5)  = EPS(8)
+
+	DO 21 I = 1,5  !MECHANICAL STRAIN
+21	EMC(I)  = EC(I)  - ENP(I)
+
+	DO 22 I = 1,5  !INCREMENTAL MECHANICAL STRAIN
+22	DMC(I)  = EMC(I) - EMP(I)
+
+	EMP(1:5) = EMC(1:5) !UPDATE  TOTAL MECHANICAL STRAIN
+C	----------------------------------------	
+
+C	TRACKING STRESS FROM CORRESPONDING MATERIAL STATE (TO BE MODIFIED)
+	NSTAT = 1
+	CALL RELFILL('%MSL',EMOD,1,MATS,0) !***********
+	CALL SHMODUS(DMATX,EMOD)
+
+	DO I = 1,5
+C	SCR(I) = SCP(I) !INCREMENTAL FORM
+	SCR(I) = 0.0D0  !TOTAL FORM
+	DO J = 1,5
+C	SCR(I) = SCR(I) + DMATX(I,J)*DMC(J) !INCREMENTAL FORM
+	SCR(I) = SCR(I) + DMATX(I,J)*EMC(J) !TOTAL FORM
+	ENDDO
+	ENDDO
+	SINC(1:5)= 0.0D0
+
+C	--------------------------------------------
+
+	SCP(1:5) = SCR(1:5)  !UPDATE STRESS HERE
+
+C	------------------------------------------------------------------
+C	------------------------------------------------------------------
+C	INITIALIZE ELASTO-PLASTIC RIGIDITY MATRIX	
+C	------------------------------------------------------------------
+	FA = DZETG
+	FC = FA*ZETAG
+	FB = FC*ZETAG
+	FE = DZETG*DZETG*DZETG/12.0
+
+	DP(1:8,1:8) = 0.0D0
+	K = 0
+	DO I = 1,6
+	DO J = 1,6
+	K = K + 1
+	DP(I,J) = PA(K)
+	ENDDO
+	ENDDO
+	DO I = 7,8
+	DO J = 7,8
+	K = K + 1
+	DP(I,J) = PA(K)
+	ENDDO
+	ENDDO
+
+C	------------------------------------------------------------------
+C	MEMBRANE & BENDING RIGIDITY
+C	------------------------------------------------------------------
+	DO 600 I = 1,3
+	DO 600 J = 1,3
+	K = I+3
+	L = J+3
+	DP(I,J) = DP(I,J) + DMATX(I,J)*FA
+600	DP(K,L) = DP(K,L) + DMATX(I,J)*(FB+FE)
+
+C	------------------------------------------------------------------
+C	SHEAR RIGIDITY
+C	------------------------------------------------------------------
+	DO 650 I = 4,5
+	DO 650 J = 4,5
+	K = I+3
+	L = J+3
+650	DP(K,L) = DP(K,L) + DMATX(I,J)*FA
+
+C	------------------------------------------------------------------
+C	COUPLE MEMBRANE AND BENDING RIGIDITY
+C	(UPPER PART OF TRIANGLE)
+C	------------------------------------------------------------------
+	DO 680 I = 1,3
+	DO 680 J = 1,3
+	L = J+3
+680	DP(I,L) = DP(I,L) + DMATX(I,J)*FC
+
+C	------------------------------------------------------------------
+C	FILL IN LOWER PART OF RIGIDITY MATRIX
+C	------------------------------------------------------------------
+	DO 700 I = 1,6
+	DO 700 J = 1,6
+700	DP(J,I) = DP(I,J)
+
+
+	K = 0
+	DO I = 1,6
+	DO J = 1,6
+	K = K + 1
+	PA(K) = DP(I,J)
+	ENDDO
+	ENDDO
+	DO I = 7,8
+	DO J = 7,8
+	K = K + 1
+	PA(K) = DP(I,J)
+	ENDDO
+	ENDDO
+C	------------------------------------------------------------------
+C	------------------------------------------------------------------
+
+
+C	MECHANICAL STRESS CONTRIBUTION
+	DO 850 I = 1,3
+	J = I+3
+	SA(I) = SA(I) + SCR(I)*DZETG
+850	SA(J) = SA(J) + SCR(I)*DZETG*ZETAG
+	SA(7) = SA(7) + SCR(4)*DZETG
+	SA(8) = SA(8) + SCR(5)*DZETG
+
+
+C	UPDATE WORKING ARRAY
+C	----------------------------------------
+	AF5(1)	= FLOAT(NSTAT)	!MATERIAL STATE NUMBER
+	AF5(2)	= EMOD  !UPDATE YOUNG MODULUS    
+	AF5(3)	= POISN !UPDATE POISN   
+
+	AF5(11:15)	= EMP(1:5)      !TOTAL MECHANICAL STRAIN
+	AF5(16:20)	= ENP(1:5)      !TOTAL NON-MECHANICAL STRAIN
+	AF5(21:25)	= SCP(1:5)      !OLD STRESS
+	AF5(26:30)	= EPSK(1:5)     !TOTAL SHRNK STRAIN
+	AF5(31:35)	= EPCP(1:5)     !TOTAL CREEP STRAIN
+	AF5(36:40)  = SINC(1:5)     !INCREMENTAL EFF. STRESS FOR CREEP CALCULATION
+C	----------------------------------------
+
+C	===============================================
+C	STORE WORKING ARRAY
+	IF(LOPT1.EQ.1) THEN
+
+	CALL CALLREAL(AF5,AAX,NDX5,NPM,NPI,4,'WRIT')    !UPDATE DATA OF THIS LAYER
+	   
+	ELSEIF(LOPT1.EQ.2) THEN	!NO BACK UP ...ONLY CALLING STIFFNESS  (BACKUP ONLY STRESS) JAN09 LOADCOMB
+
+	CALL CALLREAL(AF5,AAX,NDX5,NPM,NPI,4,'READ')    !CALLING DATA OF THIS LAYER
+
+C	--------------------------------
+C	STORE HERE JAN09 LOADCOMB
+C	--------------------------------
+	IC = 0
+	CALL INTFILL('@COM',IC,1,1,0)
+	IF(IC.GT.0) THEN
+
+	N5 = NPM(1)
+C	PREVIOUS
+	MS1_P = N5 - 5*11 + 5*(IC-1) + 1
+	MS2_P = N5 - 5*11 + 5*(IC-1) + 5
+C	CURRENT
+	MS1_C = N5 - 5*11 + 5*(11-1) + 1
+	MS2_C = N5 - 5*11 + 5*(11-1) + 5
+
+	AF5(MS1_P:MS2_P) = AF5(MS1_P:MS2_P) + SCP(1:5) - 
+	1				   AF5(MS1_C:MS2_C)		!BACK UP THE STRESS HERE FOR LOAD COMBINATION
+ 
+	ELSEIF(IC.EQ.-1) THEN
+
+	N5 = NPM(1)
+C	CURRENT
+	MS1_C = N5 - 5*11 + 5*(11-1) + 1
+	MS2_C = N5 - 5*11 + 5*(11-1) + 5
+	AF5(MS1_C:MS2_C) = SCP(1:5)
+
+	ENDIF
+C	--------------------------------
+
+	CALL CALLREAL(AF5,AAX,NDX5,NPM,NPI,4,'WRIT')    !UPDATE DATA OF THIS LAYER (ONLY STRESS) 
+
+	ENDIF
+C	===============================================
+
+
+	ZETAD  = ZETA + DZETA/2.0D0
+
+2000	CONTINUE	 
+	
+
+	DEALLOCATE(AF5)
+
+
+	RETURN
+	END
+
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================
+      SUBROUTINE SHLOPT2(IEG,IEL,IAX,AAX)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+
+C	LTMOPT(2)  WORKING ON NON-MECHANICAL DATA
+C	 0 = NO UPDATE DATA
+C	 1 = UPDATE DATA AT START OF TIME STEP
+C	 2 = UPDATE DATA AT END OF TIME STEP
+C	 3 = UPDATE DATA FOREACH ITERATION STEP
+
+	DIMENSION NPM(10),NPI(10),DATF(2),IAX(1),AAX(1)
+	ALLOCATABLE IF3(:),AF4(:),AF7(:)
+C	----------------------------------------
+C	GROUP DATA
+C	----------------------------------------
+	CALL INTFILL('%GRP',ITYPE,1 ,IEG,0) !
+	CALL INTFILL('%GRP',ISTYP,2 ,IEG,0) !
+	CALL INTFILL('%GRP',NELE ,3 ,IEG,0) !
+	CALL INTFILL('%GRP',MPRT ,4 ,IEG,0) ! MAXP
+	CALL INTFILL('%GRP',MGAS ,5 ,IEG,0) !
+	CALL INTFILL('%GRP',MFIB ,6 ,IEG,0) !
+	CALL INTFILL('%GRP',NEF  ,7 ,IEG,0) !
+	CALL INTFILL('%GRP',NNM  ,8 ,IEG,0) !
+	CALL INTFILL('%GRP',NNF  ,9 ,IEG,0) !
+	CALL INTFILL('%GRP',NGR  ,10,IEG,0) !
+	CALL INTFILL('%GRP',NGS  ,11,IEG,0) !
+	CALL INTFILL('%GRP',NGT  ,12,IEG,0) !
+C	GROUP FILE
+	CALL INTFILL('%GRF',N3   ,3 ,IEG,0) !
+	CALL INTFILL('%GRF',N4   ,4 ,IEG,0) !
+	CALL INTFILL('%GRF',N5   ,5 ,IEG,0) !
+	CALL INTFILL('%GRF',N7   ,7 ,IEG,0) !
+
+	CALL INTFILL('%GRF',NDX3 ,13,IEG,0) !
+	CALL INTFILL('%GRF',NDX4 ,14,IEG,0) !
+	CALL INTFILL('%GRF',NDX5 ,15,IEG,0) !
+	CALL INTFILL('%GRF',NDX7 ,17,IEG,0) !
+
+
+      CALL INTFILL('%SOL',LOPT2,1,2,0)
+
+C	----------------------------------------
+	ALLOCATE(IF3(N3),AF4(N4),AF7(N7))
+
+
+	CALL RELFILL('-SOV',TODAY,1,1,0) !CALL TODAY
+C	---------------------------------------------------------
+C	CALLING SECTION SET NUMBER
+	NPM(1) = N3
+	NPI(1) = N3
+	CALL CALLINTG(IF3,IAX,NDX3,NPM,NPI,1,'READ')
+
+	ISEC = IF3(2)     !SECTION SET
+C	ICRP = IF3(3)     !CREEP INTEGRATION OPTION  !ALREADY CALL IN MATERIAL
+	NPRT = IF3(6)     !NUMBER OF PART
+	
+C     ----------------------------------------------------------
+C     LOOP OVER GAUSS TO DET. STIFFNESS & FORCE VECTOR
+C     ----------------------------------------------------------
+      DO 400 IPT = 1,MGAS
+      
+	NPM(1:2) = [N7,MGAS]
+	NPI(1:2) = [N7,IPT ]
+	CALL CALLREAL(AF7,AAX,NDX7,NPM,NPI,2,'READ')  
+	N7_R = 1           !POINTER OF RIGIDITY
+	N7_S = 1 + 40       !POINTER OF MECHANICAL STRESS
+	N7_N = 1 + 40 + 8   !POINTER OF NON-MECHANICAL STRESS
+	AF7(N7_N:N7_N+8-1) = 0.0D0	!INITIALIZE OF NON-MECHANICAL STRESS
+
+
+	DO 300 IPRT = 1,NPRT
+
+
+	NPM(1:2) = [N4,MPRT]
+	NPI(1:2) = [N4,IPRT]
+	CALL CALLREAL(AF4,AAX,NDX4,NPM,NPI,2,'READ')
+	IXIST   = INT(AF4(1))   !EXISTING FLAG
+	DATF(1) = AF4(3)        !CASTING DAY
+	DATF(2) = AF4(4)        !INSTALLATION DAY
+
+
+	IF (IXIST.EQ. 0) GOTO 400 !ELEMENT HAS NEVER EXISTED & CURRENTLY REMOVED
+      AGEC  = 0.0001
+	IF(TODAY-DATF(1).GT.AGEC) AGEC = TODAY-DATF(1)
+      TINC  = TODAY - DATF(2)
+
+	IF(IPT.EQ.MGAS) AF4(4) = TODAY  !BACKUP TODAY TO THIS PART (AT LAST GAUSS)
+	NPM(1:2) = [N4,MPRT]
+	NPI(1:2) = [N4,IPRT]
+	CALL CALLREAL(AF4,AAX,NDX4,NPM,NPI,2,'WRIT')
+
+
+	NPM(1:4) = [N5,MFIB,MGAS,MPRT]
+	NPI(1:4) = [N5,   0,IPT ,IPRT]   !NFIB TO BE MODIFIED IN NEXT SUBRUTINE
+	IF(LOPT2.EQ.1) CALL LAYOPT21(AGEC,TINC,NPM,NPI,ISEC,
+	1							 AF7(N7_N),AAX,NDX5)
+	IF(LOPT2.EQ.2) CALL LAYOPT22(NPM,NPI,ISEC,AAX,NDX5)
+	IF(LOPT2.EQ.3) CALL LAYOPT23(NPM,NPI,ISEC,AF7(N7_N),AAX,NDX5)
+
+300	CONTINUE
+
+	NPM(1:2) = [N7,MGAS]
+	NPI(1:2) = [N7,IPT ]
+	CALL CALLREAL(AF7,AAX,NDX7,NPM,NPI,2,'WRIT')   !BACKUP HERE NON-MECHANICAL STRESS
+C     ----------------------------------------------------------
+400	CONTINUE
+C     ----------------------------------------------------------
+
+	DEALLOCATE(IF3,AF4,AF7)
+
+
+	RETURN
+
+	END
+
+
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================
+      SUBROUTINE LAYOPT21(TAU,TINC,NPM,NPI,ISEC,SA,AAX,NDX5)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	LTMOPT(2)  WORKING ON NON-MECHANICAL DATA
+C	 0 = NO UPDATE DATA
+C	 1 = UPDATE DATA AT START OF TIME STEP
+C	 2 = UPDATE DATA AT END OF TIME STEP
+C	 3 = UPDATE DATA FOREACH ITERATION STEP
+
+C	UPDATE NON-MECHANICAL AT START OF TIME STEP
+C	IM = CREEP INTEGRATION OPTION  
+
+	DIMENSION SA(1),NPM(1),NPI(1),AAX(1)
+	DIMENSION RLXK(2)
+
+	DIMENSION EMP(5),ENP(5),SCP(5),EPSK(5),EPCP(5)
+	DIMENSION DESK(5),ECSK(5),DEAG(5)
+	DIMENSION DENN(5),DECR(5),DSIG(5),SINC(5),DECR0(5)
+	DIMENSION DMATX(5,5)
+
+C	FOR FLOW VECTOR
+	DIMENSION AVECT(5)
+
+	ALLOCATABLE CCOP(:,:),CCOF(:,:),GTJ(:,:),APHI(:,:)
+	ALLOCATABLE ELIT(:),ALFA(:,:)
+	ALLOCATABLE AF5(:)
+
+	N5 = NPM(1)
+	ALLOCATE(AF5(N5))
+
+	CALL RELFILL('$SSC',TH  ,1,ISEC,0)           !THICKNESS
+	CALL RELFILL('$SSC',FMAT,2,ISEC,0)           !MAT NO
+	CALL RELFILL('$SSC',FTYP,3,ISEC,0)           !MAT TYPE  0=CONCRETE 1=STEEL
+	CALL RELFILL('$SSC',FLAY,4,ISEC,0)           !NUMBER OF LAYER FOR THIS PART (ONLY 1 PART FOR SHELL)
+	CALL RELFILL('$SSC',SRTO,5,ISEC,0)           !STEEL RATIO
+	CALL RELFILL('$SSC',FATS,6,ISEC,0)           !MAT No. FOR STEEL
+	CALL RELFILL('$SSC',SPAT,7,ISEC,0)           !SHRINKAGE PATTERN
+
+	IF(SRTO.GT.0.0D0) FLAY = FLAY/2  !!
+
+	
+	MATN = INT(FMAT)
+	MTYP = INT(FTYP)
+	NLAY = INT(FLAY)
+	MATS = INT(FATS)
+	ISKP = INT(SPAT)
+
+
+	DS  = TH/FLAY
+	SS  = 0.0D0-0.5*DS
+
+	DZETA =  2.0D0/FLAY
+	ZETAD = -1.0D0
+
+	
+
+	DO 1000 ILAY = 1,NLAY
+
+
+	
+C	---------SHRINKAGE FACTOR
+	SS = SS + DS
+	FSRK = 0.0D0
+	IF(MTYP.EQ.0) THEN
+	  CALL VALTEMPPAT(ISKP,TH,SS,FSRK,'SKPT') !GET SHRINKAGE PATTERN HERE
+	ENDIF
+C	---------
+
+
+	NPI(2) = ILAY
+	CALL CALLREAL(AF5,AAX,NDX5,NPM,NPI,4,'READ')    !CALLING DATA OF THIS PART
+
+
+	ZETA  = ZETAD + DZETA/2.0
+	ZETAG = 0.5*TH*ZETA
+	DZETG = 0.5*TH*DZETA
+
+C	----------------------------------------
+C	CALLING DATA FROM WORKING ARRAY HERE
+
+	NSTAT	= INT(AF5(1)) !MATERIAL STATE NUMBER
+	EMOD    = AF5(2)
+	POISN   = AF5(3)
+	FPC     = AF5(4)
+	FPT     = AF5(5)
+	EMODP   = AF5(6)     !YOUNG MODULUS RESPECTED TO CODE
+	FUNLO   = AF5(7)     !UNLOADING FLAG --> 0.0 FOR UNLOAD, 1.0 FOR LOADING 
+
+	EMP(1:5) = AF5(11:15)     !TOTAL MECHANICAL STRAIN
+	ENP(1:5) = AF5(16:20)     !TOTAL NON-MECHANICAL STRAIN
+	SCP(1:5) = AF5(21:25)     !OLD STRESS
+	EPSK(1:5)= AF5(26:30)     !TOTAL SHRNK STRAIN
+	EPCP(1:5)= AF5(31:35)     !TOTAL CREEP STRAIN
+	SINC(1:5)= AF5(36:40)     !INCREMENTAL EFF. STRESS FOR CREEP CALCULATION
+
+	RLXK(1:2)= AF5(41:42)     !R Factor for creep calculation 3.3.14b 3.3.19b
+C	--------------------------------------------
+C	MATERIAL STATE & STRESS & STIFFNESS
+	SELECTCASE(MTYP)
+
+C	-------------
+	CASE(0) !CONC	
+
+
+	CALL INTFILL('%CPT',KM ,1,MATN,0)
+	CALL INTFILL('%CPT',NAT,2,MATN,0)
+	CALL INTFILL('%CPT',NTT,3,MATN,0)
+	CALL INTFILL('%CPT',NRT,4,MATN,0)
+	CALL INTFILL('%CPT',KL ,5,MATN,0)
+
+      CALL INTFILL('%CPT',IM ,7,MATN,0)  !CREEP INTG FLAG
+
+
+	ALLOCATE(CCOP(NRT,KL),CCOF(NRT,KL),GTJ(5,NRT),APHI(NRT,KL))
+	ALLOCATE(ELIT(NRT),ALFA(NRT,KL))
+
+	TAUO = TAU-TINC
+	CALL TMPCNC(TAUO,MATN,EMODP,SHRNO,FPC,FPT,RHO,POISN,GG,CCOF) !ONLY FOR INITIAL SHIRNKAGE STRAIN SHRNO AT THE TIME OF ERECTION UPDATE EMODP HERE
+	CALL TMPCNC(TAU ,MATN,EMODC,SHRN ,FPC,FPT,RHO,POISN,GG,CCOF) 
+
+C	FIND SHRINKAGE STRAIN INCREMENT (ONLY r and s diraction)
+	DESK(1:5)  = 0.0D0
+	ECSK(1:2)  = SHRN*FSRK*(1.0D0/3.0D0)
+      IF(TINC.NE.0.D0) THEN
+C	EPSK = ECSK         !CHANGE TO NEXT TO ACCOUNT THE EFFECT OF INITIAL SHIRNKAGE STRAIN SHRNO AT THE TIME OF ERECTION
+	EPSK(1:2) = SHRNO*FSRK*(1.0D0/3.0D0) 
+	DESK(1:2) = ECSK(1:2) - EPSK(1:2)
+	ENDIF
+
+C	FIND AGING STRAIN INCREMENT (ONLY r and s diraction)
+	DEAG(1:5) = 0.0D0
+      IF(TINC.NE.0.D0) THEN
+	DEAG(1:2) = SCP(1:2)/EMODP - SCP(1:2)/EMODC
+      ENDIF
+
+C	---------------------------------------
+C	FIND CREEP STRAIN INCREMENT
+C	---------------------------------------
+C	----------------------------
+C	FIND CREEP RELATED VARIABLES
+	CALL RELFILL('%FNC',GAMA,6,MATN,0)
+      GAMA = GAMA * 1.0D-1
+
+
+	K = 50
+	DO I = 1,NRT
+	DO J = 1,KL
+	K = K + 1
+	CCOP(I,J) = AF5(K)   !CREEP COEF  (51-80) ALLOCATE 30 VALUE  
+	ENDDO
+	ENDDO
+
+	K = 80
+	DO I = 1,5
+	DO J = 1,NRT
+	K = K + 1
+	GTJ(I,J)  = AF5(K)   !CREEP COEF  (81-155) ALLOCATE 75 VALUE  
+	ENDDO
+	ENDDO
+
+	K = 160
+	DO I = 1,NRT
+	DO J = 1,KL
+	K = K + 1
+	ALFA(I,J) = AF5(K)   !CREEP COEF  (161-190) ALLOCATE 30 VALUE  
+	ENDDO
+	ENDDO
+
+	K = 190
+	DO I = 1,NRT
+	DO J = 1,KL
+	K = K + 1
+	APHI(I,J) = AF5(K)   !CREEP COEF  (191-220) ALLOCATE 30 VALUE 
+	ENDDO
+	ENDDO
+
+	RLXK(1:2)   = 0.0D0
+C	-----------------------------------
+
+      DO 13 J=1,NRT
+      GAMA = GAMA * 1.0D+1
+      YIOT = TINC / GAMA
+      ELIM = DEXP(-YIOT)
+      ELIT(J) = 1.0D+0 - ELIM
+
+	LZE =0
+	IF(ABS(YIOT).LT.1.0E-15) THEN
+	YIOT = 0.0D0
+	LZE = 1
+	ENDIF
+C
+	PHIM = 0.0D0
+      IF(LZE.EQ.0) 
+	1 PHIM = 1.0D+0 - ( ELIT(J) / YIOT )         !(1-Phi)  Eq-3.3.14b
+      IF(IM.EQ.3) BBIT = (YIOT / 2.0D+0) - PHIM   !(dt/2G)-(1-Phi)  Eq-3.3.19b
+C
+      DO 12 K=1,KL
+      RLXF = CCOF(J,K) * PHIM                     !Ai(1-Phi) Eq-3.3.14b        ***Used CCOF = CCOP
+	APHI(J,K) = CCOF(J,K)                       !A(tj-1)   Eq 3.3.11d  C-C   ***Used CCOF = CCOP
+	IF(IM.LT.2) GOTO 12	
+	APHI(J,K) = APHI(J,K)*(1.0-PHIM)            !A(tj-1)*phi Eq 3.3.14d C-L
+	IF(IM.NE.3) GOTO 12							!L-L CREEP INTEGRATION METHOD
+	APHI(J,K) = APHI(J,K) + ALFA(J,K)*PHIM      !A(tj-1)*phi + B(tj-1)*(1-phi) Eq 3.3.19e L-L
+	ALFA(J,K) = 0.0D0
+      IF(LZE.EQ.0) 
+	1 ALFA(J,K) = (CCOF(J,K) - CCOP(J,K)) / YIOT !Beta=(dA)*G/dt   Eq-3.3.19d
+      RLXF = RLXF + ALFA(J,K) * BBIT              !Add term   Beta*((dt/2G)-(1-Phi))  Eq-3.3.19b
+12	RLXK(K) = RLXK(K) + RLXF                    !Sum over NRT  Eq-3.3.14b and  3.3.19b
+C
+13	CONTINUE
+C	----------------------------
+	DECR0(1:5) = 0.0D0
+      DO 45 I=1,5
+      DO 45 J=1,NRT
+	DECR0(I) = DECR0(I) + GTJ(I,J) * ELIT(J)            !The 2nd term in Eq-3.3.11a  3.3.14a  3.3.19a  ,GTJ = g(tj-1)  
+45	GTJ(I,J) = GTJ(I,J)*(1.0-ELIT(J))					!UPDATE g(tj) 
+
+C	DRUCKER PRAGER YIELD SURFACE
+	ALPI1 = 0.0D0
+	CALL SHYSURF(SCP,SN2,AVECT,ALPI1)  !GET SN1 HERE
+
+	SUMW  = SCP(1)*DECR0(1) + SCP(2)*DECR0(2) + SCP(3)*DECR0(3) + 
+	1		SCP(4)*DECR0(4) + SCP(5)*DECR0(5)
+	SUME  = SCP(1)*AVECT(1) + SCP(2)*AVECT(2) + SCP(3)*AVECT(3) + 
+	1		SCP(4)*AVECT(4) + SCP(5)*AVECT(5)
+
+	FLAMD = 0.0D0
+	IF(SUME .NE.0.0D0) FLAMD = SUMW/SUME
+
+C	FOR UNLOADING
+C	IF(FUNLO.EQ.0.0D0) THEN
+	FLAMD = 1.0D0
+	AVECT(1:5) = DECR0(1:5)
+C	ENDIF
+
+	DECR(1:5) = FLAMD*AVECT(1:5)
+
+      EPCP(1:5) = EPCP(1:5) + DECR(1:5)                   !UPDATE CREEP STRAIN
+C	---------------------------------------
+
+C	SUM OF INCREMENTAL NON-MECHANICAL STRAIN
+	DENN(1:5) = DESK(1:5) + DEAG(1:5) + DECR(1:5)
+
+
+C	UPDATE TOTAL NON-MECHANICAL STRAIN
+	ENP(1:5)  = ENP(1:5)  + DENN(1:5)
+
+C-----ASSEMBLE EQUIVALENT ELEMENT LOADS DUE TO NON-MECHANICAL STRAINS---
+      DENN(1:5) = DENN(1:5) !- DEAG(1:5)   !CORRECTION OF AGING STRAIN FROM NON-MECHANICAL STRAIN
+
+C	INCREMENTAL STRESS DUE TO NON-MECHA. STRAIN
+	CALL SHMODUC(DMATX,EMODP,POISN)
+	DO I = 1,5
+	DSIG(I) = 0.0D0
+	DO J = 1,5
+	DSIG(I) = DSIG(I) + DMATX(I,J)*DENN(J)
+	ENDDO
+	ENDDO
+
+C	WRITE(*,*) EMP,DENN
+C	WRITE(*,*) IEL,SINC,PHIM
+C	-----------------------
+C	UPDATE WORKING ARRAY
+C	-----------------------
+	AF5(3) = POISN   
+	AF5(4) = FPC     
+	AF5(5) = FPT       
+	AF5(6) = EMODP       !YOUNG MODULUS RESPECTED TO CODE        !EMODP OR EMODC !!!!!!!!!! (EMODC WILL MAKE A TROUBLE IN CREEP&SHRINKAGE SECONDARY)
+
+	AF5(16:20) = ENP(1:5)   !TOTAL NON-MECHANICAL STRAIN
+	AF5(26:30) = EPSK(1:5)  !TOTAL SHRNK STRAIN
+	AF5(31:35) = EPCP(1:5)  !TOTAL CREEP STRAIN
+	AF5(41:42) = RLXK(1:2)  
+
+	AF5(221:225) = AF5(221:225) + DSIG(1:5) !STORE TOTAL NON-MECHANICAL STRESS
+	
+	K = 50
+	DO I = 1,NRT
+	DO J = 1,KL
+	K = K + 1
+	AF5(K) = CCOF(I,J)		!CREEP COEF  (51-80) ALLOCATE 30 VALUE  
+	ENDDO
+	ENDDO
+	K = 80
+	DO I = 1,5
+	DO J = 1,NRT
+	K = K + 1
+	AF5(K) =  GTJ(I,J)		!CREEP COEF  (81-155) ALLOCATE 75 VALUE  
+	ENDDO	
+	ENDDO
+	K = 160
+	DO I = 1,NRT
+	DO J = 1,KL
+	K = K + 1
+	AF5(K) =  ALFA(I,J)		!CREEP COEF  (161-190) ALLOCATE 30 VALUE  
+	ENDDO
+	ENDDO
+	K = 190
+	DO I = 1,NRT
+	DO J = 1,KL
+	K = K + 1
+	AF5(K) =  APHI(I,J)		!CREEP COEF  (191-220) ALLOCATE 30 VALUE 
+	ENDDO
+	ENDDO
+
+
+
+	DEALLOCATE(CCOP,CCOF,GTJ,APHI)
+	DEALLOCATE(ELIT,ALFA)
+C	-----------------------
+
+C	-------------	
+	CASE(1) !STEEL
+
+	DSIG(1:5) = 0.0D0 !NOTHING FOR STEEL
+
+	ENDSELECT
+C	--------------------------------------------
+
+
+C	STRESS CONTRIBUTION
+	DO 150 I = 1,3
+	J = I+3
+	SA(I) = SA(I) + DSIG(I)*DZETG
+150	SA(J) = SA(J) + DSIG(I)*DZETG*ZETAG
+	SA(7) = SA(7) + DSIG(4)*DZETG
+	SA(8) = SA(8) + DSIG(5)*DZETG
+
+C	STORE WORKING ARRAY
+	CALL CALLREAL(AF5,AAX,NDX5,NPM,NPI,4,'WRIT')    
+
+	ZETAD  = ZETA + DZETA/2.0D0
+
+1000	CONTINUE
+	
+	
+
+	DEALLOCATE(AF5)
+
+
+	RETURN
+	END
+
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================
+	SUBROUTINE LAYOPT22(NPM,NPI,ISEC,AAX,NDX5)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+
+C	LTMOPT(2)  WORKING ON NON-MECHANICAL DATA
+C	 0 = NO UPDATE DATA
+C	 1 = UPDATE DATA AT START OF TIME STEP
+C	 2 = UPDATE DATA AT END OF TIME STEP
+C	 3 = UPDATE DATA FOREACH ITERATION STEP
+
+C	UPDATE NON-MECHANICAL DATA AT THE END OF TIME STEP
+C	IM = CREEP INTEGRATION OPTION  
+
+	DIMENSION NPM(1),NPI(1),AAX(1)
+	ALLOCATABLE AF5(:)
+
+	N5 = NPM(1)
+	ALLOCATE(AF5(N5))
+
+
+	CALL RELFILL('$SSC',TH  ,1,ISEC,0)           !THICKNESS
+	CALL RELFILL('$SSC',FMAT,2,ISEC,0)           !MAT NO
+	CALL RELFILL('$SSC',FTYP,3,ISEC,0)           !MAT TYPE  0=CONCRETE 1=STEEL
+	CALL RELFILL('$SSC',FLAY,4,ISEC,0)           !NUMBER OF LAYER FOR THIS PART (ONLY 1 PART FOR SHELL)
+	CALL RELFILL('$SSC',SRTO,5,ISEC,0)           !STEEL RATIO
+	CALL RELFILL('$SSC',FATS,6,ISEC,0)           !MAT No. FOR STEEL
+	CALL RELFILL('$SSC',SPAT,7,ISEC,0)           !SHRINKAGE PATTERN
+
+	IF(SRTO.GT.0.0D0) FLAY = FLAY/2  !!
+
+	
+	MATN = INT(FMAT)
+	MTYP = INT(FTYP)
+	NLAY = INT(FLAY)
+	MATS = INT(FATS)
+	ISKP = INT(SPAT)
+
+	DO 1000 ILAY = 1,NLAY
+
+	NPI(2) = ILAY
+	CALL CALLREAL(AF5,AAX,NDX5,NPM,NPI,4,'READ')    !CALLING DATA OF THIS PART
+
+
+C	--------------------------------------------
+C	MATERIAL STATE & STRESS & STIFFNESS
+	SELECTCASE(MTYP)
+
+C	-------------
+	CASE(0) !CONC	
+
+
+	CALL INTFILL('%CPT',NRT,4,MATN,0)
+	CALL INTFILL('%CPT',KL ,5,MATN,0)
+
+      CALL INTFILL('%CPT',IM ,7,MATN,0)  !CREEP INTG FLAG
+
+	AF5(46:50) = 0.0D0  !DICP OLD ITERATIVE CREEP STRAIN FOR CONVERGENCE ACCEL OF CREEP
+
+C	KL = 2 FOR OLD CEB (NORMAL AND RECOVERY PART)
+
+	AF5(41:42) =  0.0D0 !RLXK(J)		 
+
+	K = 160
+	DO I = 1,NRT
+	DO J = 1,KL
+	K = K + 1
+	AF5(K) =  0.0D0 !ALFA(I,J)		!CREEP COEF  (161-190) ALLOCATE 30 VALUE  
+	ENDDO
+	ENDDO
+	K = 190
+	DO I = 1,NRT
+	DO J = 1,KL
+	K = K + 1
+	AF5(K) =  0.0D0 !APHI(I,J)		!CREEP COEF  (191-220) ALLOCATE 30 VALUE 
+	ENDDO
+	ENDDO
+C	-----------------------
+
+C	-------------	
+	CASE(1) !STEEL
+
+	DKAK= 0.0D0 !NOTHING FOR STEEL
+
+	ENDSELECT
+C	--------------------------------------------
+
+
+C	STORE WORKING ARRAY
+	CALL CALLREAL(AF5,AAX,NDX5,NPM,NPI,4,'WRIT')    
+
+1000	CONTINUE
+
+
+	
+	DEALLOCATE(AF5)
+
+	
+	RETURN
+	END
+
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================
+      SUBROUTINE LAYOPT23(NPM,NPI,ISEC,SA,AAX,NDX5)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+
+
+C	LTMOPT(2)  WORKING ON NON-MECHANICAL DATA
+C	 0 = NO UPDATE DATA
+C	 1 = UPDATE DATA AT START OF TIME STEP
+C	 2 = UPDATE DATA AT END OF TIME STEP
+C	 3 = UPDATE DATA FOREACH ITERATION STEP
+
+C	UPDATE NON-MECHANICAL DATA DURING ITERATION
+C	IM = CREEP INTEGRATION OPTION  
+
+	DIMENSION SA(1),NPM(1),NPI(1),AAX(1)
+	DIMENSION RLXK(2)
+	DIMENSION EMP(5),ENP(5),EPCP(5),SCP(5),SINC(5)
+	DIMENSION DSIG(5),DMATX(5,5)
+	DIMENSION DECP(5),DICP(5)
+
+C	FOR FLOW VECTOR
+	DIMENSION AVECT(5)
+
+	ALLOCATABLE GTJ(:,:),APHI(:,:)
+	ALLOCATABLE AF5(:)
+
+	N5 = NPM(1)
+	ALLOCATE(AF5(N5))
+
+	CALL RELFILL('$SSC',TH  ,1,ISEC,0)           !THICKNESS
+	CALL RELFILL('$SSC',FMAT,2,ISEC,0)           !MAT NO
+	CALL RELFILL('$SSC',FTYP,3,ISEC,0)           !MAT TYPE  0=CONCRETE 1=STEEL
+	CALL RELFILL('$SSC',FLAY,4,ISEC,0)           !NUMBER OF LAYER FOR THIS PART (ONLY 1 PART FOR SHELL)
+	CALL RELFILL('$SSC',SRTO,5,ISEC,0)           !STEEL RATIO
+	CALL RELFILL('$SSC',FATS,6,ISEC,0)           !MAT No. FOR STEEL
+	CALL RELFILL('$SSC',SPAT,7,ISEC,0)           !SHRINKAGE PATTERN
+
+	IF(SRTO.GT.0.0D0) FLAY = FLAY/2  !!
+
+	
+	MATN = INT(FMAT)
+	MTYP = INT(FTYP)
+	NLAY = INT(FLAY)
+	MATS = INT(FATS)
+	ISKP = INT(SPAT)
+
+	DZETA =  2.0D0/FLAY
+	ZETAD = -1.0D0
+
+	DO 1000 ILAY = 1,NLAY
+
+	NPI(2) = ILAY
+	CALL CALLREAL(AF5,AAX,NDX5,NPM,NPI,4,'READ')    !CALLING DATA OF THIS PART
+
+	ZETA  = ZETAD + DZETA/2.0
+	ZETAG = 0.5*TH*ZETA
+	DZETG = 0.5*TH*DZETA
+C	----------------------------------------
+C	CALLING DATA FROM WORKING ARRAY HERE
+
+	EMOD    = AF5(2)
+	POISN   = AF5(3)
+	FUNLO   = AF5(7)  !UNLOADING FLAG  0.0 FOR UNLOAD  1.0 FOR LOAD
+
+	RLXK(1:2)= AF5(41:42)     !R Factor for creep calculation 3.3.14b 3.3.19b
+
+	EMP(1:5) = AF5(11:15)     !TOTAL MECHANICAL STRAIN
+	ENP(1:5) = AF5(16:20)     !TOTAL NON-MECHANICAL STRAIN
+	SCP(1:5) = AF5(21:25)     !OLD STRESS
+	EPCP(1:5)= AF5(31:35)     !TOTAL CREEP STRAIN
+	SINC(1:5)= AF5(36:40)     !INCREMENTAL EFF. STRESS FOR CREEP CALCULATION
+
+	DICP(1:5)= AF5(46:50)     !OLD ITERATIVE CREEP STRAIN
+
+C	----------------------------------------	
+
+C	--------------------------------------------
+C	MATERIAL STATE & STRESS & STIFFNESS
+	SELECTCASE(MTYP)
+
+C	-------------
+	CASE(0) !CONC	
+
+	CALL INTFILL('%CPT',NRT,4,MATN,0)
+	CALL INTFILL('%CPT',KL ,5,MATN,0)
+      CALL INTFILL('%CPT',IM ,7,MATN,0)  !CREEP INTG FLAG
+	ALLOCATE(GTJ(5,NRT),APHI(NRT,KL))
+
+
+	K = 80
+	DO I = 1,5
+	DO J = 1,NRT
+	K = K + 1
+	GTJ(I,J)  = AF5(K)    !CREEP COEF  (81-155) ALLOCATE 75 VALUE  
+	ENDDO
+	ENDDO
+	K = 190
+	DO I = 1,NRT
+	DO J = 1,KL
+	K = K + 1
+	APHI(I,J) = AF5(K)    !CREEP COEF  (191-220) ALLOCATE 30 VALUE 
+	ENDDO
+	ENDDO
+
+	
+	DO 100 ISIG = 1,5
+
+	DECP(ISIG) = 0.0D0
+
+C	HERE FOR C-C
+      LL = 1
+      IF(KL.EQ.2) THEN
+	IF(SINC(ISIG).LT. 0.D0) LL = 2
+      ENDIF
+
+	IF(IM.LT.2) GOTO 90
+
+      LL = 1
+      IF(KL.EQ.2) THEN
+	CSTS = SINC(ISIG) * RLXK(1)
+	IF(CSTS .LT. 0.D0) LL = 2
+      ENDIF
+      DECP(ISIG) = RLXK(LL) * SINC(ISIG) !INCREMENTAL CREEP STRAIN
+
+
+C	RRR = MOD(DECP,1.0E-6)
+C	DECP = DECP - RRR
+90	CONTINUE
+
+	DO J = 1,NRT
+	GTJ(ISIG,J) = GTJ(ISIG,J) + APHI(J,LL)*SINC(ISIG)        !UPDATE g(tj)
+	ENDDO
+
+100	CONTINUE
+
+	
+C	DRUCKER PRAGER YIELD SURFACE
+	ALPI1 = 0.0D0
+	CALL SHYSURF(SCP,SN2,AVECT,ALPI1)  !GET SN1 HERE
+
+	SUMW  = SCP(1)*DECP(1) + SCP(2)*DECP(2) + SCP(3)*DECP(3) + 
+	1		SCP(4)*DECP(4) + SCP(5)*DECP(5)
+	SUME  = SCP(1)*AVECT(1) + SCP(2)*AVECT(2) + SCP(3)*AVECT(3) + 
+	1		SCP(4)*AVECT(4) + SCP(5)*AVECT(5)
+	FLAMD = 0.0D0
+	IF(SUME .NE.0.0D0) FLAMD = SUMW/SUME
+
+C	FOR UNLOADING
+C	IF(FUNLO.EQ.0.0D0) THEN
+	FLAMD = 1.0D0
+	AVECT(1:5) = DECP(1:5)
+C	ENDIF
+
+	DECP(1:5) = FLAMD*AVECT(1:5)
+
+	IF(IM.GE.2) THEN
+C	COREECTION DUE TO CREEP CONVERGENCE ACCELERATION
+	CR = 0.71 !0.71
+	DECP(1:5) = (DECP(1:5) + CR*DICP(1:5))/(1.0D0+CR)
+	ENDIF
+
+C	UPDATE TOTAL CREEP STRAIN
+      EPCP(1:5) = EPCP(1:5) + DECP(1:5)  
+	    
+C	UPDATE TOTAL NON-MECHANICAL STRAIN
+	ENP(1:5)  = ENP(1:5)  + DECP(1:5)
+
+
+
+C	INCREMENTAL STRESS DUE TO NON-MECHA. STRAIN
+	CALL SHMODUC(DMATX,EMOD,POISN)
+	DO I = 1,5
+	DSIG(I) = 0.0D0
+	DO J = 1,5
+	DSIG(I) = DSIG(I) + DMATX(I,J)*DECP(J)
+	ENDDO
+	ENDDO
+
+
+C	-----------------------
+C	UPDATE WORKING ARRAY
+C	-----------------------
+	AF5(16:20) = ENP(1:5)   !TOTAL NON-MECHANICAL STRAIN
+	AF5(31:35) = EPCP(1:5)  !TOTAL CREEP STRAIN
+
+	AF5(221:225) = AF5(221:225) + DSIG(1:5)  !STORE TOTAL NON-MECHANICAL STRESS
+	
+	K = 80
+	DO I = 1,5
+	DO J = 1,NRT
+	K = K + 1
+	AF5(K) =  GTJ(I,J)		!CREEP COEF  (81-155) ALLOCATE 75 VALUE  
+	ENDDO
+	ENDDO
+
+	AF5(46:50) = DECP(1:5)		    !UPDATE ITERATIVE CREEP STRAIN
+
+C	WRITE(*,222) IFIB,SINC
+C	WRITE(110,222) IFIB,SINC,APHI(1,1),GTJ(1)
+C222	FORMAT(I5,20E15.6)
+
+	DEALLOCATE(GTJ,APHI)
+C	-----------------------
+
+
+C	-------------	
+	CASE(1) !STEEL
+
+	DSIG = 0.0D0 !NOTHING FOR STEEL
+
+	ENDSELECT
+C	--------------------------------------------
+
+
+C	STRESS CONTRIBUTION
+	DO 150 I = 1,3
+	J = I+3
+	SA(I) = SA(I) + DSIG(I)*DZETG
+150	SA(J) = SA(J) + DSIG(I)*DZETG*ZETAG
+	SA(7) = SA(7) + DSIG(4)*DZETG
+	SA(8) = SA(8) + DSIG(5)*DZETG
+
+
+C	STORE WORKING ARRAY
+	CALL CALLREAL(AF5,AAX,NDX5,NPM,NPI,4,'WRIT')   
+
+	ZETAD  = ZETA + DZETA/2.0D0
+
+1000	CONTINUE
+
+
+	DEALLOCATE(AF5)
+
+	
+	RETURN
+	END
+
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================
+	SUBROUTINE SHEOPT3(IEG,IEL,COORD,SE,RE,LSTF,LFOC,IAX,AAX)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+	DIMENSION SE(1),RE(1),COORD(3,1),IAX(1),AAX(1)
+C	LSTF  0 = NO COMPUTE OF STIFFNESS   1 = COMPUTE STIFFNESS
+C	LFOC  0 = NO COMPUTE OF ELM FORCE   1 = COMPUTE ELM FORCE
+
+	CALL INTFILL('%GRP',ISTYP,2 ,IEG,0) 
+
+	SELECTCASE(ISTYP)
+
+	CASE(1)
+	CALL SHLOPT3(IEG,IEL,COORD,SE,RE,LSTF,LFOC,IAX,AAX)
+
+	CASE(4)
+	CALL QSHLOPT3(IEG,IEL,COORD,SE,RE,LSTF,LFOC,IAX,AAX)
+
+	ENDSELECT
+
+
+
+	RETURN
+	END
+
+
+
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================
+      SUBROUTINE SHLOPT3(IEG,IEL,COORD,S,RE,LSTF,LFOC,IAX,AAX)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+
+C	LTMOPT(3)
+C	 0 = NO-ASSEMBLE OF RESISTING LOAD
+C	 1 = ASSEMBLE OF NON-MECHANICAL INTERNAL LOAD
+C	 2 = ASSEMBLE OF MECHANICAL INTERNAL LOAD
+C	 3 = ASSEMBLE OF NON-MECHANICAL & MECHANICAL INTERNAL LOAD
+C	 4 = ELEMENT FORCE + ASSEMBLE REACTION(FROM MECHANICAL) 
+
+	COMMON /GASEC/  GAUSP(10,10),GAUSW(10,10)
+
+	DIMENSION EPS(8),NPM(10),NPI(10),IAX(1),AAX(1)
+	DIMENSION RRN(4),SSN(4),FJ(4),XJI(4),FF(6)
+	DIMENSION H(8),HD(2,8),VR(3),VS(3),VT(3)
+	DIMENSION HR(4),HS(4),B(240),BA(4,120),BDRL(54)
+
+	DIMENSION S(1),DR(8,8),SIGR(8),RE(24),COORD(3,1)
+
+
+	ALLOCATABLE IF3(:),AF7(:)
+	ALLOCATABLE NODEX(:)
+
+C	----------------------------------------
+C	GROUP DATA
+C	----------------------------------------
+	CALL INTFILL('%GRP',ITYPE,1 ,IEG,0) !
+	CALL INTFILL('%GRP',ISTYP,2 ,IEG,0) !
+	CALL INTFILL('%GRP',NELE ,3 ,IEG,0) !
+	CALL INTFILL('%GRP',MPRT ,4 ,IEG,0) !
+	CALL INTFILL('%GRP',MGAS ,5 ,IEG,0) !
+	CALL INTFILL('%GRP',MFIB ,6 ,IEG,0) !
+	CALL INTFILL('%GRP',NEF  ,7 ,IEG,0) !
+	CALL INTFILL('%GRP',NNM  ,8 ,IEG,0) !
+	CALL INTFILL('%GRP',NNF  ,9 ,IEG,0) !
+	CALL INTFILL('%GRP',NGR  ,10,IEG,0) !
+	CALL INTFILL('%GRP',NGS  ,11,IEG,0) !
+	CALL INTFILL('%GRP',NGT  ,12,IEG,0) !
+C	GROUP FILE
+	CALL INTFILL('%GRF',N3   ,3 ,IEG,0) !
+	CALL INTFILL('%GRF',N7   ,7 ,IEG,0) !
+
+	CALL INTFILL('%GRF',NDX3 ,13,IEG,0) !
+	CALL INTFILL('%GRF',NDX7 ,17,IEG,0) !
+C	----------------------------------------
+	ALLOCATE(IF3(N3),AF7(N7))
+	NDEX = NNM - 4 + 1
+	ALLOCATE(NODEX(NDEX))
+
+C	---------------------------------------------------------
+
+C	CALLING SECTION SET NUMBER
+	NPM(1) = N3
+	NPI(1) = N3
+	CALL CALLINTG(IF3,IAX,NDX3,NPM,NPI,1,'READ')
+
+	ISEC = IF3(2)     !SECTION SET
+
+	IXIST = IF3(4)  !TOTAL EXISTING FLAG 
+	IF(IXIST.EQ.0) GOTO 8000 !NO EXISTED ELEMENT 
+C	----------------------------------------------
+C	ASSUMED SHEAR STRAIN
+C	----------------------------------------------
+      RRN(1:4)= [ 1.0D0,-1.0D0, 0.0D0, 0.0D0]
+      SSN(1:4)= [ 0.0D0, 0.0D0, 1.0D0,-1.0D0]
+
+	 FJ(1:4) = 0.0D0
+	XJI(1:4) = 0.0D0
+	BA(1:4,1:120) = 0.0D0
+	B(1:120) = 0.0D0
+
+ 	NSP=4
+      DO 6 I=1,NSP
+	CALL SHAP2D (RRN(I),SSN(I),H,HD,NODEX,NNM) 
+      CALL SHJACO (NNM,COORD,HD,VR,VS,VT,XJI,DET,RR,SS,SNA,1,FJ)
+	CALL SHBMATS(NNM,H,HD,VR,VS,VT,XJI,HR,HS,BA,I,FJ)
+ 6    CONTINUE
+C	----------------------------------------------
+
+C	INITILIZE ARRAY
+	S(1:300)		= 0.0D0       !STIFF
+	DR(1:8,1:8)	= 0.0D0       !RIGIDITY
+	SIGR(1:8)		= 0.0D0       !RESULTANT STRESS
+	RE(1:24)		= 0.0D0       !INTERNAL FORCE
+
+C     ----------------------------------------------------------
+C     LOOP OVER GAUSS TO DET. STIFFNESS & FORCE VECTOR
+C     ----------------------------------------------------------
+	IPT = 0
+      DO 400 IGR = 1,NGR
+      DO 400 IGS = 1,NGS
+	RI = GAUSP(IGR,NGR)
+	SI = GAUSP(IGS,NGS)
+	WT = GAUSW(IGR,NGR)*GAUSW(IGS,NGS)
+	IPT = IPT + 1
+
+	NPM(1:2) = [N7,MGAS]
+	NPI(1:2) = [N7,IPT ]
+	CALL CALLREAL(AF7,AAX,NDX7,NPM,NPI,2,'READ') 
+	N7_R = 1           !POINTER OF RIGIDITY
+	N7_S = 1 + 40       !POINTER OF MECHANICAL STRESS
+	N7_N = 1 + 40 + 8   !POINTER OF NON-MECHANICAL STRESS
+
+	N7_DR= 1 + 40 + 8 + 8 + 18            !OLD DRILLING STRAIN
+	N7_DS= 1 + 40 + 8 + 8 + 18 + 1        !OLD DRILLING STRESS
+	N7_D = 1 + 40 + 8 + 8 + 18 + 1 + 1    !DRILLING STRESS
+
+C     -----------------------------------------------------
+C     SHAPE FUNCTIONS (H) , SHAPE FUNCTION DERIVATIVES (HD)
+C     -----------------------------------------------------
+      CALL SHAP2D (RI,SI,H,HD,NODEX,NNM)
+C     ----------------------------------------------------
+C     INVERSE JACOBIAN (XJI) , JACOBIAN coefficient F, 
+C	DETERMINANT (DET) AND STRAIN-DISPLACEMENT MATRIX (B)
+C     ----------------------------------------------------
+      CALL SHJACO (NNM,COORD,HD,VR,VS,VT,XJI,DET,RR,SS,SNA,1,FJ)
+      DVOL=WT*DET
+
+	CALL SHBMAT1 (NNM,H,HD,VR,VS,VT,XJI,HR,HS,B,RI,SI,BA,NEF)
+      CALL SHBMAT2 (NNM,H,HD,VR,VS,VT,XJI,HR,HS,B)
+C     ----------------------------------------------------
+	IF(LSTF.GT.0) THEN
+	K = 0
+	DO I = 1,6
+	DO J = 1,6
+	K = K + 1
+	DR(I,J) = AF7(K+N7_R-1)*DVOL !RIGIDITY
+	ENDDO
+	ENDDO
+	DO I = 7,8
+	DO J = 7,8
+	K = K + 1
+	DR(I,J) = AF7(K+N7_R-1)*DVOL !RIGIDITY
+	ENDDO
+	ENDDO
+	ENDIF
+
+c	DO II = 1,8
+c	WRITE(110,111) DR(II,1:8)
+c	ENDDO
+c111	FORMAT(8E12.4)
+		
+
+	IF(LFOC.GT.0) THEN
+	SELECTCASE(LFOC)
+
+	CASE(1)
+	DO I = 1,8
+	SIGR(I) = AF7(I+N7_N-1)*DVOL  !NON-MECHA
+	ENDDO
+
+	SIGRD = 0.0D0  !NON MECHANICAL DRILLING STRESS
+
+	CASE(2)
+	DO I = 1,8
+	SIGR(I) = AF7(I+N7_S-1)*DVOL  !MECHA
+	ENDDO
+
+	SIGRD = AF7(N7_D)*DVOL  !MECHANICAL DRILLING STRESS
+
+	ENDSELECT
+	ENDIF
+C     ----------------------------------------------------
+
+C	!!!
+	IF(LSTF.GT.0) THEN
+	IJ=1    !REMOVE SIGULARITY FROM FLAT SHELL
+      N=3*NEF-2
+      LROW=NEF-3
+      FAC=DMIN1(DR(3,3),DR(4,4)/DET)*1.E-6
+      DO 720 I=1,3
+      FI=FAC*VT(I)
+      DO 720 J=I,3
+      FF(IJ)=FI*VT(J)
+ 720  IJ=IJ+1
+      DO 740 I=1,NNM
+      HH=H(I)*H(I)
+      S(N)=S(N)+HH*FF(1)
+      S(N+1)=S(N+1)+HH*FF(2)
+      S(N+2)=S(N+2)+HH*FF(3)
+      N=N+LROW
+      S(N)=S(N)+HH*FF(4)
+      S(N+1)=S(N+1)+HH*FF(5)
+      N=N+LROW-1
+      S(N)=S(N)+HH*FF(6)
+      N=N+4*LROW-14
+ 740  LROW=LROW-6
+      CALL SHBDRL (NNM,H,HR,HS,VR,VS,VT,BDRL)
+	IPEL  = 1
+	MTMOD = 1
+      CALL SHKLIN (S,DR,B,BDRL,NNM,NEF,IPEL,MTMOD)
+	
+	ENDIF
+C	!!!
+
+	IF(LFOC.GT.0) THEN
+C	INTERNAL FORCE
+
+	K=1
+      M=1
+      DO 560 I=1,NNM
+      DO 540 J=1,3
+      L=K+3
+      RE(K)=RE(K)+B(M)*SIGR(1)+B(M+1)*SIGR(2)+B(M+2)*SIGR(3)
+     1                      +B(M+3)*SIGR(7)+B(M+4)*SIGR(8)
+      RE(L)=RE(L)+B(M+15)*SIGR(4)+B(M+16)*SIGR(5)+B(M+17)*SIGR(6)
+     1                         +B(M+18)*SIGR(7)+B(M+19)*SIGR(8)
+      K=K+1
+ 540  M=M+5
+      K=K+3
+ 560  M=M+15
+
+C	---------------------------------------
+C	FORCES FROM DRILLING DOF 
+      CALL SHBDRL (NNM,H,HR,HS,VR,VS,VT,BDRL)
+	DO IEF = 1,NEF
+	RE(IEF) = RE(IEF) + BDRL(IEF)*SIGRD
+	ENDDO
+C	---------------------------------------
+
+	ENDIF
+
+400	CONTINUE
+
+
+8000	DEALLOCATE(IF3,AF7)
+	DEALLOCATE(NODEX)
+
+
+	RETURN
+
+	END
+
+
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================
+
+	SUBROUTINE SHMODUC(DMATX,YOUNA,POISM)
+	IMPLICIT REAL*8 (A-H,O-Z)
+	IMPLICIT INTEGER*4 (I-N)
+C	==================================================================
+C	CONSTRUCT THE CONSTITUTIVE MATRIX ACCORDING TO MATERIAL NUMBER
+C	=============================================================
+	DIMENSION DMATX(5,5),GASHM(5,5),TRAMX(5,5)
+
+
+	DO 10 I = 1,5
+	DO 10 J = 1,5
+10	DMATX(I,J) = 0.0
+	
+C	------------------------------------------------------------------
+C	ELASTIC & PLASTIC CONCRETE BEHAVIOR
+C	------------------------------------------------------------------
+	COEF1 = 5.0/6.0
+	CONS1 = YOUNA/(1.0-POISM*POISM)
+	CONS2 = YOUNA/(2.0*(1.0+POISM))
+	DMATX(1,1) = CONS1
+	DMATX(2,2) = CONS1
+	DMATX(1,2) = POISM*CONS1
+	DMATX(2,1) = POISM*CONS1
+	DMATX(3,3) = CONS2
+	DMATX(4,4) = COEF1*CONS2
+	DMATX(5,5) = COEF1*CONS2
+	GO TO 100
+
+C	------------------------------------------------------------------
+
+100   RETURN
+	END
+
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================
+	SUBROUTINE SHMODUS(DMATX,YOUNA)
+	IMPLICIT REAL*8 (A-H,O-Z)
+	IMPLICIT INTEGER*4 (I-N)
+C	==================================================================
+C	CONSTRUCT THE CONSTITUTIVE MATRIX ACCORDING TO MATERIAL NUMBER
+C	=============================================================
+	DIMENSION DMATX(5,5),GASHM(5,5),TRAMX(5,5)
+
+
+	DO 10 I = 1,5
+	DO 10 J = 1,5
+10	DMATX(I,J) = 0.0
+	
+C	------------------------------------------------------------------
+C	ELASTIC & PLASTIC CONCRETE BEHAVIOR
+C	------------------------------------------------------------------
+	CONS1 = YOUNA
+	DMATX(1,1) = CONS1
+	DMATX(2,2) = CONS1
+	GO TO 100
+
+C	------------------------------------------------------------------
+
+100   RETURN
+	END
+
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================
+	SUBROUTINE SHYSURF(SG5,FN,AVEC5,ALPI1)
+	IMPLICIT REAL*8 (A-H,O-Z)
+	IMPLICIT INTEGER*4 (I-N)
+
+C	YIELD SURFACE OF DRUCKER-PRAGER FOR SHELL LAYER
+
+	DIMENSION SG5(5),AVEC5(5)
+	DIMENSION SG(6),AVECT(6),PST(3)
+	DIMENSION AV1(6,1),AV2(6,1),AV3(6,1)
+
+C	======================================================================	
+C	PLASTIC POTENTIAL DERIVATIVE MATRIX ( ASSOCIATE FLOW RULE )
+C	======================================================================	
+	SG(1) = SG5(1)
+	SG(2) = SG5(2)
+	SG(3) = 0.0D0
+	SG(4) = SG5(3)
+	SG(5) = SG5(4)
+	SG(6) = SG5(5)
+
+	TEST = 0.0D0
+	DO I = 1,6
+	TEST = TEST + SG(I)*SG(I)
+	ENDDO
+	TEST = SQRT(TEST)
+
+	IF(TEST.EQ.0.0D0) THEN
+	AVEC5(1:5) = 0.0D0
+	FN = 0.0D0
+	RETURN
+	ENDIF
+
+
+	SX  = SG(1)
+	SY  = SG(2)
+	SZ  = SG(3)
+	TXY = SG(4)
+	TXZ = SG(5)
+	TYZ = SG(6)
+
+	AV1 = 0.0
+	AV2 = 0.0
+	AV3 = 0.0
+	AVECT  = 0.0
+
+	CALL INVAT(SG,PST,VARI1,VARI2,VARI3,VARJ2,VARJ3,THETA)
+
+C	FLOW VECTOR COMPONENT {AV1}
+
+	AV1(1,1) = 1.     !SX
+	AV1(2,1) = 1.     !SY
+	AV1(3,1) = 1.     !SZ
+	AV1(4,1) = 0.     !TXY
+	AV1(5,1) = 0.     !TXZ
+	AV1(6,1) = 0.     !TYZ
+
+C	FLOW VECTOR COMPONENT {AV2}
+
+	PM = (1./3.)*(SX+SY+SZ)
+
+	AV2(1,1) = (SX-PM)/(2.*SQRT(VARJ2))    !SX
+	AV2(2,1) = (SY-PM)/(2.*SQRT(VARJ2))    !SY
+	AV2(3,1) = (SZ-PM)/(2.*SQRT(VARJ2))    !SZ
+	AV2(4,1) = (2.*TXY)/(2.*SQRT(VARJ2))   !TXY
+	AV2(5,1) = (2.*TXZ)/(2.*SQRT(VARJ2))   !TXZ
+	AV2(6,1) = (2.*TYZ)/(2.*SQRT(VARJ2))   !TYZ
+
+
+C	FLOW VECTOR COMPONENT {AV3}
+
+	AV3(1,1) = (SY-PM)*(SZ-PM)-TYZ*TYZ+VARJ2/3.
+	AV3(2,1) = (SX-PM)*(SZ-PM)-TXZ*TXZ+VARJ2/3.
+	AV3(3,1) = (SX-PM)*(SY-PM)-TXY*TXY+VARJ2/3.
+	AV3(4,1) = 2.*(TYZ*TXZ-(SZ-PM)*TXY)
+	AV3(5,1) = 2.*(TXY*TYZ-(SY-PM)*TXZ)
+	AV3(6,1) = 2.*(TXZ*TXY-(SX-PM)*TYZ)
+
+C	======================================================================	
+C	END OF PLASTIC POTENTIAL DERIVATIVE MATRIX
+C	======================================================================
+
+
+C	=====================================	
+C	YIELD FUNCTION FLOW VECTOR COEFICIENT
+C	=====================================
+
+C	=========================
+C	VON-MISE
+C	=========================
+C	FN  = SQRT(VARJ2)
+C	CF1 = 0.0
+C	CF2 = 1.0
+C	CF3 = 0.0
+C	=========================
+C	END VON-MISE
+C	=========================
+
+C	=========================
+C	DRUCKER-PRACKER
+C	=========================
+	FN  = SQRT(3.0)*((ALPI1*VARI1) + SQRT(VARJ2))
+	CF1 = ALPI1 
+	CF2 = 1.0 
+	CF3 = 0.0
+C	=========================
+C	END DRUCKER-PRACKER
+C	=========================
+
+
+C	============================================	
+C	END OF YIELD FUNCTION FLOW VECTOR COEFICIENT
+C	============================================
+
+
+C	=========================	
+C	FLOW VECTOR
+C	=========================
+	DO I = 1,6
+	AVECT(I) = 0.0
+	AVECT(I) = CF1*AV1(I,1) + CF2*AV2(I,1) + CF3*AV3(I,1)
+	ENDDO
+
+	AVEC5(1) = AVECT(1)
+	AVEC5(2) = AVECT(2)
+	AVEC5(3) = AVECT(4)
+	AVEC5(4) = AVECT(5)
+	AVEC5(5) = AVECT(6)
+
+
+	RETURN
+
+	END	
+
+C	======================================================================	
+C	======================================================================	
+C	======================================================================

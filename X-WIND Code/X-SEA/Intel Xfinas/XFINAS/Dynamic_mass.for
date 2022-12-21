@@ -1,0 +1,76 @@
+C     DYNAMIC MASS IS REQUIRED EXTERNAL FILE AS NAME "dynamic_mass.dat"
+      
+C	=====================================================================  
+      SUBROUTINE READDYNAMICMASS
+      IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+      COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+      COMMON /DYNA_MASS/ DTIM(200),VDVALUE(200),NPOINT(200),NMASS
+      READ (ITI,*) 
+      READ (ITI,*)
+      READ (ITI,*) NMASS
+      READ (ITI,*) 
+      
+      DO I = 1,NMASS
+      READ (ITI,*) NPOINT(I),DTIM(I),VDVALUE(I)
+      ENDDO
+
+      END
+C	=====================================================================  
+      SUBROUTINE DYNAMICMASS (RMASS)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+      DIMENSION RMASS(6)
+      COMMON /TIME/ DDT,CTIM,NINC
+      COMMON /PREMASS/ APMASS1,APMASS2,APMASS3,APMASS4,APMASS5,APMASS6
+
+      CALL INTERPORATION_DYNAMIC_DATA (CTIM,RHO)
+      READ (201,*) AMASS1,AMASS2,AMASS3,AMASS4,AMASS5,AMASS6
+C     CTIM = TIME CALCULATION
+C     DDT  = TIME STEP
+C     NINC = TOTOAL TIME CALCULATION
+      
+C     INTERPOLATION GRAPH
+      RMASS(1) = RMASS(1)+AMASS1*RHO-APMASS1
+      RMASS(2) = RMASS(2)+AMASS2*RHO-APMASS2
+      RMASS(3) = RMASS(3)+AMASS3*RHO-APMASS3
+      RMASS(4) = RMASS(4)+AMASS4*RHO-APMASS4
+      RMASS(5) = RMASS(5)+AMASS5*RHO-APMASS5
+      RMASS(6) = RMASS(6)+AMASS6*RHO-APMASS6
+      
+      APMASS1 = AMASS1*RHO
+      APMASS2 = AMASS2*RHO
+      APMASS3 = AMASS3*RHO
+      APMASS4 = AMASS4*RHO
+      APMASS5 = AMASS5*RHO
+      APMASS6 = AMASS6*RHO
+      
+      END
+C	=====================================================================  
+      SUBROUTINE INTERPORATION_DYNAMIC_DATA (CTIM,VALUE)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+      COMMON /DYNA_MASS/ DTIM(200),VDVALUE(200),NPOINT(200),NMASS
+      
+      DO I = 1,NMASS
+          IF (CTIM.GE.DTIM(I))THEN
+             P11  = DTIM(I-1)
+             P12  = DTIM(I)
+             VP11 = VDVALUE(I-1)
+             VP12 = VDVALUE(I)
+          ENDIF
+      ENDDO
+
+      ! INTERPORATION
+      A1    = (P12-P11) 
+      IF (A1.GT.0D0)THEN
+      VALUE = VP11+((VP12-VP11)/(P12-P11) )
+      ELSEIF (A1.EQ.0D0)THEN
+      VALUE = (VP12-VP11) 
+      ENDIF
+
+      
+      END
+      
+      

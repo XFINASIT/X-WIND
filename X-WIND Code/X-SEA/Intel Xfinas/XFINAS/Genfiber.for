@@ -1,0 +1,1604 @@
+C	=====================================================================
+C	=====================================================================
+C	=====================================================================
+      SUBROUTINE FRAMSEC (IEG,ISECT,IGSET,MGPS)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+
+      CHARACTER*1 NAMEI(4)
+      DIMENSION   INAME(4)
+
+      DIMENSION IGSET(1)
+
+
+      NDTS = 200  !NUMBER OF SECTION PROPERTIES DATA PER ONE FRAME GAUSS POINT
+C	---------------
+	INAME(1:4) = [5,0,1,IEG] !XSEF
+	CALL ICONC(INAME,NAMEI)
+	CALL DEMINT(NAMEI,KXSEF,1,7)
+	CALL MINTZER(NAMEI)
+
+	INAME(1:4) = [5,0,2,IEG] !XSEP
+	CALL ICONC(INAME,NAMEI)
+	CALL DEMINT(NAMEI,KXSEP,1,MGPS) !Store Recording Point for Each Section 
+	CALL MINTZER(NAMEI)
+
+	INAME(1:4) = [5,0,1,IEG] !XSEC 
+	CALL ICONC(INAME,NAMEI)
+	CALL DEMREL(NAMEI,KXSEC,1,NDTS) !Store Section Props
+	CALL MRELZER(NAMEI)
+
+	INAME(1:4) = [5,0,1,IEG] !XSEF
+	CALL ICONC(INAME,NAMEI)
+	NFIL = 860 + IEG
+	NLEN = 20
+	CALL INTFILL('%FGF',NGRF,1,1,0)  !NUMBER OF FRAME GAUSS POINT (SEE ALSO SUB. ELMNPT)
+	NGAS = NGRF 
+	NREC = 0
+	CALL MINTFIL(NAMEI,NFIL,1,1,1)
+	CALL MINTFIL(NAMEI,NLEN,1,2,1)
+	CALL MINTFIL(NAMEI,NGAS,1,3,1)
+	CALL MINTFIL(NAMEI,NREC,1,4,1)
+	CALL MINTFIL(NAMEI,MGPS,1,5,1)  !STORE NUM SECTIONS  NGPS
+	CALL DIROPEN(NFIL,256)
+      
+C	---------------
+C     FILE FOR RECORD SECTION PROPERTIES (INTEGRATED OF ALL FIBER ... USEFUL FOR LINEAR ELASTIC MTMOD=1)      
+      NFILS= 880 + IEG
+      LRECL = 2*NDTS*NGAS
+	CALL DIROPEN(NFILS,LRECL)
+	CALL MINTFIL(NAMEI,NFILS,1,6,1)  !STORE FILE FOR RECORD SECTION PROPERTIES
+	CALL MINTFIL(NAMEI,NDTS ,1,7,1)  !SECTION PROPERTIES DATA PER ONE FRAME GAUSS POINT
+C	---------------
+
+	SELECT CASE (ISECT)
+	CASE (0,2,3) 
+	CALL GENAUTO (IEG,IGSET,MGPS)
+	CASE (1) 
+	CALL GENSTND (IEG,IGSET,MGPS)
+	END SELECT
+
+
+	RETURN
+	END
+C	=====================================================================
+C	=====================================================================
+C	=====================================================================
+      SUBROUTINE GENSTND (IEG,IGSET,MGPS)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+      CHARACTER*1 NAMEI(4)
+      DIMENSION   INAME(4)
+C     ------------------------------------------------------------
+C     PROPG(NGP,NGPS)  = GEOMETRIC PROPERTIES
+C     IGSET(NELE)      = GEOMETRIC PROPERTY SET NUMBER
+C     ------------------------------------------------------------
+      COMMON /ELEM/ NAME(2),ITYPE,ISTYP,NLOPT,MTMOD,NSINC,ITOLEY,
+     1              NELE,NMPS,NGPS,NMP,NGP,NNM,NEX,NCO,NNF,NWG,NEFC,
+     2              NPT,NWA,NWS,KEG,MEL,NNO,NEF,NELTOT,NMV,MTYP,ISECT
+
+	COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+
+      DIMENSION IGSET(NELE)
+
+
+
+C     --------------------------
+C     READ GEOMETRIC PROPERTIES 
+C     --------------------------
+	READ(ITI,*) 
+	DO ISET = 1,MGPS
+
+	READ(ITI,*) 
+
+	INAME(1:4) = [5,0,1,IEG] !XSEF
+	CALL ICONC(INAME,NAMEI)
+	CALL MINTFIL(NAMEI,NGAS,1,3,0)
+	CALL MINTFIL(NAMEI,NREC,1,4,0)
+
+	INAME(1:4) = [5,0,2,IEG] !XSEP
+	CALL ICONC(INAME,NAMEI)
+	CALL MINTFIL(NAMEI,NREC,1,ISET,1)  !STORE POINTER HERE
+
+	CALL XSTGEN(IEG,ISET)
+
+	ENDDO
+
+C     --------------------------
+C     ASSIGN TO ELEMENT 
+C     --------------------------
+	READ(ITI,*)
+	DO IE = 1,NELE
+	READ (ITI,*) MLE,IGSET(IE)
+	ENDDO
+
+
+	RETURN
+
+      END
+
+
+C     =================================================================
+C     =================================================================
+C     =================================================================
+	SUBROUTINE XSTGEN(IEG,ISET)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+      CHARACTER*1 NAMEI(4)
+      DIMENSION   INAME(4)
+C     =================================================================
+	COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+C     =================================================================
+      COMMON /ELEM/ NAME(2),ITYPE,ISTYP,NLOPT,MTMOD,NSINC,ITOLEY,
+     1              NELE,NMPS,NGPS,NMP,NGP,NNM,NEX,NCO,NNF,NWG,NEFC,
+     2              NPT,NWA,NWS,KEG,MEL,NNO,NEF,NELTOT,NMV,MTYP,ISECT
+C     =================================================================
+      COMMON /LOCA/ LID,LDS,LEL,LDC,LXY,LCH,LNU,LMP,LGP,LMS,LGS,
+     1              LCO,LEX,LLM,LES,LEC,LED,LEI,LEE,LMA,LLF,LLV,
+     2              LRE,LDI,LDL,LDT,LDK,LER,LEV,LTT,LWV,LAR,LBR,
+     3              LVE,LDD,LRT,LBU,LBC,LVL,LAL,LEF,LDU,LPR,LLO,
+	4              LRV,LRT1,LRET,LRET1,LDM,LDPT,LVL1,LMV,LXI,LCM,LCC,
+	5			    LCN,LDIM,LFRE,LSFC,LLOF
+C     =================================================================   
+     	COMMON /BF_SMOTH/ NP_SMH
+C     =================================================================
+      COMMON A(9000000),IA(9000000)   
+C     =================================================================
+	DIMENSION SDATA(3000)
+C     =================================================================
+	ALLOCATABLE AA(:),SSP(:),SSD(:)
+      
+	INAME(1:4) = [5,0,1,IEG] !XSEF
+	CALL ICONC(INAME,NAMEI)
+	CALL MINTFIL(NAMEI,NFIL,1,1,0)
+	CALL MINTFIL(NAMEI,NLEN,1,2,0)
+	CALL MINTFIL(NAMEI,NGAS,1,3,0)
+	CALL MINTFIL(NAMEI,NREC,1,4,0)
+      
+	ALLOCATE(AA(NLEN))
+      
+	CALL MINTFIL(NAMEI,NFILS,1,6,0) !FILE NUMBER TO STORE INTEGRATED SECTION PROPERTY
+	CALL MINTFIL(NAMEI,NDTS ,1,7,0) !NUMBER OF DATA PER ONE FRAME GAUSS POINT
+      ALLOCATE(SSP(NDTS*NGAS),SSD(NDTS))
+      SSP = 0.0D0
+      SSD = 0.0D0
+      
+C     READ STANDARD SECTION PROPERTIES
+	READ(ITI,*) IS,AREA,QS,QT,SIT,TIT,SITT,FPI,FJP,ANG,MTSET
+	READ(ITI,*) AREAS,AREAT,FWWP,BNORM,HNORM                       !BNORM,HNORM = NORMINAL WIDTH,HEIGHT FOR SECTION (USE WITH THERMAL LOAD)
+
+C	FPI = SIT+TIT !POLAR MOMENT OF INERTIA
+	FWSP= 0.0D0   !WARPING W*S*dA
+	FWTP= 0.0D0   !WARPING W*T*dA
+	FWP = 0.0D0   !WARPING W*dA
+
+C     SHEAR DEFORMATION FACTOR      
+	FACS = 1.0D0
+	FACT = 1.0D0
+	FACST= 0.0D0
+	IF(AREA.NE.0.0D0) FACS = AREAS/AREA
+	IF(AREA.NE.0.0D0) FACT = AREAT/AREA
+      
+      AA(1:3) = 0.0D0
+      IF(FACS.NE.0.0D0) AA(1) = 1.0/FACS !SHEAR DEFORMATION FACTOR ... S DIR.
+      IF(FACT.NE.0.0D0) AA(2) = 1.0/FACT !SHEAR DEFORMATION FACTOR ... T DIR.
+      
+      SSD(8:10) = AA(1:3) !STORE 8:10 OF SECTION PROPERTIES ... SHEAR DEFORM. FACTOR   
+      
+      
+C     STRESS POINT DATA ... POSITION TO CALCULATE SECTIONAL STRESS	
+	CALL XSTGEN_S(NSTS,SDATA)
+
+C	------------------------------------
+	INAME(1:4) = [5,1,ISET,IEG] !XSEH
+	CALL ICONC(INAME,NAMEI)
+	NNN = 1 + NGAS + NSTS*NGAS
+	CALL DEMREL(NAMEI,KXSEH,NNN,NLEN) !Store Section Props 
+	CALL MRELZER(NAMEI)
+C	------------------------------------
+C	------------------------------------
+	INAME(1:4) = [5,2,ISET,IEG] !XSHB      
+	CALL ICONC(INAME,NAMEI)
+	NNN = NGAS
+	CALL DEMREL(NAMEI,KXSEH,NNN,6) !Store Section Norminal Width and Height (2 value) , MAX&MIN Coord. S&T (4 value)
+	CALL MRELZER(NAMEI)
+C	------------------------------------
+
+	NRC = NREC
+	
+	AA(1:NLEN) = 0.0D0
+	AA(1) = 0.0    !0 = STANDARD SEC  1= FIBER
+	AA(2) = FLOAT(NSTS)
+	AA(3) = FLOAT(NGAS)
+	AA(4) = 0.0    !NFIBER
+	AA(5) = ANG    !FRAME AXIS ROTATIONAL ANGLE 
+      
+	NRC   = NRC + 1
+	WRITE(NFIL,REC=NRC) AA(1:NLEN)  !WRITE SECTION DATA
+
+      SSD(1:5) = AA(1:5) !STORE 1:5 OF SECTION PROPERTIES
+ 
+C     ----------------------------  
+      YOUNG   = A(LMP+NMP*(MTSET-1)-1 +1 )
+	POISN   = A(LMP+NMP*(MTSET-1)-1 +2 )
+	DENS    = A(LMP+NMP*(MTSET-1)-1 +5 )
+	ALPHA   = A(LMP+NMP*(MTSET-1)-1 +13)
+	FACTG   = 0.5/(1.0+POISN)   
+      
+      SSD(11) = YOUNG
+C     ----------------------------   
+C     ----------------------------      
+	DO 1000 IGAS = 1,NGAS
+
+	AA(1:NLEN) = 0.0D0
+	AA(1)  = AREA
+	AA(2)  = QS
+	AA(3)  = QT
+	AA(4)  = SIT
+	AA(5)  = TIT
+	AA(6)  = SITT
+	AA(7)  = FJP
+	AA(8)  = AREAS
+	AA(9)  = AREAT
+	AA(10) = FWWP
+	AA(11) = FWSP
+	AA(12) = FWTP
+	AA(13) = FWP
+	AA(14) = FPI
+      
+	NRC    = NRC + 1
+	WRITE(NFIL,REC=NRC) AA(1:NLEN)  !WRITE SECTION PROPS
+      
+C     STORE 21:34 OF SECTION PROPERTIES
+      SSD(21:34) = AA(1:14)      !STORE INTEGRATED SECTION PROPERTIY ... PREPARE FOR PRINT TO FILE
+      
+C     STORE 41:54 OF SECTION PROPERTIES
+      VALV  = ALPHA*YOUNG
+      SSD(41:54) = VALV*AA(1:14)    !STORE INTEGRATED SECTION PROPERTIY ... PREPARE FOR PRINT TO FILE
+      SSD(47:49) = SSD(47:49)*FACTG !CHANGE FROM YOUNG TO SHEAR MODULUS ... FOR SHEAR AREA
+      SSD(54)    = SSD(54)*FACTG    !CHANGE FROM YOUNG TO SHEAR MODULUS ... FOR TORSION
+      
+C     STORE 61:74 OF SECTION PROPERTIES
+      VALV  = DENS
+      SSD(61:74) = VALV*AA(1:14) !STORE INTEGRATED SECTION PROPERTIY ... PREPARE FOR PRINT TO FILE
+      
+C     STORE 91:104 OF SECTION PROPERTIES
+      VALV  = YOUNG
+      SSD(91:104) = VALV*AA(1:14)    !STORE INTEGRATED SECTION PROPERTIY ... PREPARE FOR PRINT TO FILE
+      SSD(97:99)  = SSD(97:99)*FACTG !CHANGE FROM YOUNG TO SHEAR MODULUS ... FOR SHEAR AREA
+      SSD(104)    = SSD(104)*FACTG   !CHANGE FROM YOUNG TO SHEAR MODULUS ... FOR TORSION
+      
+C	------------------------------------------------------------------
+C	STORE NORMINAL WIDTH,HEIGHT FOR SECTION (USE WITH THERMAL LOAD)
+C	------------------------------------------------------------------
+	TMAX = 0.5*BNORM ; SMAX = 0.5*HNORM
+	TMIN =-0.5*BNORM ; SMIN =-0.5*HNORM
+
+C     STORE 111:116 OF SECTION PROPERTIES
+      SSD(111:116) = [BNORM,HNORM,SMAX,SMIN,TMAX,TMIN]
+C	------------------------------------------------------------------
+      
+C	------------------------------------------------------------------
+C	STRESS POINT
+C	------------------------------------------------------------------
+	DO ISTS = 1,NSTS
+	AA(1:NLEN) = 0.0D0
+	AA(1) = SDATA(3*ISTS-2)
+	AA(2) = SDATA(3*ISTS-1)
+	AA(3) = SDATA(3*ISTS-0)
+      
+	NRC = NRC + 1
+	WRITE(NFIL,REC=NRC) AA(1:NLEN)  !WRITE STRESS COORD
+	
+	SN	= AA(1)		!STRESS POINT NUM
+	SS  = AA(2)		!S	
+	TT  = AA(3)		!T
+	WP  = 0.0D0		!WARPING FUNCTION
+      
+C     STORE 120+1:120+4*NSTS OF SECTION PROPERTIES
+      NDUMY = 4*(ISTS-1)+120
+      SSD(NDUMY+1:NDUMY+4) = [SN,SS,TT,WP]
+      ENDDO
+C	------------------------------------------------------------------
+      
+C     TRANSFER DATA TO LARGER ARRAY  ... PREPARE FOR PRINT
+      NDUMY = NDTS*(IGAS-1)
+      SSP(1+NDUMY:NDTS+NDUMY) = SSD(1:NDTS)
+      
+1000   CONTINUE
+C     ----------------------------     
+      
+C     PRINT SECTION PROPERTIES TO FILE     SONGSAK OCT2019
+      WRITE(NFILS,REC=ISET) SSP
+
+      
+	INAME(1:4) = [5,0,1,IEG] !XSEF
+	CALL ICONC(INAME,NAMEI)
+	CALL MINTFIL(NAMEI,NRC,1,4,1)  !UPDATE RECORD POINT
+
+
+	WRITE(ISO,1500) ISET
+	WRITE(ISO,1800) AA(1),AA(8:9),AA(2:7)
+      
+      
+	DEALLOCATE(AA,SSP,SSD)
+      
+ 1500 FORMAT (///20X,35HFRAME GEOMETRIC PROPERTIES SET NO. ,I4/
+     +        20X,38(1H-)/)
+ 1800 FORMAT (15X,42HCROSS-SECTIONAL AREA  . . . . . . . A    =,E14.6/
+     +        15X,42HSHEAR AREA ALONG S  . . . . . . . . AS   =,E14.6/
+     +        15X,42HSHEAR AREA ALONG T  . . . . . . . . AT   =,E14.6/
+     +        15X,42HSTATIC MOMENT (S) . . . . . . . . . QS   =,E14.6/
+     +        15X,42HSTATIC MOMENT (T) . . . . . . . . . QT   =,E14.6/
+     +        15X,42HMOMENT OF INERTIA (SS)  . . . . . . ISS  =,E14.6/
+     +        15X,42HMOMENT OF INERTIA (TT)  . . . . . . ITT  =,E14.6/
+     +        15X,42HMOMENT OF INERTIA (ST)  . . . . . . IST  =,E14.6/
+     +        15X,42HTORSIONAL CONSTANT(JP)  . . . . . . JP   =,E14.6/)
+
+
+
+	RETURN
+
+	END
+C     =================================================================
+C     =================================================================
+C     =================================================================
+	SUBROUTINE XSTGEN_S(NST,SDATA)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     =================================================================
+	COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+C     =================================================================
+C     =================================================================
+	DIMENSION SDATA(3,1)
+C     =================================================================
+	DO I = 1,1000
+	SDATA(1,I) = 0.0D0
+	SDATA(2,I) = 0.0D0
+	SDATA(3,I) = 0.0D0
+	ENDDO
+
+	READ(ITI,*) NST
+	DO I = 1,NST
+	READ(ITI,*) IN,S,T
+	SDATA(1,I) = FLOAT(IN)
+	SDATA(2,I) = S
+	SDATA(3,I) = T
+	ENDDO
+
+	RETURN
+
+	END
+C     =================================================================
+C     =================================================================
+C     =================================================================
+      SUBROUTINE GENAUTO (IEG,IGSET,MGPS)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+
+      CHARACTER*1 NAMEI(4)
+      DIMENSION   INAME(4)
+C     ------------------------------------------------------------
+C     PROPG(NGP,NGPS)  = GEOMETRIC PROPERTIES
+C     IGSET(NELE)      = GEOMETRIC PROPERTY SET NUMBER
+C     ------------------------------------------------------------
+      COMMON /ELEM/ NAME(2),ITYPE,ISTYP,NLOPT,MTMOD,NSINC,ITOLEY,
+     1              NELE,NMPS,NGPS,NMP,NGP,NNM,NEX,NCO,NNF,NWG,NEFC,
+     2              NPT,NWA,NWS,KEG,MEL,NNO,NEF,NELTOT,NMV,MTYP,ISECT
+
+	COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+
+      DIMENSION IGSET(NELE)
+
+C     --------------------------
+C     READ GEOMETRIC PROPERTIES 
+C     --------------------------
+	READ(ITI,*) 
+	DO ISET = 1,MGPS
+
+	READ(ITI,*) 
+
+	WRITE (111,100) IEG,ISET
+
+	INAME(1:4) = [5,0,1,IEG] !XSEF
+	CALL ICONC(INAME,NAMEI)
+	CALL MINTFIL(NAMEI,NREC,1,4   ,0)  !CALLING CURRENT POINTER
+
+	INAME(1:4) = [5,0,2,IEG] !XSEP
+	CALL ICONC(INAME,NAMEI)
+	CALL MINTFIL(NAMEI,NREC,1,ISET,1)  !STORE POINTER HERE
+
+	CALL XFBGEN(IEG,ISET,MGPS)
+	ENDDO
+
+	WRITE (111,110)
+
+C     --------------------------
+C     ASSIGN TO ELEMENT 
+C     --------------------------
+	READ(ITI,*)
+
+	
+	WRITE (111,200) NELE
+	DO IE = 1,NELE
+	READ (ITI,*) MLE,IGSET(IE)
+	WRITE (111,205) MLE,IEG,IGSET(IE)
+	ENDDO
+
+	WRITE (111,210) 
+      
+100	FORMAT('START-SECTION'/2I5)
+110	FORMAT('END-SECTION')
+200	FORMAT('START-ASSIGNMENT'/I8)
+205	FORMAT(I8,X,2I5)
+210	FORMAT('END-ASSIGNMENT')
+
+	RETURN
+
+      END
+
+
+C     =================================================================
+C     =================================================================
+C     =================================================================
+
+	SUBROUTINE XFBGEN(IEG,ISET,MGPS)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+
+      CHARACTER*1 NAMEI(4)
+      DIMENSION   INAME(4)
+
+	COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+
+	COMMON /GASEC/  GAUSP(10,10),GAUSW(10,10)
+	COMMON /LINEAT/ KTRAF,KEATH,KCSAL,KOFFL,KSPEC,KDESIGN,KFATM,KFATJ,KFATL,KFAST,KOREV !SONGSAK AUG2007 RESPONSE SPECTRUM FOR ISOLOP 1 !SONGSAK AUG2007 RESPONSE SPECTRUM FOR ISOLOP 1
+		
+
+	DIMENSION   PROPS(1000,9),WARP4(9),MONST(1000),MAPP(8)
+	DIMENSION   TS(2,8),H(8),P(2,8),XJ(2,2),XX(2),VR(2),VS(2)
+	DIMENSION   PROPM(1),SPOIN(5,1000)
+	DIMENSION   PROPSEC(10)
+      DIMENSION   SVAL(20)
+
+	ALLOCATABLE AA(:),SSP(:),GPL(:),GPW(:),SS(:,:),TT(:,:),CONCT(:,:)
+	ALLOCATABLE GSTS(:,:),MMNN(:,:),LCNT(:,:)
+	ALLOCATABLE WARP(:),WARPG(:),TORCG(:),STRSP(:,:)
+
+	INAME(1:4) = [5,0,1,IEG] !XSEF
+	CALL ICONC(INAME,NAMEI)
+	CALL MINTFIL(NAMEI,NFIL,1,1,0)
+	CALL MINTFIL(NAMEI,NLEN,1,2,0)
+	CALL MINTFIL(NAMEI,NGAS,1,3,0)
+	CALL MINTFIL(NAMEI,NREC,1,4,0)
+
+	CALL MINTFIL(NAMEI,NFILS,1,6,0) !FILE NUMBER TO STORE INTEGRATED SECTION PROPERTY
+	CALL MINTFIL(NAMEI,NDTS ,1,7,0) !NUMBER OF DATA PER ONE FRAME GAUSS POINT
+      ALLOCATE(SSP(NDTS*NGAS))
+      SSP = 0.0D0
+      
+	ALLOCATE(AA(NLEN))
+ 
+      ! READ GEOMETRIC SET DATA >> BEGIN OF SECTION 1
+	READ(ITI,*) 
+	1	IS,NTOUR,NSEGT,NPRT,KONST,NSTEL,ANG,RHO,MATR,BNORM,HNORM   !NST = NUMBER OF STRESS POINT MAX = 12
+
+
+	ALLOCATE(SS(2,NTOUR),TT(2,NTOUR),CONCT(11,NSEGT))
+	ALLOCATE(GSTS(2,NTOUR),MMNN(2,NSEGT),LCNT(8,NSEGT))
+	ALLOCATE(WARP(NTOUR))
+	WARP = 0.0D0
+
+C	WRITE NSEGT TO FRAMESEC.SEC FOR GID OUTPUT
+	WRITE (111,*) NSEGT
+
+
+	NFIB = 0
+	NCTR = 0
+	IT1 = 0
+	IT2 = 0
+	ISG = 0
+	DO IPRT = 1,NPRT
+	
+C	READ SECTION PROPERTIES
+      CALL SECTIONPROPERTIES (ISET,MGPS)
+      
+	READ(ITI,*) NTOURI,NSEGTI
+	IF(IPRT.EQ.1) NTOUR1 = NTOURI
+	IF(IPRT.EQ.1) NSEGT1 = NSEGTI
+
+C	READ MASTER CONTOUR
+	READ(ITI,*)
+	DO I = 1,NTOURI
+	IT1 = IT1 + 1
+	READ(ITI,*) ITOUR,SS(1,IT1),TT(1,IT1)		!SECTION I
+	ENDDO
+	   IF (KDESIGN.EQ.1.OR.KOFFL.EQ.1.OR.KSPEC.EQ.1)THEN
+         CALL MVALUE (SS,TT,MGPS,ISET,1)
+         ENDIF
+	DO I = 1,NTOURI
+	IT2 = IT2 + 1
+	READ(ITI,*) ITOUR,SS(2,IT2),TT(2,IT2)		!SECTION J
+	ENDDO
+	   IF (KDESIGN.EQ.1.OR.KOFFL.EQ.1.OR.KSPEC.EQ.1)THEN
+         CALL MVALUE (SS,TT,MGPS,ISET,2)
+         ENDIF
+
+	
+C	READ SEGMENT CONNECTIVITY
+	READ(ITI,*)
+	DO 10 I = 1,NSEGTI
+	ISG = ISG + 1
+C	ISEGT, MM,NN,MTSET,N1,N2,N3,N4,N5,N6,N7,N8
+	READ(ITI,*) ISEGT,(CONCT(J,ISG),J=1,11)
+	CONCT(3:11,ISG) = CONCT(3:11,ISG)+NCTR
+	FNUM = CONCT(1,ISG)*CONCT(2,ISG)
+	NFIB = NFIB + INT(FNUM)
+10    CONTINUE
+      
+	NCTR = NCTR + NTOURI
+      ENDDO
+      
+	
+C	READ NODAL CONSTRAINT DATA
+	IF(KONST.NE.0) THEN
+
+	READ(ITI,*)
+	K = 0
+	DO I = 1,KONST
+		K = K + 1
+		READ(ITI,*) NCG
+		MONST(K) = NCG
+
+		READ(ITI,*) MONST(K+1:K+NCG)
+		K = K + NCG
+	ENDDO
+
+	ENDIF
+
+
+	IF(RHO.GT.0.0D0) NFIB = NFIB*2
+
+C	---------------------------------------------
+C	FOR STEEL BAR
+	IF(NSTEL.NE.0) THEN
+
+	READ(ITI,*)
+	DO I = 1,NSTEL
+C	ISTEL,NL,NS,SPEC,DD,S1,T1,S2,T2,MTSET
+	READ(ITI,*) ISTEL,(PROPS(I      ,J),J=1,9)
+	READ(ITI,*)       (PROPS(I+NSTEL,J),J=3,9)
+	FNUM = PROPS(I,1)*PROPS(I,2)
+	NFIB = NFIB + INT(FNUM)
+	ENDDO
+
+	ENDIF
+C	---------------------------------------------
+
+C	READ STRESS DATA
+	READ(ITI,*) 
+	READ(ITI,*) NST
+	CALL XSTGEN_F(NST,SPOIN)
+
+C	---------------------------------------------
+
+
+	III = 0
+C	------------------------------------
+	INAME(1:4) = [5,1,ISET,IEG] !XSEH
+	CALL ICONC(INAME,NAMEI)
+	NNN = 1 + NSEGT + NGAS + NGAS*NTOUR + NGAS*NFIB + NGAS*NST
+	CALL DEMREL(NAMEI,KXSEH,NNN,8) !Store Section Props 
+	CALL MRELZER(NAMEI)
+C	------------------------------------
+C	------------------------------------
+	INAME(1:4) = [5,2,ISET,IEG] !XSHB      
+	CALL ICONC(INAME,NAMEI)
+	NNN = NGAS
+	CALL DEMREL(NAMEI,KXSEH,NNN,6) !Store Section Norminal Width and Height (2 value), MAX&MIN Coord. S&T (4 value)
+	CALL MRELZER(NAMEI)
+C	------------------------------------
+
+
+C	------------------------------------
+	NRC = NREC
+	
+	AA(1:NLEN) = 0.0D0
+	AA(1) = 1.0    !0 = STANDARD SEC  1= FIBER
+	AA(2) = FLOAT(NST)
+	AA(3) = FLOAT(NGAS)
+	AA(4) = FLOAT(NFIB)  !NFIBER
+	AA(5) = ANG
+	AA(6) = FLOAT(NTOUR)
+	AA(7) = FLOAT(NSEGT)
+	NRC = NRC + 1
+	WRITE(NFIL,REC=NRC) AA(1:NLEN)  !WRITE SECTION DATA
+
+	III = III + 1
+	INAME(1:4) = [5,1,ISET,IEG] !XSEH
+	CALL ICONC(INAME,NAMEI)
+	CALL MRELFILA(NAMEI,AA(1),III,1,7,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(1),III,1,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(2),III,2,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(3),III,3,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(4),III,4,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(5),III,5,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(6),III,6,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(7),III,7,1) !Store Section Props 
+
+C	------------------------------------
+C	STORE THE SEGMENT CONNECTIVITY
+	DO ISEGT = 1,NSEGT
+	AA(1:NLEN) = 0.0D0
+
+	DO I = 1,8
+	MM = INT( CONCT(1,ISEGT) )
+	NN = INT( CONCT(2,ISEGT) )
+	MMNN(1,ISEGT) = MM
+	MMNN(2,ISEGT) = NN
+	LCNT(I,ISEGT) = INT( CONCT(I+3,ISEGT) )  !MM,NN,MTSET,N1,N2,N3,N4,N5,N6,N7,N8
+	AA(I) = CONCT(I+3,ISEGT)
+	ENDDO
+
+	NRC = NRC + 1
+	WRITE(NFIL,REC=NRC) AA(1:NLEN)  !WRITE SECTION DATA
+	III = III + 1
+	INAME(1:4) = [5,1,ISET,IEG] !XSEH
+	CALL ICONC(INAME,NAMEI)
+	CALL MRELFILA(NAMEI,AA(1),III,1,4,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(1),III,1,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(2),III,2,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(3),III,3,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(4),III,4,1) !Store Section Props 
+	ENDDO
+C	--------------------------------------------------------
+C	FORM THE GAUSS POINT DATA WHICH INCLUDE THE 2 ENDS POINT
+	ALLOCATE(GPL(NGAS),GPW(NGAS))
+	DO IGAS = 1,NGAS
+	IF(IGAS.EQ.1  )  GPL(IGAS) = -1.0D0
+	IF(IGAS.EQ.NGAS) GPL(IGAS) =  1.0D0 
+	IF(IGAS.NE.1.AND.IGAS.NE.NGAS) GPL(IGAS) =  GAUSP(IGAS-1,NGAS-2)
+	IF(IGAS.EQ.1  )  GPW(IGAS) =  0.0D0
+	IF(IGAS.EQ.NGAS) GPW(IGAS) =  0.0D0 
+	IF(IGAS.NE.1.AND.IGAS.NE.NGAS) GPW(IGAS) =  GAUSW(IGAS-1,NGAS-2)
+	ENDDO
+C	--------------------------------------------------------
+
+	ALLOCATE(WARPG(NFIB),TORCG(NFIB),STRSP(4,NST))
+	WARPG = 0.0D0
+	TORCG = 0.0D0
+
+C     LOOP OVER FRAME GAUSS POINT ******      
+	DO 5000 IGAS = 1,NGAS
+          
+	RI = GPL(IGAS)
+	H1 = 0.5*(1.0-RI)
+	H2 = 0.5*(1.0+RI)
+
+C	------------------------------------
+C	CALCULATE SECTION PROPERTIES INCLUDE WARPING
+	DO ITOUR = 1,NTOUR
+	GSTS(1,ITOUR) = H1*TT(1,ITOUR) + H2*TT(2,ITOUR) !T
+	GSTS(2,ITOUR) = H1*SS(1,ITOUR) + H2*SS(2,ITOUR) !S
+	ENDDO
+
+	CALL WARPCAL(NTOUR1,NSEGT1,GSTS,LCNT,MMNN,MONST,KONST,
+	1			 FKT,FKS,FKST,WARP,WARPG,TORCG,ISET)
+C	------------------------------------
+C	STORE SHEAR DEFORMATION FACTOR
+	AA(1) = FKS
+	AA(2) = FKT
+	AA(3) = FKST
+	NRC = NRC + 1
+	WRITE(NFIL,REC=NRC) AA(1:NLEN)  !WRITE FIBER PROPS
+	III = III + 1
+	INAME(1:4) = [5,1,ISET,IEG] !XSEH
+	CALL ICONC(INAME,NAMEI)
+	CALL MRELFILA(NAMEI,AA(1),III,1,3,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(1),III,1,1) !SHEAR COEF IN S
+CC	CALL MRELFIL(NAMEI,AA(2),III,2,1) !SHEAR COEF IN T
+CC	CALL MRELFIL(NAMEI,AA(3),III,3,1) !SHEAR COEF IN ST
+C	------------------------------------
+C	STORE THE CONTOUR POINTS AND WARPING FUNCTION
+	DO ITOUR = 1,NTOUR
+	AA(1) = H1*SS(1,ITOUR) + H2*SS(2,ITOUR) !S
+	AA(2) = H1*TT(1,ITOUR) + H2*TT(2,ITOUR) !T
+	AA(3) = WARP(ITOUR)
+	NRC = NRC + 1
+	WRITE(NFIL,REC=NRC) AA(1:NLEN)  !WRITE FIBER PROPS
+	III = III + 1
+	INAME(1:4) = [5,1,ISET,IEG] !XSEH
+	CALL ICONC(INAME,NAMEI)
+	CALL MRELFILA(NAMEI,AA(1),III,1,3,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(1),III,1,1) !Store Section Props S
+CC	CALL MRELFIL(NAMEI,AA(2),III,2,1) !Store Section Props T
+CC	CALL MRELFIL(NAMEI,AA(3),III,3,1) !WARPING FUNCTION AT CONTOUR POINT
+	ENDDO
+C	------------------------------------
+C	GET THE BIGGEST SIZE OF SECTION
+	SMAX  = 0.0D0
+	SMIN  = 0.0D0	
+	TMAX  = 0.0D0
+	TMIN  = 0.0D0
+	DO ITOUR = 1,NTOUR
+	CO_S = H1*SS(1,ITOUR) + H2*SS(2,ITOUR) !S
+	CO_T = H1*TT(1,ITOUR) + H2*TT(2,ITOUR) !T
+
+	IF(ITOUR.EQ.1) THEN
+	TMAX = CO_T
+	TMIN = CO_T
+	SMAX = CO_S
+	SMIN = CO_S
+	ENDIF
+
+	IF(CO_T.GT.TMAX) TMAX = CO_T
+	IF(CO_T.LT.TMIN) TMIN = CO_T
+	IF(CO_S.GT.SMAX) SMAX = CO_S
+	IF(CO_S.LT.SMIN) SMIN = CO_S
+
+	ENDDO
+	BNORM = ABS(TMAX - TMIN)
+	HNORM = ABS(SMAX - SMIN)
+	SIZMX = HNORM
+	IF(BNORM.GT.SIZMX) SIZMX = BNORM
+C	------------------------------------
+C	GENERATE STRESS POINT POSITION AT GAUSS POINT ALONG THE BEAM
+	DO IST = 1,NST
+	STRSP(1,IST) = SPOIN(1,IST)
+	STRSP(2,IST) = SPOIN(2,IST)*H1 + SPOIN(4,IST)*H2  !S
+	STRSP(3,IST) = SPOIN(3,IST)*H1 + SPOIN(5,IST)*H2  !T
+	STRSP(4,IST) = 0.0D0	!WARPING FUNCTION TO BE CALCULATE
+	
+	WW = 0.0D0
+	DLEM = SIZMX
+	DO ITOUR = 1,NTOUR
+	DLEN1 = (SPOIN(2,IST)-SS(1,ITOUR))*(SPOIN(2,IST)-SS(1,ITOUR))
+	1	   +(SPOIN(3,IST)-TT(1,ITOUR))*(SPOIN(3,IST)-TT(1,ITOUR))
+	DLEN1 = SQRT(DLEN1)
+	DLEN2 = (SPOIN(4,IST)-SS(2,ITOUR))*(SPOIN(4,IST)-SS(2,ITOUR))
+	1	   +(SPOIN(5,IST)-TT(2,ITOUR))*(SPOIN(5,IST)-TT(2,ITOUR))
+	DLEN2 = SQRT(DLEN2)
+	DLEN = DLEN1*H1 + DLEN2*H2
+
+	IF(ITOUR.EQ.1) DLEM = DLEN
+
+	IF(DLEN.LE.DLEM) THEN
+	DLEM = DLEN
+	WW   = WARP(ITOUR)
+	ENDIF
+	ENDDO
+
+	IF(DLEM.LE.0.01*SIZMX) THEN
+	STRSP(4,IST) = WW	!STORE WARPING FUNCTION
+	ENDIF
+
+
+	ENDDO
+
+C	------------------------------------
+C	WRITE WARPING FUNCTION TO FRAMESEC.SEC FOR GID OUTPUT
+	IF(IGAS.EQ.1.OR.IGAS.EQ.NGAS) THEN  !FOR 1st and Last Gauss Point
+	MAPP(1:4) = [1,3,5,7]
+	DO ISEGT = 1,NSEGT
+	DO I = 1,4
+	II = MAPP(I)
+	NODI = LCNT(II,ISEGT)			!CONNECTIVITY
+	WARP4(I) = WARP(NODI)
+	ENDDO
+	WRITE (111,6000) WARP4(1:4)
+	ENDDO
+	ENDIF
+C	--------------------------------------------------------
+
+C	====================================
+C	GENERATE FIBER DATA
+C	====================================
+	BNORM = 0.0D0	!BNORM = NORMINAL WIDTH  FOR SECTION (USE WITH THERMAL LOAD)
+	HNORM = 0.0D0	!HNORM = NORMINAL HEIGHT FOR SECTION (USE WITH THERMAL LOAD)
+	SMAX  = 0.0D0
+	SMIN  = 0.0D0	
+	TMAX  = 0.0D0
+	TMIN  = 0.0D0
+
+	IFIB = 0
+C	CONCRETE FIRST
+	DO 1010 ISEGT = 1,NSEGT
+	
+	MM = MMNN(1,ISEGT)
+	NN = MMNN(2,ISEGT)
+
+C	MATTERIAL No.
+	MTSET = INT( CONCT(3,ISEGT) )	!MM,NN,MTSET,N1,N2,N3,N4,N5,N6,N7,N8
+
+	DO I = 1,8
+	NODI = LCNT(I,ISEGT)			!CONNECTIVITY
+	TS(1,I) = H1*TT(1,NODI) + 
+	1		  H2*TT(2,NODI)    !T
+	TS(2,I) = H1*SS(1,NODI) + 
+	1		  H2*SS(2,NODI)    !S
+	ENDDO
+	
+
+	IF(ISEGT.EQ.1) THEN
+	TMAX = TS(1,1)
+	TMIN = TS(1,1)
+	SMAX = TS(2,1)
+	SMIN = TS(2,1)
+	ENDIF
+	DO I = 1,8
+	IF(TS(1,I).GT.TMAX) TMAX = TS(1,I)
+	IF(TS(1,I).LT.TMIN) TMIN = TS(1,I)
+	IF(TS(2,I).GT.SMAX) SMAX = TS(2,I)
+	IF(TS(2,I).LT.SMIN) SMIN = TS(2,I)
+	ENDDO
+
+
+	DO IGR = 1,MM
+	RI = GAUSP(IGR,MM)
+	DO IGS = 1,NN
+	SI = GAUSP(IGS,NN)
+	WW = GAUSW(IGR,MM)*GAUSW(IGS,NN)
+
+	IFIB = IFIB + 1
+
+      CALL WRP2D(RI,SI,H,P)
+      
+C     P(2,8),TRANSPOSE(TS)(8,2)
+C     CALL DGEMM('N','N',M,N,K,ALPHA,A,M,B,K,BETA,C,M)
+      ALPHA = 1.0D0
+      BETA  = 1.0D0
+      XJ    = 0.0D0
+      CALL DGEMM('N','N',2,2,8,ALPHA,P,2,TRANSPOSE(TS),8,BETA,XJ,2)   
+C	XJ = MATMUL(P,TRANSPOSE(TS))
+	
+      DET = XJ(1,1)*XJ(2,2) - XJ(1,2)*XJ(2,1) 
+
+	DA = WW*DET
+	IF(DA.LE.0.0D0) THEN 
+	AA(1:NLEN) = 0.0D0
+	AA(1) = 0.0D0	!DA
+	AA(2) = 0.0D0	!S
+	AA(3) = 0.0D0	!T
+	AA(4) = FLOAT(MTSET)	!MTSET
+	AA(5) = 0.0D0			!IDTCS
+	AA(6) = 0.0D0			!WARPING FUNC.
+	AA(7) = 0.0D0			!TORSIONAL CONSTANT FUNC.
+	NRC = NRC + 1
+	WRITE(NFIL,REC=NRC) AA(1:NLEN)  !WRITE FIBER PROPS
+
+	III = III + 1
+	INAME(1:4) = [5,1,ISET,IEG] !XSEH
+	CALL ICONC(INAME,NAMEI)
+	CALL MRELFILA(NAMEI,AA(1),III,1,7,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(1),III,1,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(2),III,2,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(3),III,3,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(4),III,4,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(5),III,5,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(6),III,6,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(7),III,7,1) !Store Section Props 
+
+	GOTO 200
+	ENDIF
+
+C     TS(2,8),H(8)
+C     CALL DGEMM('N','N',M,N,K,ALPHA,A,M,B,K,BETA,C,M)
+      XX = 0.0D0
+      CALL DGEMM('N','N',2,1,8,ALPHA,TS,2,H,8,BETA,XX,8)
+C	XX = MATMUL(TS,H)
+	
+	AA(1:NLEN) = 0.0D0
+	AA(1) = DA		   !DA
+	AA(2) = XX(2)      !S
+	AA(3) = XX(1)      !T
+	AA(4) = FLOAT(MTSET)	!MTSET
+	AA(5) = 0.0D0			!IDTCS
+	AA(6) = WARPG(IFIB)		!WARPING FUNC.
+	AA(7) = TORCG(IFIB)		!TORSIONAL CONSTANT FUNC.
+	NRC = NRC + 1
+	WRITE(NFIL,REC=NRC) AA(1:NLEN)  !WRITE FIBER PROPS
+
+
+	III = III + 1
+	INAME(1:4) = [5,1,ISET,IEG] !XSEH
+	CALL ICONC(INAME,NAMEI)
+	CALL MRELFILA(NAMEI,AA(1),III,1,7,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(1),III,1,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(2),III,2,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(3),III,3,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(4),III,4,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(5),III,5,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(6),III,6,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(7),III,7,1) !Store Section Props 
+
+
+	IF(RHO.GT.0.0D0) THEN
+	AA(1:NLEN) = 0.0D0
+	AA(1) = DA*RHO	   !DA
+	AA(2) = XX(2)      !S
+	AA(3) = XX(1)      !T
+	AA(4) = FLOAT(MATR)		!MATR
+	AA(5) = 1.0D0			!IDTCS
+	AA(6) = WARPG(IFIB)		!WARPING FUNC.
+	AA(7) = TORCG(IFIB)		!TORSIONAL CONSTANT FUNC.
+	NRC = NRC + 1
+	WRITE(NFIL,REC=NRC) AA(1:NLEN)  !WRITE FIBER PROPS
+
+	III = III + 1
+	INAME(1:4) = [5,1,ISET,IEG] !XSEH
+	CALL ICONC(INAME,NAMEI)
+	CALL MRELFILA(NAMEI,AA(1),III,1,7,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(1),III,1,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(2),III,2,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(3),III,3,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(4),III,4,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(5),III,5,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(6),III,6,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(7),III,7,1) !Store Section Props 
+
+	ENDIF
+
+200	CONTINUE
+	ENDDO
+	ENDDO
+
+1010	CONTINUE
+
+C	FOLLOWING BY STEEL
+	DO 1020 ISTEL = 1,NSTEL
+	
+	NL = PROPS(ISTEL,1)
+	NS = PROPS(ISTEL,2)
+
+	SP = H1*PROPS(ISTEL,3) + H2*PROPS(ISTEL+NSTEL,3)
+	DD = H1*PROPS(ISTEL,4) + H2*PROPS(ISTEL+NSTEL,4)
+	S1 = H1*PROPS(ISTEL,5) + H2*PROPS(ISTEL+NSTEL,5)
+	T1 = H1*PROPS(ISTEL,6) + H2*PROPS(ISTEL+NSTEL,6)
+	S2 = H1*PROPS(ISTEL,7) + H2*PROPS(ISTEL+NSTEL,7)
+	T2 = H1*PROPS(ISTEL,8) + H2*PROPS(ISTEL+NSTEL,8)
+
+	SLEN = SQRT( (S2-S1)*(S2-S1) + (T2-T1)*(T2-T1) )
+
+	VR(1) = 1.0D0
+	VR(2) = 0.0D0
+	IF(SLEN.NE.0.0D0) THEN
+	VR(1) = (T2-T1)/SLEN
+	VR(2) = (S2-S1)/SLEN
+	ENDIF
+	VS(1) = -VR(2)
+	VS(2) =  VR(1)
+
+	DO IGR = 1,NL
+	IF((NL-1).NE.0) THEN  !!!!!
+
+	DRR = SLEN/(NL-1)
+	DO IGS = 1,NS
+	IF((NS-1).NE.0) THEN
+	DSS = SP/(NS-1) 
+	
+	RLR = DRR*(IGR-1)
+	SLS = DSS*(IGS-1) - 0.5*SP
+	XX(2) = RLR*VR(2) + SLS*VS(2) + S1
+	XX(1) = RLR*VR(1) + SLS*VS(1) + T1
+
+	DA = 0.25*3.14159265*DD*DD
+
+	AA(1:NLEN) = 0.0D0
+	AA(1) = DA     !A
+	AA(2) = XX(2)  !S
+	AA(3) = XX(1)  !T
+	AA(4) = PROPS(ISTEL,9)  !MTSET
+	AA(5) = 1.0             !IDTCS
+	AA(6) = 0.0D0			!WARPING FUNC.
+	AA(7) = 0.0D0			!TORSIONAL CONSTANT FUNC.
+	NRC = NRC + 1
+	WRITE(NFIL,REC=NRC) AA(1:NLEN)  !WRITE FIBER PROPS
+
+	III = III + 1
+	INAME(1:4) = [5,1,ISET,IEG] !XSEH
+	CALL ICONC(INAME,NAMEI)
+	CALL MRELFILA(NAMEI,AA(1),III,1,7,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(1),III,1,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(2),III,2,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(3),III,3,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(4),III,4,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(5),III,5,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(6),III,6,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(7),III,7,1) !Store Section Props 
+
+	ENDIF
+
+	ENDDO
+
+	IF(NS.EQ.1) THEN
+	RLR = DRR*(IGR-1)
+	SLS = 0.0D0
+	XX(2) = RLR*VR(2) + SLS*VS(2) + S1
+	XX(1) = RLR*VR(1) + SLS*VS(1) + T1
+
+	DA = 0.25*3.14159265*DD*DD
+
+	AA(1:NLEN) = 0.0D0
+	AA(1) = DA     !A
+	AA(2) = XX(2)  !S
+	AA(3) = XX(1)  !T
+	AA(4) = PROPS(ISTEL,9)  !MTSET
+	AA(5) = 1.0             !IDTCS
+	AA(6) = 0.0D0			!WARPING FUNC.
+	AA(7) = 0.0D0			!TORSIONAL CONSTANT FUNC.
+	NRC = NRC + 1
+	WRITE(NFIL,REC=NRC) AA(1:NLEN)  !WRITE FIBER PROPS
+
+	III = III + 1
+	INAME(1:4) = [5,1,ISET,IEG] !XSEH
+	CALL ICONC(INAME,NAMEI)
+	CALL MRELFILA(NAMEI,AA(1),III,1,7,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(1),III,1,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(2),III,2,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(3),III,3,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(4),III,4,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(5),III,5,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(6),III,6,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(7),III,7,1) !Store Section Props 
+
+	ENDIF
+
+	ENDIF  !!!!!
+
+	ENDDO
+
+	IF(NL.EQ.1) THEN
+	DA = 0.25*3.14159265*DD*DD
+	XX(2) = S1
+	XX(1) = T1
+
+	AA(1:NLEN) = 0.0D0
+	AA(1) = DA     !A
+	AA(2) = XX(2)  !S
+	AA(3) = XX(1)  !T
+	AA(4) = PROPS(ISTEL,9)  !MTSET
+	AA(5) = 1.0             !IDTCS
+	AA(6) = 0.0D0			!WARPING FUNC.
+	AA(7) = 0.0D0			!TORSIONAL CONSTANT FUNC.
+	NRC = NRC + 1
+	WRITE(NFIL,REC=NRC) AA(1:NLEN)  !WRITE FIBER PROPS
+
+	III = III + 1
+	INAME(1:4) = [5,1,ISET,IEG] !XSEH
+	CALL ICONC(INAME,NAMEI)
+	CALL MRELFILA(NAMEI,AA(1),III,1,7,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(1),III,1,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(2),III,2,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(3),III,3,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(4),III,4,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(5),III,5,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(6),III,6,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(7),III,7,1) !Store Section Props 
+
+	ENDIF
+
+1020	CONTINUE
+C	====================================
+
+C	------------------------------------------------------------------
+C	STRESS POINT
+C	------------------------------------------------------------------
+	DO IST = 1,NST
+	AA(1:NLEN) = 0.0D0
+	AA(1) = STRSP(1,IST)
+	AA(2) = STRSP(2,IST)	!S
+	AA(3) = STRSP(3,IST)	!T
+	AA(4) = STRSP(4,IST)	!WARPING
+	NRC = NRC + 1
+	WRITE(NFIL,REC=NRC) AA(1:NLEN)  !WRITE STRESS COORD
+	
+	III = III + 1
+	INAME(1:4) = [5,1,ISET,IEG] !XSEH
+	CALL ICONC(INAME,NAMEI)
+	CALL MRELFILA(NAMEI,AA(1),III,1,4,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(1 ),III,1 ,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(2 ),III,2 ,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(3 ),III,3 ,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,AA(4 ),III,4 ,1) !Store Section Props 
+
+
+	ENDDO
+C	------------------------------------------------------------------
+C	STORE NORMINAL WIDTH,HEIGHT FOR SECTION (USE WITH THERMAL LOAD)
+C	------------------------------------------------------------------
+	BNORM = ABS(TMAX - TMIN)
+	HNORM = ABS(SMAX - SMIN)
+	INAME(1:4) = [5,2,ISET,IEG] !XSHB  
+	CALL ICONC(INAME,NAMEI)
+      SVAL(1:6) = [BNORM,HNORM,SMAX,SMIN,TMAX,TMIN]
+	CALL MRELFILA(NAMEI,SVAL,IGAS,1,6,1) !Store Section Props 
+CC	CALL MRELFIL(NAMEI,BNORM,IGAS,1,1) !BNORM = NORMINAL WIDTH  FOR SECTION (USE WITH THERMAL LOAD)
+CC	CALL MRELFIL(NAMEI,HNORM,IGAS,2,1) !HNORM = NORMINAL HEIGHT FOR SECTION (USE WITH THERMAL LOAD)
+CC	CALL MRELFIL(NAMEI,SMAX ,IGAS,3,1) !SMAX (USE WITH THERMAL LOAD)
+CC	CALL MRELFIL(NAMEI,SMIN ,IGAS,4,1) !SMIN (USE WITH THERMAL LOAD)
+CC	CALL MRELFIL(NAMEI,TMAX ,IGAS,5,1) !TMAX (USE WITH THERMAL LOAD)
+CC	CALL MRELFIL(NAMEI,TMIN ,IGAS,6,1) !TMIN (USE WITH THERMAL LOAD)
+C	------------------------------------------------------------------
+
+      NDUMY = NDTS*(IGAS-1)+1
+      CALL FIBERINTG(SSP(NDUMY),IEG,ISET,IGAS)
+
+5000	CONTINUE
+
+
+C     PRINT INTEGRATED SECTION PROPERTY TO FILE     SONGSAK OCT2019
+      WRITE(NFILS,REC=ISET) SSP
+      
+C	UPDATE RECORD POINT
+	INAME(1:4) = [5,0,1,IEG] !XSEF
+	CALL ICONC(INAME,NAMEI)
+	CALL MINTFIL(NAMEI,NRC,1,4,1)
+      
+      
+	DEALLOCATE(AA,SSP)
+	DEALLOCATE(SS,TT,CONCT)
+	DEALLOCATE(GSTS,MMNN,LCNT)
+	DEALLOCATE(WARP,WARPG,TORCG)
+	DEALLOCATE(GPL,GPW,STRSP)
+
+6000	FORMAT(9E15.6)
+
+	RETURN
+
+	END
+
+
+C     =================================================================
+C     =================================================================
+C     =================================================================
+	SUBROUTINE XSTGEN_F(NST,SDATA)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     =================================================================
+	COMMON /INOU/ ITI,ITO,ISO,NDATI,NPLOT,NKFAC,NELEM,
+     1              IFPR(10),IFPL(10)
+C     =================================================================
+C     =================================================================
+	DIMENSION SDATA(5,1)
+C     =================================================================
+	DO I = 1,1000
+	SDATA(1,I) = 0.0D0
+	SDATA(2,I) = 0.0D0
+	SDATA(3,I) = 0.0D0
+	ENDDO
+
+	DO I = 1,NST
+	READ(ITI,*) IN,S1,T1
+	SDATA(1,I) = FLOAT(IN)
+	SDATA(2,I) = S1
+	SDATA(3,I) = T1
+	ENDDO
+	DO I = 1,NST
+	READ(ITI,*) IN,S2,T2
+	SDATA(4,I) = S2
+	SDATA(5,I) = T2
+	ENDDO
+
+	RETURN
+
+	END
+C     =================================================================
+C     =================================================================
+C     =================================================================
+	SUBROUTINE FIBERINTG(SSD,IEG,ISET,IPT)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     CALCULATE INTEGRATED SECTION PROPERTIES FROM FIBER DATA ... FRAME ELEM. SONGSAK OCT2019     
+C     =================================================================
+      CHARACTER*1 NAMEI(4)
+      DIMENSION   INAME(4)
+
+      COMMON /ELEM/ NAME(2),ITYPE,ISTYP,NLOPT,MTMOD,NSINC,ITOLEY,
+     1              NELE,NMPS,NGPS,NMP,NGP,NNM,NEX,NCO,NNF,NWG,NEFC,
+     2              NPT,NWA,NWS,KEG,MEL,NNO,NEF,NELTOT,NMV,MTYP,ISECT
+
+      COMMON /LOCA/ LID,LDS,LEL,LDC,LXY,LCH,LNU,LMP,LGP,LMS,LGS,
+     1              LCO,LEX,LLM,LES,LEC,LED,LEI,LEE,LMA,LLF,LLV,
+     2              LRE,LDI,LDL,LDT,LDK,LER,LEV,LTT,LWV,LAR,LBR,
+     3              LVE,LDD,LRT,LBU,LBC,LVL,LAL,LEF,LDU,LPR,LLO,
+	4              LRV,LRT1,LRET,LRET1,LDM,LDPT,LVL1,LMV,LXI,LCM,LCC,
+	5			    LCN,LDIM,LFRE,LSFC,LLOF
+
+      COMMON A(9000000),IA(9000000)
+
+	ALLOCATABLE AA(:)
+
+      DIMENSION SSD(1)
+      
+
+	INAME(1:4) = [5,0,1,IEG] !XSEF
+	CALL ICONC(INAME,NAMEI)
+	CALL MINTFIL(NAMEI,NFIL,1,1,0)
+	CALL MINTFIL(NAMEI,NLEN,1,2,0)
+	CALL MINTFIL(NAMEI,NGPS,1,5,0)
+
+	ALLOCATE(AA(NLEN))
+
+C     CALLING FIRST 7 OF SECTION PROPERTIES
+	III = 1
+	INAME(1:4) = [5,1,ISET,IEG] !XSEH
+	CALL ICONC(INAME,NAMEI)
+	CALL MRELFILA(NAMEI,AA(1),III,1,7,0) !Store Section Props 
+	ITYP = INT(AA(1)) !SECTION TYPE  0=READY  1=FIBER
+	NSTS = INT(AA(2)) !NUMBER OF STRESS POINT
+	NGAS = INT(AA(3)) !NUMBER OF GAUSS POINT ALONG THE ELEMENT
+	NFIB = INT(AA(4)) !NUMBER OF FIBER
+	ANG  = AA(5)	  !ROTATION ANGLE
+
+	IF(ITYP.EQ.1) THEN !FIBER
+	    NTOUR = INT(AA(6))
+	    NSEGT = INT(AA(7))
+      ELSE
+          RETURN !NOTHING FOR READY PROPERTY SECTION
+      ENDIF
+
+      SSD(1:7) = AA(1:7) !STORE 1:7 OF SECTION PROPERTIES
+      
+C     ----------------------------------
+C	CALLING SHEAR DEFORMATION FACTORS
+	III = 1 + NSEGT + (1+NTOUR+NFIB+NSTS)*(IPT-1) + 1 
+	INAME(1:4) = [5,1,ISET,IEG] !XSEH
+	CALL ICONC(INAME,NAMEI)
+	CALL MRELFILA(NAMEI,AA(1),III,1,3,0) !SHEAR FACTOR S, SHEAR FACTOR T, SHEAR FACTOR ST
+      
+	FACS = 1.0
+	FACT = 1.0
+	IF(AA(1).NE.0.0D0) FACS = 1.0/AA(1)
+	IF(AA(2).NE.0.0D0) FACT = 1.0/AA(2)
+	FACST= AA(3)
+      
+      SSD(8:10) = AA(1:3) !STORE 8:10 OF SECTION PROPERTIES
+
+C     ----------------------------------
+
+C     PREPARE FOR SECTION INTEGRATION      
+	AREA	= 0.0D0
+	QS		= 0.0D0
+	QT		= 0.0D0
+	SIT		= 0.0D0
+	TIT		= 0.0D0
+	SITT	= 0.0D0
+	AREAS	= 0.0D0
+	AREAT	= 0.0D0	
+	FJP		= 0.0D0	
+	FWWP	= 0.0D0	
+	FWSP	= 0.0D0	
+	FWTP	= 0.0D0	
+	FWP		= 0.0D0	
+	FPOLR	= 0.0D0	
+
+	AREAA	= 0.0D0
+	QSA		= 0.0D0
+	QTA		= 0.0D0
+	SITA	= 0.0D0
+	TITA	= 0.0D0
+	SITTA	= 0.0D0
+	AREASA	= 0.0D0
+	AREATA	= 0.0D0
+	FJPA	= 0.0D0	
+	FWWPA	= 0.0D0	
+	FWSPA	= 0.0D0	
+	FWTPA	= 0.0D0	
+	FWPA	= 0.0D0	
+	FPOLA	= 0.0D0	
+
+	AREAD	= 0.0D0
+	QSD		= 0.0D0
+	QTD		= 0.0D0
+	SITD	= 0.0D0
+	TITD	= 0.0D0
+	SITTD	= 0.0D0
+	AREASD	= 0.0D0
+	AREATD	= 0.0D0
+	FJPD	= 0.0D0	
+	FWWPD	= 0.0D0	
+	FWSPD	= 0.0D0	
+	FWTPD	= 0.0D0	
+	FWPD	= 0.0D0	
+	FPOLD	= 0.0D0	
+
+	AREAY	= 0.0D0
+	QSY		= 0.0D0
+	QTY		= 0.0D0
+	SITY	= 0.0D0
+	TITY	= 0.0D0
+	SITTY	= 0.0D0
+	AREASY	= 0.0D0
+	AREATY	= 0.0D0
+	FJPY	= 0.0D0	
+	FWWPY	= 0.0D0	
+	FWSPY	= 0.0D0	
+	FWTPY	= 0.0D0	
+	FWPY	= 0.0D0	
+	FPOLY	= 0.0D0	
+
+	YOUNG1 = 0.0D0
+	DO 1000 IFIB = 1,NFIB
+
+	III = 1 + NSEGT + (1+NTOUR+NFIB+NSTS)*(IPT-1) + 1 + NTOUR + IFIB
+	INAME(1:4) = [5,1,ISET,IEG] !XSEH
+	CALL ICONC(INAME,NAMEI)
+	CALL MRELFILA(NAMEI,AA(1),III,1,7,0) !Store Section Props 
+
+	DA    = AA(1)
+	SS    = AA(2)
+	TT    = AA(3) 
+	MT    = INT(AA(4))
+	IDCTS = INT(AA(5))  !0=CONCRETE 1=STEEL
+	WP    = AA(6)		!WARPING FUNCTION
+	TR    = AA(7)		!TORSIONAL CONSTANT FUNCTION
+
+	YOUNG   = A(LMP+NMP*(MT-1)-1 +1 )
+	POISN   = A(LMP+NMP*(MT-1)-1 +2 )
+	DENS    = A(LMP+NMP*(MT-1)-1 +5 )
+	ALPHA   = A(LMP+NMP*(MT-1)-1 +13)
+	FACTG   = 0.5/(1.0+POISN)
+	IF(IFIB.EQ.1) YOUNG1 = YOUNG
+
+	AREA = AREA + DA
+	AREAS= AREAS+ DA*FACS
+	AREAT= AREAT+ DA*FACT
+	QS   = QS   + DA*TT
+	QT   = QT   + DA*SS
+	SIT  = SIT  + DA*TT*TT
+	TIT  = TIT  + DA*SS*SS
+	SITT = SITT + DA*SS*TT
+	FJP  = FJP  + DA*(TT*TT+SS*SS) - DA*TR
+	FWWP = FWWP + DA*WP*WP
+	FWSP = FWSP + DA*WP*SS
+	FWTP = FWTP + DA*WP*TT
+	FWP  = FWP  + DA*WP
+	FPOLR= FPOLR+ DA*(TT*TT+SS*SS)
+
+
+	VALV  = ALPHA*YOUNG
+	AREAA = AREAA + DA*VALV
+	AREASA= AREASA+ DA*FACS*VALV*FACTG
+	AREATA= AREATA+ DA*FACT*VALV*FACTG
+	QSA   = QSA   + DA*TT*VALV
+	QTA   = QTA   + DA*SS*VALV
+	SITA  = SITA  + DA*TT*TT*VALV
+	TITA  = TITA  + DA*SS*SS*VALV
+	SITTA = SITTA + DA*SS*TT*VALV
+	FJPA  = FJPA  + DA*(TT*TT+SS*SS)*VALV*FACTG - DA*TR*VALV*FACTG
+	FWWPA = FWWPA + DA*WP*WP*VALV
+	FWSPA = FWSPA + DA*WP*SS*VALV
+	FWTPA = FWTPA + DA*WP*TT*VALV
+	FWPA  = FWPA  + DA*WP*VALV
+	FPOLA = FPOLA + DA*(TT*TT+SS*SS)*VALV*FACTG
+
+
+	VALV  = DENS
+	AREAD = AREAD + DA*VALV
+	AREASD= AREASD+ DA*FACS*VALV
+	AREATD= AREATD+ DA*FACT*VALV
+	QSD   = QSD   + DA*TT*VALV
+	QTD   = QTD   + DA*SS*VALV
+	SITD  = SITD  + DA*TT*TT*VALV
+	TITD  = TITD  + DA*SS*SS*VALV
+	SITTD = SITTD + DA*SS*TT*VALV
+	FJPD  = FJPD  + DA*(TT*TT+SS*SS)*VALV - DA*TR*VALV
+	FWWPD = FWWPD + DA*WP*WP*VALV
+	FWSPD = FWSPD + DA*WP*SS*VALV
+	FWTPD = FWTPD + DA*WP*TT*VALV
+	FWPD  = FWPD  + DA*WP*VALV
+	FPOLD = FPOLD + DA*(TT*TT+SS*SS)*VALV
+
+
+	VALV  = YOUNG
+	AREAY = AREAY + DA*VALV
+	AREASY= AREASY+ DA*FACS*VALV*FACTG
+	AREATY= AREATY+ DA*FACT*VALV*FACTG
+	QSY   = QSY   + DA*TT*VALV
+	QTY   = QTY   + DA*SS*VALV
+	SITY  = SITY  + DA*TT*TT*VALV
+	TITY  = TITY  + DA*SS*SS*VALV
+	SITTY = SITTY + DA*SS*TT*VALV
+	FJPY  = FJPY  + DA*(TT*TT+SS*SS)*VALV*FACTG - DA*TR*VALV*FACTG
+	FWWPY = FWWPY + DA*WP*WP*VALV
+	FWSPY = FWSPY + DA*WP*SS*VALV
+	FWTPY = FWTPY + DA*WP*TT*VALV
+	FWPY  = FWPY  + DA*WP*VALV
+	FPOLY = FPOLY + DA*(TT*TT+SS*SS)*VALV*FACTG
+
+1000  CONTINUE
+      
+      YOUNGA = YOUNG1
+      IF(AREA.NE.0.0D0) YOUNGA = AREAY/AREA !EQUIVALENT YOUNG MODULUS OF SECTION 
+      SSD(11) = YOUNGA !STORE No.11 OF SECTION PROPERTIES
+
+C     STORE 21:34 OF SECTION PROPERTIES
+      SSD(21:34 ) = [AREA,QS,QT,SIT,TIT,SITT,FJP,AREAS,AREAT,FWWP,FWSP,FWTP,FWP,FPOLR]
+C     STORE 41:54 OF SECTION PROPERTIES
+      SSD(41:54 ) = [AREAA,QSA,QTA,SITA,TITA,SITTA,FJPA,AREASA,AREATA,FWWPA,FWSPA,FWTPA,FWPA,FPOLA]
+C     STORE 61:74 OF SECTION PROPERTIES
+      SSD(61:74 ) = [AREAD,QSD,QTD,SITD,TITD,SITTD,FJPD,AREASD,AREATD,FWWPD,FWSPD,FWTPD,FWPD,FPOLD]
+C     STORE 91:104 OF SECTION PROPERTIES
+      SSD(91:104) = [AREAY,QSY,QTY,SITY,TITY,SITTY,FJPY,AREASY,AREATY,FWWPY,FWSPY,FWTPY,FWPY,FPOLY]
+      
+C	------------------------------------------------------------------
+C	STORE NORMINAL WIDTH,HEIGHT FOR SECTION (USE WITH THERMAL LOAD)
+C	------------------------------------------------------------------
+	INAME(1:4) = [5,2,ISET,IEG] !XSHB  
+	CALL ICONC(INAME,NAMEI)
+	CALL MRELFIL(NAMEI,BNORM,IPT,1 ,0) !BNORM = NORMINAL WIDTH  FOR SECTION (USE WITH THERMAL LOAD)
+	CALL MRELFIL(NAMEI,HNORM,IPT,2 ,0) !HNORM = NORMINAL HEIGHT FOR SECTION (USE WITH THERMAL LOAD)
+	CALL MRELFIL(NAMEI,SMAX ,IPT,3 ,0) !SMAX (USE WITH THERMAL LOAD)
+	CALL MRELFIL(NAMEI,SMIN ,IPT,4 ,0) !SMIN (USE WITH THERMAL LOAD)
+	CALL MRELFIL(NAMEI,TMAX ,IPT,5 ,0) !TMAX (USE WITH THERMAL LOAD)
+	CALL MRELFIL(NAMEI,TMIN ,IPT,6 ,0) !TMIN (USE WITH THERMAL LOAD)
+
+C     STORE 111:116 OF SECTION PROPERTIES
+      SSD(111:116) = [BNORM,HNORM,SMAX,SMIN,TMAX,TMIN]
+C	------------------------------------------------------------------
+
+
+C	------------------------------------------------
+	DO 2000 ISTS = 1,NSTS
+
+	III = 1 + NSEGT + (1+NTOUR+NFIB+NSTS)*(IPT-1) + 1 + NTOUR + NFIB
+	1														  + ISTS
+	INAME(1:4) = [5,1,ISET,IEG] !XSEH
+	CALL ICONC(INAME,NAMEI)
+	CALL MRELFILA(NAMEI,AA(1),III,1,4,0) !STRESS POINT DATA
+
+	SN	= AA(1)		!STRESS POINT NUM
+	SS  = AA(2)		!S	
+	TT  = AA(3)		!T
+	WP  = AA(4)		!WARPING FUNCTION
+
+C     STORE 120+1:120+4*NSTS OF SECTION PROPERTIES
+      NDUMY = 4*(ISTS-1)+120
+      SSD(NDUMY+1:NDUMY+4) = [SN,SS,TT,WP]
+
+2000  CONTINUE
+C	------------------------------------------------
+
+	DEALLOCATE(AA)
+
+	RETURN
+
+	END
+
+C     =================================================================
+C     =================================================================
+C     =================================================================
+
+
+C     =================================================================
+C     =================================================================
+C     =================================================================	
+	SUBROUTINE XFSECTION(IEG,IEL,IPT)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C     =================================================================
+C     CALLING SECTION PROPETIES DATA AT EACH FRAME GAUSS POINT/IPT
+C     =================================================================
+      CHARACTER*1 NAMEI(4)
+      DIMENSION   INAME(4)
+
+      COMMON /LOCA/ LID,LDS,LEL,LDC,LXY,LCH,LNU,LMP,LGP,LMS,LGS,
+     1              LCO,LEX,LLM,LES,LEC,LED,LEI,LEE,LMA,LLF,LLV,
+     2              LRE,LDI,LDL,LDT,LDK,LER,LEV,LTT,LWV,LAR,LBR,
+     3              LVE,LDD,LRT,LBU,LBC,LVL,LAL,LEF,LDU,LPR,LLO,
+	4              LRV,LRT1,LRET,LRET1,LDM,LDPT,LVL1,LMV,LXI,LCM,LCC,
+	5			    LCN,LDIM,LFRE,LSFC,LLOF
+
+      COMMON A(9000000),IA(9000000)
+      
+	COMMON /OFFAREA/ AREA
+
+	ALLOCATABLE SSP(:)
+
+C	--------------------------------------------------------------
+C	SECTION PROPERTIES IN ARRAY SSP 
+C	--------------------------------------------------------------
+
+C	SSP(1  ) = SECTION TYPE  0=READY  1=FIBER
+C	SSP(2  ) = NUMBER OF STRESS POINT ... NSTS
+C	SSP(3  ) = NUMBER OF GAUSS POINT ALONG THE ELEMENT ... NPT or NGAS
+C	SSP(4  ) = NUMBER OF FIBER ... NFIB
+C	SSP(5  ) = ROTATION ANGLE ... ANG (RADIAN)
+C	SSP(6  ) = NUMBER OF SECTIONAL CONTOUR POINTS ... NTOUR
+C	SSP(7  ) = NUMBER OF SECTIONAL SEGMENT ... NSEGT
+C
+C	SSP(8  ) = FACS   ... SHEAR DEFORMATION FACTOR ALONG S AXIS
+C	SSP(9  ) = FACT   ... SHEAR DEFORMATION FACTOR ALONG T AXIS
+C	SSP(10 ) = FACST  ... COUPLING SHEAR DEFORMATION FACTOR ST
+C	SSP(10 ) = YOUNGA ... EQUIVALENT SECTIONAL YOUNG MODULUS
+C
+C	STORE 21:34 OF SECTION PROPERTIES
+C		SSD(21:34 ) = [AREA,QS,QT,SIT,TIT,SITT,FJP,AREAS,AREAT,FWWP,FWSP,FWTP,FWP,FPOLR]
+C
+C	STORE 41:54 OF SECTION PROPERTIES x ALPHA*YOUNG
+C		SSD(41:54 ) = [AREAA,QSA,QTA,SITA,TITA,SITTA,FJPA,AREASA,AREATA,FWWPA,FWSPA,FWTPA,FWPA,FPOLA]
+C
+C	STORE 61:74 OF SECTION PROPERTIES x MASS-DENSITY
+C		SSD(61:74 ) = [AREAD,QSD,QTD,SITD,TITD,SITTD,FJPD,AREASD,AREATD,FWWPD,FWSPD,FWTPD,FWPD,FPOLD]
+C
+C	STORE 91:104 OF SECTION PROPERTIES x YOUNG
+C		SSD(91:104) = [AREAY,QSY,QTY,SITY,TITY,SITTY,FJPY,AREASY,AREATY,FWWPY,FWSPY,FWTPY,FWPY,FPOLY]
+C
+C	STORE 111:116 ... SECTION EXTREME DIMENSIONS
+C		SSD(111:116) = [BNORM,HNORM,SMAX,SMIN,TMAX,TMIN]
+C	  
+C	STORE 120+1:120+4*NSTS ... SECTION STRESS POINT DATA
+C		SSD(121:124) = [SN,SS,TT,WP] ... NO., S, T, WARP-FUNC.
+C		SSD(125:128) = [SN,SS,TT,WP] ... NO., S, T, WARP-FUNC.
+C		SSD(...:...) = [SN,SS,TT,WP] ... NO., S, T, WARP-FUNC.
+
+C	--------------------------------------------------------------
+C	--------------------------------------------------------------
+C	--------------------------------------------------------------      
+      
+	INAME(1:4) = [5,0,1,IEG] !XSEF
+	CALL ICONC(INAME,NAMEI)
+	CALL MINTFIL(NAMEI,NFIL,1,1,0)
+	CALL MINTFIL(NAMEI,NLEN,1,2,0)
+	CALL MINTFIL(NAMEI,NGAS,1,3,0)
+	CALL MINTFIL(NAMEI,NGPS,1,5,0)
+
+	CALL MINTFIL(NAMEI,NFILS,1,6,0) !FILE NUMBER TO STORE INTEGRATED SECTION PROPERTY
+	CALL MINTFIL(NAMEI,NDTS ,1,7,0) !NUMBER OF DATA PER ONE FRAME GAUSS POINT
+      ALLOCATE(SSP(NDTS*NGAS))
+      SSP = 0.0D0
+
+	IF(IPT.NE.0) ISET = IA(LGS+IEL-1)
+	IF(IPT.EQ.0) ISET = IEL             !THIS CASE IEL WILL EQ IGPS (INDEX OF GEO. PROP. SET) (SEE ALSO WARRAY.FOR ... SUB. INWOK5)
+
+C     READ ALL SECTION PROPERTIES ALONG FRAME GAUSS POINT      
+      READ(NFILS,REC=ISET) SSP
+      
+	INAME(1:4) = [5,0,1,IEG] !XSEC
+	CALL ICONC(INAME,NAMEI)
+      
+      NDUMY = NDTS*(IPT-1)+1
+      IF(IPT.EQ.0) NDUMY = 1
+	CALL MRELFILA(NAMEI,SSP(NDUMY),1,1,NDTS,1) !Store Section Props for Calling Later On
+
+      AREA = SSP(21) !CALLING CROSS SECTIONAL AREA FOR COMMON /OFFAREA/
+      
+      
+	DEALLOCATE(SSP)
+
+	RETURN
+
+	END
+
+C     =================================================================
+C     =================================================================
+C     =================================================================
+      SUBROUTINE NEW_SECTION_PROP (AAREA,AAIS,AAIT,AQSY,AQTY,VALV)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+      COMMON / SECTIONDETAIL / BFISHAPE,TFISHAPE,DISHAPE,BWISHAPE,TWISHAPE,ROOTISHAPE
+     1                        ,BFHSHAPE,TFHSHAPE,DHSHAPE,BWHSHAPE,TWHSHAPE,ROOTHSHAPE
+     1                        ,BANGLE,TANGLE,HANGLE,THANGLE,AXBAR
+     1                        ,BFCHANNEL,TFCHANNEL,DCHANNEL,TWCHANNEL,HCHANNEL,ROOTCSHAPE,CXBAR
+     1                        ,BFTSHAPE,TFTSHAPE,DTSHAPE,BWTSHAPE,TWTSHAPE,TYBAR
+     1                        ,BBOX,TFBOX,DBOX,HBOX,TWBOX,ROOTBOX
+     1                        ,DPIPE,TPIPE
+     1                        ,DROUND
+     1                        ,BREC,HREC
+     1                        ,SECTIONT,SECTIONS,AJ,GSECTION,CW,AREA,AIS,AIT,ARGS,ARGT
+     1                        ,PLASTICT,PLASTICS,AMODULUS
+      
+      AAREA = AAREA * 1.023D0
+      AAIS  = AAIS  * 1.023D0
+      AAIT  = AAIT  * 1.023D0
+      AQSY  = 0.0D0
+      AQTY  = 0.0D0
+      END
+
+
+

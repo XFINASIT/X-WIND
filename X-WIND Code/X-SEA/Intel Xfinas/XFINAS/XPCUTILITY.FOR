@@ -1,0 +1,895 @@
+C**----------------------------------------------------------PRINT ------
+      SUBROUTINE PRINT
+C-----UTILITY TO PRINT ANY MATRIX IN THE INCORE DATABASE-----
+      CHARACTER*1 NOP,M1,M2,M3,M4,M5,M6,M7
+      COMMON /IXFPC / MTOT,NP,IA(1)
+      COMMON /INPUT/ NOP(6),M1(6),M2(6),M3(6),M4(6),M5(6),M6(6),M7(6)
+      COMMON /IOLIST/ NTM,NTR,NIN,NOT,NSP,NFL,NT7,NT8,nt3,nt4
+     #,NT89,NT39,NT49,NT79
+     #,NT501,NT502,NT503,NT504,NT505,NT506,NT507,NT508,NT509,NT510 !NT501-515 ADDED - COMPOSITE GIRDER
+     #,NT511,NT512,NT513,NT514,NT515
+C-----LOCATE MATRIX TO BE PRINTED -----
+      CALL LOCATE(M1,NA,NR,NC)
+      IF(NA.EQ.0) RETURN
+C-----PRINT ARRAY -----
+      IF(NP.EQ.1) CALL IPRT(IA(NA),NR,NC)
+      IF(NP.EQ.2) CALL RPRT(IA(NA),NR,NC)
+C
+      WRITE (NTM,2000)
+  900 RETURN
+C
+ 2000 FORMAT (' ')
+      END
+C**----------------------------------------------------------RPRT  ------
+      SUBROUTINE RPRT(A,NR,NC)
+C-----UTILITY TO PRINT A REAL MATRIX-----
+      IMPLICIT REAL*8 (A-H,O-Z)
+      DIMENSION A(NR,NC)
+      COMMON /IOLIST/ NTM,NTR,NIN,NOT,NSP,NFL,NT7,NT8,nt3,nt4
+     #,NT89,NT39,NT49,NT79
+     #,NT501,NT502,NT503,NT504,NT505,NT506,NT507,NT508,NT509,NT510 !NT501-515 ADDED - COMPOSITE GIRDER
+     #,NT511,NT512,NT513,NT514,NT515
+C-----PRINT REAL ARRAY -----
+      XMAX = 0.00
+      DO 50 I=1,NR
+      DO 50 J=1,NC
+      XX = DABS(A(I,J))
+      IF(XX.GT.XMAX) XMAX = XX
+  50  CONTINUE
+      M = 1
+      IF(XMAX.LT.99999.) M = 2
+      IF(XMAX.LT.0.1000) M = 1
+      IF(XMAX.EQ.0.0   ) M = 2
+C
+      NUMC = 6
+      DO 100 I=1,NC,NUMC
+      IN = I + NUMC - 1
+      IF(IN.GT.NC) IN = NC
+      WRITE(NTM,2000) (K,K=I,IN)
+      DO 100 J=1,NR
+      IF(M.NE.1) GO TO 90
+      WRITE(NTM,2001) J,(A(J,K),K=I,IN)
+      GO TO 100
+  90  WRITE(NTM,2002) J,(A(J,K),K=I,IN)
+ 100  CONTINUE
+C
+      RETURN
+C
+ 2000 FORMAT(/' COL   =',6I12)
+ 2001 FORMAT(' ROW',I4,6E12.5)
+ 2002 FORMAT(' ROW',I4,6E12.5)
+      END
+C**----------------------------------------------------------IPRT  ------
+      SUBROUTINE IPRT(N,NR,NC)
+C-----UTILITY TO PRINT AN INTEGER MATRIX-----
+      DIMENSION N(NR,NC)
+      COMMON /IOLIST/ NTM,NTR,NIN,NOT,NSP,NFL,NT7,NT8,nt3,nt4
+     #,NT89,NT39,NT49,NT79
+     #,NT501,NT502,NT503,NT504,NT505,NT506,NT507,NT508,NT509,NT510 !NT501-515 ADDED - COMPOSITE GIRDER
+     #,NT511,NT512,NT513,NT514,NT515
+C-----PRINT INTEGER ARRAY -----
+      NUMC = 14
+      DO 100 I=1,NC,NUMC
+      IN = I + NUMC - 1
+      IF(IN.GT.NC) IN = NC
+      WRITE(NTM,2000) (K,K=I,IN)
+      DO 100 J=1,NR
+      WRITE(NTM,2001) J,(N(J,K),K=I,IN)
+ 100  CONTINUE
+C
+      RETURN
+C
+ 2000 FORMAT(/' COL   =',14I5)
+ 2001 FORMAT(' ROW',I4,14I5)
+      END
+C**----------------------------------------------------------LIST  ------
+      SUBROUTINE LIST
+C-----LIST DIRECTORY OF ALL ARRAYS -----
+      CHARACTER*1 NAM(4),TYPE(9,3)
+      COMMON /IXFPC / MTOT,NP,IA(1)
+      COMMON /DBSYS / NUMA,NEXT,IDIR,IP(3),MXMEM
+      COMMON /IOLIST/ NTM,NTR,NIN,NOT,NSP,NFL,NT7,NT8,nt3,nt4
+     #,NT89,NT39,NT49,NT79
+     #,NT501,NT502,NT503,NT504,NT505,NT506,NT507,NT508,NT509,NT510 !NT501-515 ADDED - COMPOSITE GIRDER
+     #,NT511,NT512,NT513,NT514,NT515
+C
+      DATA TYPE/'I','N','T','E','G','E','R',' ',' ',
+     1          'R','E','A','L',' ',' ',' ',' ',' ',
+     2          'C','H','A','R','A','C','T','E','R'/
+C
+      IF(NUMA.EQ.0) GO TO 900
+      IF(NIN.NE.NTR) GO TO 900
+      WRITE(NTM,1000)
+      IC = IDIR
+      DO 100 I=1,NUMA
+C-----GET ARRAY TYPE AND NAME-----
+      IA4 = IA(IC+4)
+      IA5 = IA(IC+5)
+      IA6 = IA(IC+6)
+      IPN = IC - 1
+      DO 10 J=1,4
+      IPN = IPN + 1
+   10 NAM(J) = CHAR( IA(IPN) )
+C-----WRITE DATA TO TERMINAL -----
+      WRITE(NTM,1100)(NAM(J),J=1,4),IA4,IA5,(TYPE(K,IA6),K=1,9)
+      IC = IC + 10
+  100 CONTINUE
+      WRITE(NTM,2000)
+C
+  900 RETURN
+C
+ 1000 FORMAT(8X,'A R R A Y   L I S T')
+ 1100 FORMAT(2X,4A1,' (',I3,',',I3,')  [ ',9A1,' ]')
+ 2000 FORMAT(/)
+      END
+C**----------------MICROSOFT F77  VERSION--------------------FIND  ------
+      SUBROUTINE FIND(SEP,NN)
+      CHARACTER*1 LINE,SEP(6),NLN(6)
+      LOGICAL TEST
+      COMMON /CLINE/ LINE(160)
+      COMMON /ILINE/ II
+      COMMON /IOLIST/ NTM,NTR,NIN,NOT,NSP,NFL,NT7,NT8,nt3,nt4      
+     #,NT89,NT39,NT49,NT79
+     #,NT501,NT502,NT503,NT504,NT505,NT506,NT507,NT508,NT509,NT510 !NT501-515 ADDED - COMPOSITE GIRDER
+     #,NT511,NT512,NT513,NT514,NT515
+C-----FIND SEPARATOR IN INPUT FILE-----
+      NN=0
+      REWIND NIN
+   50 CALL  FREEB
+      CALL  FREEH(' ',NLN,6,1)
+      IF    (NIN.EQ.NTR) GO TO 80
+      IF    (TEST(SEP,NLN)) GO TO 90
+      GO TO 50
+   80 NN=1
+   90 RETURN
+      END
+C**----------------------------------------------------------FREEB  ------
+      SUBROUTINE FREEB
+C-----PUT NEXT DATA LINE IN BUFFER - MULTILINE INPUT VERSION-----
+      CHARACTER*1 LINE,SP,BS,SC,C,MLIN,ML,MLINS
+      COMMON /MLINE/ MLIN(161),MLINS(161)
+      COMMON /CLINE/ LINE(160)
+      COMMON /ILINE/ II
+      COMMON /IOLIST/ NTM,NTR,NIN,NOT,NSP,NFL,NT7,NT8,nt3,nt4
+     #,NT89,NT39,NT49,NT79
+     #,NT501,NT502,NT503,NT504,NT505,NT506,NT507,NT508,NT509,NT510 !NT501-515 ADDED - COMPOSITE GIRDER
+     #,NT511,NT512,NT513,NT514,NT515
+      DATA ML/'!'/
+      DATA SP/' '/,SC/';'/,C/'C'/,BS/'\'/
+cUNIX DATA SP/' '/,SC/';'/,C/'C'/,BS/'\\'/
+C-----CLEAR LINE BUFFER-----
+   10 DO 15 K=1,160
+   15 LINE(K) = SP
+C-----SEE IF MULTI-LINE BUFFER IS EMPTY-----
+      IF(MLIN(1).EQ.ML) GO TO 50
+C-----READ LINE OF FREE FIELD DATA ----
+   20 J = 2
+      JJ= 81
+   30 IF(NIN.EQ.NTR) GO TO 35
+      READ (NIN,1001,ERR=100,END=100) (MLIN(K),K=J,JJ)
+      GO TO 40
+   35 WRITE(NTM,3000)
+      READ (NIN,1000,ERR=100,END=100) (MLIN(K),K=J,JJ)
+C-----CHECK FOR ADDITIONAL LINE -----
+   40 DO 45 K=J,JJ
+      IF(MLIN(K).NE.BS) GO TO 45
+      J = K
+      JJ= K+79
+      IF(JJ.GT.161) JJ = 161
+      GO TO 30
+   45 CONTINUE
+C-----CHECK FOR COMMENT LINE (;; MEANS NEGLECT PHYSICAL LINE)-----
+      IF(MLIN(2).EQ.SC.AND.MLIN(3).EQ.SC) GO TO 20
+C-----TRANSFER LINE TO SINGLE-LINE BUFFER-----
+   50 DO 60 K=1,159
+      IF(MLIN(K+1).NE.ML) GO TO 60
+      II = K
+      GO TO 65
+   60 LINE(K) = MLIN(K+1)
+      II = 159
+      KK = 1
+      GO TO 75
+C-----SHIFT MULTI-LINE BUFFER-----
+   65 JJ = II + 1
+      KK = 1
+      DO 70 K=JJ,161
+      MLIN(KK) = MLIN(K)
+   70 KK = KK + 1
+   75 DO 80 K=KK,161
+   80 MLIN(K) = SP
+C-----CHECK FOR COMMENT LINE (; MEANS NEGLECT LOGICAL LINE)-----
+      CALL UPPER
+      IF(LINE(1).NE.SC) GO TO 900
+      WRITE (NTM,2000) (LINE(I),I=1,II)
+      GO TO 10
+C-----ERROR IN READ -----
+  100 WRITE(NTM,2001)
+      WRITE(NOT,2001)
+C-----IF NIN .EQ. NTR, WE ARE AT TERMINAL AND MUST EXIT-----
+
+C      IF(NIN.EQ.NTR) CALL START(2)
+
+C-----IF NIN .NE. NTR, WE RETURN TO TERMINAL FOR INPUT-----
+      NIN = NTR
+      CALL FREEPT
+C
+  900 RETURN
+C
+ 1000 FORMAT (80A1)
+ 1001 FORMAT (80A1)
+ 2000 FORMAT (1X,80A1)
+ 2001 FORMAT(/,' * END OF FILE OR ERROR IN READING INPUT LINE *',/)
+ 3000 FORMAT (' :>',\) 
+c3000 FORMAT (' :>',/) : for UNIX or IBM/CMS
+      END
+C**----------------------------------------------------------UPPER ------
+      SUBROUTINE UPPER
+      CHARACTER*1 LINE,SP,SC
+      COMMON /CLINE/ LINE(160)
+      COMMON /ILINE/ II
+      DATA SP/' '/,SC/';'/
+C-----CHECK END OF LINE AND CONVERT TO UPPER CASE ---
+      ISP = ICHAR(SP)
+      DO 80 I=1,II
+      IF(LINE(I).NE.SC) GO TO 75
+      IF(I.EQ.1) GO TO 75
+      II = I
+      GO TO 85
+   75 NN = ICHAR( LINE(I) )
+      IF(NN.GT.96) LINE(I)= CHAR( NN - ISP )
+CEB-  IF(NN.GT.128.AND.NN.LT.138) LINE(I)=CHAR(NN-64)
+C CD- IF(NN.GT.144.AND.NN.LT.154) LINE(I)=CHAR(NN-64)
+C  IC IF(NN.GT.161.AND.NN.LT.170) LINE(I)=CHAR(NN-64)
+   80 CONTINUE
+C-----REMOVE BLANKS AT END OF LINE -----
+   85 IF(LINE(II).NE.SP) GO TO 95
+      IF(II.EQ.1) GO TO 95
+      II=II-1
+      GO TO 85
+C
+   95 RETURN
+      END
+C**----------------------------------------------------------FREEPT------
+      SUBROUTINE FREEPT
+C-----ECHO OF FREE FIELD INFORMATION TO TERMINAL----
+      CHARACTER*1 LINE
+      COMMON /ILINE/ II
+      COMMON /CLINE/ LINE(160)
+      COMMON /IOLIST/ NTM,NTR,NIN,NOT,NSP,NFL,NT7,NT8,nt3,nt4
+     #,NT89,NT39,NT49,NT79
+     #,NT501,NT502,NT503,NT504,NT505,NT506,NT507,NT508,NT509,NT510 !NT501-515 ADDED - COMPOSITE GIRDER
+     #,NT511,NT512,NT513,NT514,NT515
+C-----FOR BATCH OPERATION YOU CAN COMMENT OUT THIS LINE
+C     BUT COMMAND ERROR DIAGNOSTICS WILL BE MORE DIFFICULT
+      IF(NIN.NE.NTR) WRITE(NTM,1000) (LINE(I),I=1,II)
+      RETURN
+ 1000 FORMAT (1X,78A1)
+      END
+C**----------------------------------------------------------FREOUT------
+      SUBROUTINE FREOUT
+C-----ECHO OF FREE FIELD INFORMATION TO OUTPUT FILE-----
+      CHARACTER*1 LINE
+      COMMON /ILINE/ II
+      COMMON /CLINE/ LINE(160)
+      COMMON /IOLIST/ NTM,NTR,NIN,NOT,NSP,NFL,NT7,NT8,nt3,nt4
+     #,NT89,NT39,NT49,NT79
+     #,NT501,NT502,NT503,NT504,NT505,NT506,NT507,NT508,NT509,NT510 !NT501-515 ADDED - COMPOSITE GIRDER
+     #,NT511,NT512,NT513,NT514,NT515
+      WRITE(NOT,1000) (LINE(I),I=1,II)
+      RETURN
+ 1000 FORMAT (1X,78A1)
+      END
+C**----------------------------------------------------------FREEI ------
+      SUBROUTINE FREEI(IC,IDATA,NUM)
+      CHARACTER*1 LINE,IC,BLK,COMMA,I0,EQS,NEG,COLIN,LNE
+      DIMENSION IDATA(72)
+      COMMON /CLINE/ LINE(160)
+      COMMON /ILINE/ II
+      COMMON /IOLIST/ NTM,NTR,NIN,NOT,NSP,NFL,NT7,NT8,nt3,nt4
+     #,NT89,NT39,NT49,NT79
+     #,NT501,NT502,NT503,NT504,NT505,NT506,NT507,NT508,NT509,NT510 !NT501-515 ADDED - COMPOSITE GIRDER
+     #,NT511,NT512,NT513,NT514,NT515
+      DATA BLK/' '/,COMMA/','/,I0/'0'/,EQS/'='/,NEG/'-'/,COLIN/':'/
+C-----FIND INTEGER STRING ----
+   90 I=0
+      IF(IC.EQ.BLK) GO TO 200
+      DO 100 I=1,II
+      IF((LINE(I).EQ.IC).AND.(LINE(I+1).EQ.EQS)) GO TO 200
+  100 CONTINUE
+      RETURN
+C-----ZERO INTEGER STRING -----
+  200 DO 210 J=1,NUM
+  210 IDATA(J)=0
+      IF(LINE(I+1).EQ.EQS) I=I+1
+      DO 250 J=1,NUM
+      ISIGN = 1
+C-----SKIP BLANKS BETWEEN INTEGERS -----
+  215 IF(LINE(I+1).NE.BLK) GO TO 220
+      I=I+1
+      IF(I.GT.II) GO TO 900
+      GO TO 215
+  220 I=I+1
+      IF(I.GT.II) GO TO 230
+C-----CHECK FOR SIGN -----
+      LNE = LINE(I)
+      IF(LNE.NE.NEG) GO TO 225
+      ISIGN = -1
+      GO TO 220
+C-----EXTRACT INTEGER -----
+  225 IF(LNE.EQ.BLK) GO TO 230
+      IF(LNE.EQ.COMMA) GO TO 230
+      IF(LNE.EQ.COLIN) GO TO 230
+      NN = ICHAR( LNE ) - ICHAR( I0 )
+      IF((NN.LT.0).OR.(NN.GT.9)) GO TO 900
+      IDATA(J)=10*IDATA(J)+NN
+      GO TO 220
+C-----SET SIGN -----
+  230 IDATA(J) = IDATA(J)*ISIGN
+  250 CONTINUE
+  900 RETURN
+      END
+C**----------------------------------------------------------FREER ------
+      SUBROUTINE FREER(IC,DATA,NUM)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      CHARACTER*1 LINE,BLK,IC,MUL,DIV,ADD,SUB,EQS,E
+      DIMENSION DATA(30)                                                   
+      COMMON /CLINE/ LINE(160)
+      COMMON /ILINE/ II
+      DATA BLK/' '/,MUL/'*'/,DIV/'/'/,ADD/'+'/,SUB/'-'/,E/'E'/,EQS/'='/
+C-----FIND REAL STRING -----
+   90 I=0
+      IF(IC.EQ.BLK) GO TO 250
+      DO 100 I=1,II
+      IF((LINE(I).EQ.IC).AND.(LINE(I+1).EQ.EQS)) GO TO 250
+  100 CONTINUE
+      RETURN
+C---- EXTRACT REAL DATA -----
+  250 DO 260 J=1,NUM
+  260 DATA(J)=0.0D+0
+      DO 300 J=1,NUM
+      JJ=0
+  270 IF(I.GT.II) GO TO 300
+      CALL RDATA(I,XX,NN)
+      IF(JJ.NE.0) GO TO 275
+      DATA(J) = XX
+      GO TO 290
+C-----ARITHMETRIC STATEMENT -----
+  275 IF(JJ.EQ.1) DATA(J)=DATA(J)*XX
+      IF(JJ.EQ.2) DATA(J)=DATA(J)/XX
+      IF(JJ.EQ.3) DATA(J)=DATA(J)+XX
+      IF(JJ.EQ.4) DATA(J)=DATA(J)-XX
+      IF(JJ.NE.5) GO TO 290
+C-----EXPONENTIAL DATA -----
+      JJ = DABS(XX)
+      IF(JJ.EQ.0) GO TO 290
+      DO 280 K=1,JJ
+      IF(XX.LT.0.0) DATA(J) = DATA(J)/10.
+      IF(XX.GT.0.0) DATA(J) = DATA(J)*10.
+  280 CONTINUE
+C-----SET TYPE OF STATEMENT -----
+  290 JJ=0
+      IF(LINE(I).EQ.MUL) JJ=1
+      IF(LINE(I).EQ.DIV) JJ=2
+      IF(LINE(I).EQ.ADD) JJ=3
+      IF(LINE(I).EQ.SUB) JJ=4
+      IF(LINE(I).EQ.E)   JJ=5
+      IF(LINE(I+1).EQ.EQS) JJ=0
+      IF(JJ.NE.0) GO TO 270
+      IF(NN.GT.9) RETURN
+  300 CONTINUE
+C
+      RETURN
+      END
+C**----------------------------------------------------------RDATA ------
+      SUBROUTINE  RDATA(I,XX,NN)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      CHARACTER*1 LINE,BLK,COMMA,I0,DOT,NEG,EQS,ADD,E
+      COMMON /CLINE/ LINE(160)
+      COMMON /ILINE/ II
+      DATA BLK/' '/,COMMA/','/,I0/'0'/,DOT/'.'/,NEG/'-'/,EQS/'='/
+	DATA ADD/'+'/,E/'E'/ !ADDED DEC2005
+C-----CONVERT STRING TO REAL FLOATING POINT NUMBER --
+      IF(LINE(I+1).EQ.EQS) I=I+1
+	IF((LINE(I).EQ.E).AND.(LINE(I+1).EQ.ADD)) I=I+1
+      Y=0
+      IS=1
+      XX=0.0
+      IF(LINE(I+1).NE.NEG) GO TO 267
+      IS=-1
+      I=I+1
+  267 IF(LINE(I+1).NE.BLK) GO TO 270
+      I=I+1
+      IF(I.GT.II) GO TO 300
+      GO TO 267
+  270 I=I+1
+      IF(I.GT.II) GO TO 300
+      IF((LINE(I).EQ.BLK).AND.(LINE(I+1).EQ.BLK)) GO TO 270
+      NN = ICHAR( LINE(I) ) - ICHAR( I0 )
+      XN=ISIGN(NN,IS)
+      IF(LINE(I).NE.DOT) GO TO 275
+      Y=1.0D+0
+      GO TO 270
+  275 IF(LINE(I).EQ.BLK) GO TO 300
+      IF(LINE(I).EQ.COMMA) GO TO 300
+      IF((NN.LT.0).OR.(NN.GT.9)) GO TO 300
+      IF(Y.EQ.0.0D+0) GO TO 280
+      Y=Y/10.D+0
+      XN=XN*Y
+      XX=XX+XN
+      GO TO 270
+  280 XX=10.0D+0*XX+XN
+      GO TO 270
+  300 RETURN
+      END
+C**----------------------------------------------------------FREEH ------
+      SUBROUTINE FREEH(IC,IDATA,NC,NUM)
+      CHARACTER*1 LINE,IC,BLK,COMMA,I0,EQS,COLIN,IDATA
+      DIMENSION IDATA(NC,NUM)
+      COMMON /CLINE/ LINE(160)
+      COMMON /ILINE/ II
+      DATA BLK/' '/,COMMA/','/,I0/'0'/,EQS/'='/,COLIN/':'/
+C-----FIND HOLLERITH STRING -----
+   90 I=0
+      IF(IC.EQ.BLK) GO TO 200
+      DO 100 I=2,II
+      IF((LINE(I-1).EQ.IC).AND.(LINE(I).EQ.EQS)) GO TO 200
+  100 CONTINUE
+      RETURN
+C-----EXTRACT HOLLERITH DATA -----
+  200 DO 210 J=1,NUM
+      DO 210 N=1,NC
+  210 IDATA(N,J)=BLK
+C
+      DO 300 J=1,NUM
+  260 I = I + 1
+      IF(I.GT.II) GO TO 400
+      IF(LINE(I).EQ.COMMA) GO TO 260
+      IF(LINE(I).EQ.BLK) GO TO 260
+      DO 290 N=1,NC
+      IF(LINE(I).EQ.COLIN) GO TO 300
+      IF(LINE(I).EQ.BLK)   GO TO 300
+      IF(LINE(I).EQ.COMMA) GO TO 300
+      IDATA(N,J) = LINE(I)
+      IF(N.EQ.NC) GO TO 290
+      I = I + 1
+  290 CONTINUE
+  300 CONTINUE
+C
+  400 RETURN
+      END
+C**----------------------------------------------------------DEFINE------
+      SUBROUTINE DEFINE(NAME,NA,NR,NC)
+C-----ALLOCATE A REAL ARRAY-----
+      CHARACTER*1 NAME(4)
+      COMMON /IXFPC / MTOT,NP,IA(1)
+      NP = 2 !2 MEANS REAL
+      CALL DEFIN(NAME,NA,NR,NC)
+      RETURN
+      END
+C**----------------------------------------------------------DEFINI------
+      SUBROUTINE DEFINI(NAME,NA,NR,NC)
+C-----ALLOCATE AN INTEGER ARRAY-----
+      CHARACTER*1 NAME(4)
+      COMMON /IXFPC / MTOT,NP,IA(1)
+      NP = 1
+      CALL DEFIN(NAME,NA,NR,NC)
+      RETURN
+      END
+C**----------------------------------------------------------DEFINH------
+      SUBROUTINE DEFINH(NAME,NA,NR,NC)
+C-----ALLOCATE A CHARACTER ARRAY-----
+      CHARACTER*1 NAME(4)
+      COMMON /IXFPC / MTOT,NP,IA(1)
+      NP = 3
+      CALL DEFIN(NAME,NA,NR,NC)
+      RETURN
+      END
+C**----------------------------------------------------------DEFIN ------
+      SUBROUTINE DEFIN(NAME,NA,NR,NC)
+C-----DEFINE AND RESERVE STORAGE FOR ARRAY -----
+      CHARACTER*1  NAME(4)
+      COMMON /IXFPC / MTOT,NP,IA(1)
+      COMMON /DBSYS/ NUMA,NEXT,IDIR,IP(3),MXMEM
+      COMMON /IOLIST/ NTM,NTR,NIN,NOT,NSP,NFL,NT7,NT8,nt3,nt4
+     #,NT89,NT39,NT49,NT79
+     #,NT501,NT502,NT503,NT504,NT505,NT506,NT507,NT508,NT509,NT510 !NT501-515 ADDED - COMPOSITE GIRDER
+     #,NT511,NT512,NT513,NT514,NT515
+C----------------------------------------------------
+C WHERE NAME = NAME OF ARRAY - 4 LOGICALS MAXIMUM
+C       NA = LOCATION OF ARRAY IF IN BLANK COMMON
+C       NR = NUMBER OF ROWS
+C       NC = NUMBER OF COLUMNS
+C       MTOT = END OF DIRECTORY
+C       NUMA = NUMBER OF ARRAYS IN DATA BASE
+C       NEXT = NEXT AVAILABLE STORAGE LOCATION
+C       IDIR = START OF DIRECTORY IN BLANK COMMON
+C       IP   = NUMBER OF LOGICALS CONTAINED IN DATA TYPE
+C       LENR = NUMBER OF LOGICALS IN PHYSICAL RECORD
+C       NP = TYPE OF DATA
+C          = 1 INTEGER DATA
+C          = 2 REAL DATA
+C          = 3 LOGICAL (CHARACTER) DATA
+C------DIRECTORY DEFINITION FOR CORE OR SEQUENTIAL FILES
+C      IDIR(1,N) = NAME OF ARRAY  - INAME (4 CHAR.)
+C      IDIR(5,N) = NUMBER OF ROWS    - NR
+C      IDIR(6,N) = NUMBER OF COLUMNS - NC
+C      IDIR(7,N) = TYPE OF DATA      - NP
+C      IDIR(8,N) = INCORE ADDRESS    - NA
+C      IDIR(9,N) = SIZE OF ARRAY
+C      IDIR(10,N) = 0 IF IN CORE STORAGE
+C----------------------------------------------------
+C-----EVALUATE STORAGE REQUIREMENTS -----
+      IF((NP.NE.1).AND.(NP.NE.3)) NP = 2
+      NSIZE = (NR*NC*IP(NP) -1)/(IP(1)*2)
+      NSIZE = NSIZE*2 + 2
+      NA = NEXT
+      NEXT = NEXT + NSIZE
+C-----SET UP NEW DIRECTORY -----
+      NUMA = NUMA + 1
+      IDIR = IDIR - 10
+      I = IDIR
+C-----CHECK STORAGE LIMITS -----
+      MXMEM = MAX0(MXMEM,(MTOT+1-IDIR+NEXT))
+      IF(I.GE.NEXT) GO TO 100
+      I = NEXT - I + MTOT - 1
+      WRITE (NTM,2000) NAME,I,MTOT
+      STOP
+  100 CALL ICON(NAME,IA(I))
+      IA(I+4) = NR
+      IA(I+5) = NC
+      IA(I+6) = NP
+      IA(I+7) = NA
+      IA(I+8) = NSIZE
+      IA(I+9) = 0
+ 900  RETURN
+C
+ 2000 FORMAT(/,' ALLOCATION ERROR: ARRAY=',4A1,/,' STORAGE REQUIRED  =',
+     1 I15,/,' STORAGE AVAILABLE =',I15)
+      END
+C**----------------------------------------------------------LOCATE------
+      SUBROUTINE LOCATE(NAME,NA,NR,NC)
+      CHARACTER*1 NAME
+      DIMENSION NAME(4),INAME(4)
+      COMMON /IXFPC / MTOT,NP,IA(1)
+      COMMON /DBSYS/ NUMA,NEXT,IDIR,IP(3),MXMEM
+      COMMON /IOLIST/ NTM,NTR,NIN,NOT,NSP,NFL,NT7,NT8,nt3,nt4
+     #,NT89,NT39,NT49,NT79
+     #,NT501,NT502,NT503,NT504,NT505,NT506,NT507,NT508,NT509,NT510 !NT501-515 ADDED - COMPOSITE GIRDER
+     #,NT511,NT512,NT513,NT514,NT515
+C-----LOCATE AND RETURN PROPERTIES OF ARRAY -----
+      NA = 0
+      CALL ICON(NAME,INAME)
+      I = IFIND(INAME,0)
+      IF(I.EQ.0) GO TO 900
+C-----RETURN ARRAY PROPERTIES -----
+      NA = IA(I+7)
+      NR = IA(I+4)
+      NC = IA(I+5)
+      NP = IA(I+6)
+  900 RETURN
+      END
+C**----------------------------------------------------------PDELETE------
+      SUBROUTINE PDELETE(NAME)
+      CHARACTER*1 NAME
+      DIMENSION NAME(4),INAME(4)
+      COMMON /IXFPC / MTOT,NP,IA(1)
+      COMMON /DBSYS/ NUMA,NEXT,IDIR,IP(3),MXMEM
+      COMMON /IOLIST/ NTM,NTR,NIN,NOT,NSP,NFL,NT7,NT8,nt3,nt4
+     #,NT89,NT39,NT49,NT79
+     #,NT501,NT502,NT503,NT504,NT505,NT506,NT507,NT508,NT509,NT510 !NT501-515 ADDED - COMPOSITE GIRDER
+     #,NT511,NT512,NT513,NT514,NT515
+C-----DELETE ARRAY FROM STORAGE -----
+  100 CALL ICON(NAME,INAME)
+      I = IFIND(INAME,0)
+      IF(I.EQ.0) GO TO 900
+C-----CHECK ON STORAGE LOCATION -----
+  200 NSIZE = IA(I+8)
+C-----SET SIZE OF ARRAY -----
+      NEXT = NEXT - NSIZE
+      NUMA = NUMA - 1
+      NA   = IA(I+7)
+C-----CHECK IF OUT OF CORE OR DIRECT ACCESS -----
+      IF(NA.GT.0) GO TO 500
+      WRITE(NTM,1000) NAME
+      GO TO 800
+  500 IF(NA.EQ.NEXT) GO TO 800
+C-----COMPACT STORAGE -----
+      II   = NA + NSIZE
+      NNXT = NEXT - 1
+      DO 700 J=NA,NNXT
+      IA(J) = IA(II)
+  700 II = II + 1
+C-----COMPACT AND UPDATE DIRECTORY -----
+  800 NA = I - IDIR
+      IDIR = IDIR + 10
+      IF(NA.EQ.0) GO TO 900
+      NA = NA/10
+      DO 860 K=1,NA
+      II = I + 9
+      DO 850 J=1,10
+      IA(II) = IA(II-10)
+  850 II = II - 1
+      IF(IA(I+7).LE.0) GO TO 860
+      IF(IA(I+9).EQ.0) IA(I+7) = IA(I+7) - NSIZE
+  860 I = I - 10
+C
+  900 RETURN
+ 1000 FORMAT(/,' NAME ',4A1,' IS BEING USED FOR AN OUT OF CORE FILE',/)
+      END
+C**----------------------------------------------------------ICON  ------
+      SUBROUTINE ICON(NAME,INAME)
+      CHARACTER*1 NAME(4)
+      DIMENSION INAME(4)
+C-----CONVERT LOGICALS TO INTEGER DATA -----
+      DO 100 I = 1,4
+  100 INAME(I) = ICHAR( NAME(I) )
+      RETURN
+      END
+C**----------------------------------------------------------IFIND ------
+      FUNCTION IFIND(INAME,LUN)
+      DIMENSION INAME(4)
+      COMMON /IXFPC / MTOT,NP,IA(1)
+      COMMON /DBSYS/ NUMA,NEXT,IDIR,IP(3),MXMEM
+C-----FIND ARRAY LOCATION -----
+      I = IDIR
+      DO 100 N=1,NUMA
+      IF(LUN.NE.IA(I+9)) GO TO 100
+      IF (INAME(1).NE.IA(I  )) GO TO 100
+      IF (INAME(2).NE.IA(I+1)) GO TO 100
+      IF (INAME(3).NE.IA(I+2)) GO TO 100
+      IF (INAME(4).EQ.IA(I+3)) GO TO 200
+  100 I = I + 10
+      I = 0
+  200 IFIND = I
+      RETURN
+      END
+C**----------------------------------------------------------IOPEN ------
+      SUBROUTINE IOPEN (LUN,FXT)
+C
+C-----OPEN THE INPUT DATA FILE "FIN.FXT"-----
+C
+      CHARACTER*1 FXT(4),FIN,EXT,BLK
+      CHARACTER*12 FN
+      LOGICAL SS
+      COMMON /PARC/ FIN(12),EXT(80)
+      COMMON /IOLIST/ NTM,NTR,NIN,NOT,NSP,NFL,NT7,NT8,nt3,nt4
+     #,NT89,NT39,NT49,NT79
+     #,NT501,NT502,NT503,NT504,NT505,NT506,NT507,NT508,NT509,NT510 !NT501-515 ADDED - COMPOSITE GIRDER
+     #,NT511,NT512,NT513,NT514,NT515
+C
+      CALL MAKNAM (FIN,FXT,FN)
+C
+C-----UOPEN IS A COPYRIGHTED ROUTINE IN THE UC CMS UTILITY LIBRARY-----
+C     CALL UOPEN (LUN,FN,12,3,1,80,800,'FB',2,0,IERR)
+C
+C-----THIS FORM IS FOR MICROSOFT 3.31 UNDER MS-DOS-----
+      INQUIRE(FILE=FN,EXIST=SS)
+      IF(SS) THEN
+             OPEN (LUN,FILE=FN,STATUS='OLD',ACCESS='SEQUENTIAL',
+     1             FORM='FORMATTED')
+      ELSE
+             OPEN (LUN,FILE=FN,STATUS='NEW',ACCESS='SEQUENTIAL',
+     1             FORM='FORMATTED')
+      ENDIF
+C
+      RETURN
+      END
+C**----------------------------------------------------------OOPEN ------
+      SUBROUTINE OOPEN (LUN,FXT)
+C
+C-----OPEN THE OUTPUT LISTING FILE "FIN.FXT"-----
+C
+      CHARACTER*1 FXT(4),FIN,EXT,BLK
+      CHARACTER*12 FN
+      COMMON /PARC/ FIN(12),EXT(80)
+      COMMON /IOLIST/ NTM,NTR,NIN,NOT,NSP,NFL,NT7,NT8,nt3,nt4
+     #,NT89,NT39,NT49,NT79
+     #,NT501,NT502,NT503,NT504,NT505,NT506,NT507,NT508,NT509,NT510 !NT501-515 ADDED - COMPOSITE GIRDER
+     #,NT511,NT512,NT513,NT514,NT515
+C
+      CALL MAKNAM (FIN,FXT,FN)
+C
+C-----UOPEN IS A COPYRIGHTED ROUTINE IN THE UC CMS UTILITY LIBRARY-----
+C     CALL UOPEN (LUN,FN,12,3,2,80 ,1280,'FB',2,0,IERR)
+C
+C-----THIS FORM IS FOR MICROSOFT 3.31 UNDER MS-DOS-----
+C	NEXT LINE, CHANGED BY GILSON - MAY2004
+C      OPEN (LUN,FILE=FN,STATUS='NEW',ACCESS='SEQUENTIAL',
+      OPEN (LUN,FILE=FN,STATUS='UNKNOWN',ACCESS='SEQUENTIAL',
+     1      FORM='FORMATTED')
+C
+      RETURN
+      END
+C**----------------------------------------------------------SOPEN ------
+      SUBROUTINE SOPEN (LUN,FXT)
+C
+C-----OPEN THE UNFORMATTED SEQUENTIAL FILE "FIN.FXT"-----
+C
+      CHARACTER*1 FXT(4),FIN,EXT,BLK
+      CHARACTER*12 FN
+      LOGICAL SS
+      COMMON /PARC/ FIN(12),EXT(80)
+      COMMON /IOLIST/ NTM,NTR,NIN,NOT,NSP,NFL,NT7,NT8,nt3,nt4
+     #,NT89,NT39,NT49,NT79
+     #,NT501,NT502,NT503,NT504,NT505,NT506,NT507,NT508,NT509,NT510 !NT501-515 ADDED - COMPOSITE GIRDER
+     #,NT511,NT512,NT513,NT514,NT515
+C
+      CALL MAKNAM (FIN,FXT,FN)
+C
+C-----UOPEN IS A COPYRIGHTED ROUTINE IN THE UC CMS UTILITY LIBRARY-----
+C     CALL UOPEN (LUN,FN,12,1,3,132,1280,'VBS',3,0,IERR)
+C
+C-----THIS FORM IS FOR MICROSOFT 3.31 UNDER MS-DOS-----
+      INQUIRE(FILE=FN,EXIST=SS)
+      IF(SS) THEN
+             OPEN (LUN,FILE=FN,STATUS='OLD',ACCESS='SEQUENTIAL',
+     1             FORM='UNFORMATTED')
+      ELSE
+             OPEN (LUN,FILE=FN,STATUS='NEW',ACCESS='SEQUENTIAL',
+     1             FORM='UNFORMATTED')
+      ENDIF
+C
+      RETURN
+      END
+C**----------------------------------------------------------DOPEN ------
+      SUBROUTINE DOPEN (LUN,FXT,LRECL)
+C
+C-----OPEN THE UNFORMATTED DIRECT ACCESS FILE "FIN.FXT"-----
+C        LRECL = NUMBER OF BYTES IN A RECORD
+C        NREC  = NUMBER OF RECORDS
+C        NBUF  = NUMBER OF RECORDS BUFFERED
+C
+      CHARACTER*1 FXT(4),FIN,EXT,BLK
+      CHARACTER*12 FN
+      LOGICAL SS
+      COMMON /PARC/ FIN(12),EXT(80)
+      COMMON /IOLIST/ NTM,NTR,NIN,NOT,NSP,NFL,NT7,NT8,nt3,nt4
+     #,NT89,NT39,NT49,NT79
+     #,NT501,NT502,NT503,NT504,NT505,NT506,NT507,NT508,NT509,NT510 !NT501-515 ADDED - COMPOSITE GIRDER
+     #,NT511,NT512,NT513,NT514,NT515
+C
+      CALL MAKNAM (FIN,FXT,FN)
+C
+c     NT = LRECL * NREC
+c     NB = LRECL * NBUF
+C
+C-----UOPEN IS A COPYRIGHTED ROUTINE IN THE UC CMS UTILITY LIBRARY-----
+C     CALL UOPEN (LUN,FN,12,2,3,LRECL,NB,'FB',2,NT,IERR)
+C
+C-----THIS FORM IS FOR MICROSOFT 3.31 UNDER MS-DOS-----
+      INQUIRE(FILE=FN,EXIST=SS)
+      IF(SS) THEN
+             OPEN (LUN,FILE=FN,STATUS='OLD',ACCESS='DIRECT',
+     1             FORM='UNFORMATTED',RECL=LRECL)
+      ELSE
+             OPEN (LUN,FILE=FN,STATUS='NEW',ACCESS='DIRECT',
+     1             FORM='UNFORMATTED',RECL=LRECL)
+      ENDIF
+C
+      RETURN
+      END
+C**----------------------------------------------------------FCLOSF------
+      SUBROUTINE FCLOSF (LUN)
+C
+C-----CLOSE A FILE-----
+C
+C-----UCLOSE IS A COPYRIGHTED ROUTINE IN THE UC CMS UTILITY LIBRARY-----
+C     CALL UCLOSE(LUN,2,IERR)
+C
+C-----THIS FORM IS FOR MICROSOFT 3.31 UNDER MS-DOS-----
+      CLOSE (LUN,STATUS='KEEP')
+C
+      RETURN
+      END
+C**----------------------------------------------------------MAKNAM------
+      SUBROUTINE MAKNAM (FIN,FXT,FN)
+C
+C-----PUT TOGETHER THE FILE NAME (FN = FIN + FXT)-----
+C     THIS VERSION IS FOR IBM/CMS
+C     MODIFIED FOR MICROSOFT 3.31 MSDOS
+C
+      CHARACTER*1 FIN(12),FXT(4),FN(12),BLK
+      COMMON /IOLIST/ NTM,NTR,NIN,NOT,NSP,NFL,NT7,NT8,nt3,nt4
+     #,NT89,NT39,NT49,NT79
+     #,NT501,NT502,NT503,NT504,NT505,NT506,NT507,NT508,NT509,NT510 !NT501-515 ADDED - COMPOSITE GIRDER
+     #,NT511,NT512,NT513,NT514,NT515
+      DATA BLK/' '/
+C
+      DO 10 I=1,12
+   10 FN(I) = BLK
+      DO 20 I=1,8
+      IF(FIN(I).EQ.BLK) GO TO 30
+      II = I
+   20 FN(I) = FIN(I)
+   30 II = II + 1
+C     FN(II) = BLK
+      FN(II) = '.'
+      DO 40 I=1,3
+      II = II + 1
+   40 FN(II) = FXT(I)
+C
+      WRITE(NTM,2000) (FN(I),I=1,12)
+C
+      RETURN
+ 2000 FORMAT(40X,'FILE ',12A1,' OPENED')
+      END
+C**----------------------------------------------------------TEST  ------
+      FUNCTION TEST (OP,NOP)
+C
+C--------------------------------------
+C     RETURN TRUE IF STRINGS MATCH    -
+C--------------------------------------
+C
+      LOGICAL TEST
+      CHARACTER*1 OP(6),NOP(6)
+      TEST = .FALSE.
+      DO 10 I=1,6
+      IF(NOP(I).NE.OP(I)) RETURN
+   10 CONTINUE
+      TEST = .TRUE.
+      RETURN
+      END
+C**----------------------------------------------------------NEWPAG------
+      SUBROUTINE NEWPAG
+C
+C--------------------------------------
+C     DO A FORM FEED ON OUTPUT FILE   -
+C--------------------------------------
+C
+      COMMON /IOLIST/ NTM,NTR,NIN,NOT,NSP,NFL,NT7,NT8,nt3,nt4
+     #,NT89,NT39,NT49,NT79
+     #,NT501,NT502,NT503,NT504,NT505,NT506,NT507,NT508,NT509,NT510 !NT501-515 ADDED - COMPOSITE GIRDER
+     #,NT511,NT512,NT513,NT514,NT515
+      WRITE(NOT,1000)
+      RETURN
+ 1000 FORMAT(//,'**')
+      END
+C**----------------------------------------------------------RZERO ------
+      SUBROUTINE RZERO (FA,NL)
+C
+C---------------------------
+C     ZERO A REAL ARRAY    -
+C---------------------------
+C
+      IMPLICIT REAL*8 (A-H,O-Z)
+      DIMENSION FA(NL)
+      DO 10 I=1,NL
+   10 FA(I) = 0.0D+0
+      RETURN
+      END
+C**----------------------------------------------------------IZERO ------
+      SUBROUTINE IZERO (IA,NL)
+C
+C-------------------------------
+C     ZERO AN INTEGER ARRAY    -
+C-------------------------------
+C
+      DIMENSION IA(NL)
+      DO 10 I=1,NL
+   10 IA(I) = 0
+      RETURN
+      END
+C**----------------------------------------------------------GENSET------
+      FUNCTION GENSET (NN,N1,N2,N3,NMAX)
+C
+C------------------------------------------
+C     SET LINEAR GENERATION PARAMETERS    -
+C------------------------------------------
+C
+      LOGICAL GENSET
+      DIMENSION NN(3)
+C
+      GENSET = .FALSE.
+      N1 = NN(1)
+      N2 = NN(2)
+      N3 = NN(3)
+      IF (N1.LE.0) RETURN
+      IF (N2.LE.0) N2 = N1
+      IF (N3.LE.0) N3 = 1
+c      IF (N1.GT.NMAX) N1 = NMAX !suppressed by gilson - july2004
+c      IF (N2.GT.NMAX) N2 = NMAX !suppressed by gilson - july2004
+      GENSET = .TRUE.
+C
+      RETURN
+      END
+

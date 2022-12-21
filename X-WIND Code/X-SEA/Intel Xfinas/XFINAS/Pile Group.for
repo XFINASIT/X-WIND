@@ -1,0 +1,102 @@
+      SUBROUTINE CHECK_PILE_GROUP
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+      COMMON /SOILOPT/ NSOIL,NNSO
+      COMMON /NSOILT/ NNODEA(10000),NPROP(10000)
+      COMMON /MGRAV/ NGRAV 
+      DIMENSION NODEGROUP(100,NSOIL)
+      DIMENSION NELEMENT(100),NODE_CHECK(100)
+      DIMENSION NSOIL_ELEMENT(NNSO),NSOIL_ELEMENT_GROUP(NNSO)
+      DIMENSION NNODEA_RE(10000),NPROP_RE(10000)
+      DIMENSION NSNODE(2)
+      
+      NODEGROUP = 0.
+      INDEX_ELEMENT = 1
+      NSOIL_ELEMENT = 0.
+      NNODEA_RE = NNODEA
+      NPROP_RE  = NPROP
+      
+      DO J = 1,NSOIL
+          INDEX = 2
+      DO I = 1,NNSO
+          IF (NPROP(I).EQ.J) THEN
+          NODEGROUP(1,J)     = INDEX-1
+          NODEGROUP(INDEX,J) = NNODEA(I)
+          INDEX = INDEX + 1
+          ENDIF
+      ENDDO
+      ENDDO
+        
+      CALL LOCATN('OGDM',KGDM,NGDAT,NGIDM,1) 
+      
+      DO JJ = 1,NSOIL
+      INDEX = 1
+      DO II = 1,NODEGROUP(1,JJ)
+      NODE  = NODEGROUP(II+1,JJ)
+      DO 15 IGM = 1,NGIDM    
+C	CALL GID ELEMENT MAPPING DATA
+	CALL INTFILL('OGDM',IEG  ,1 ,IGM,0)  !IEG
+	CALL INTFILL('OGRP',ITYP ,1 ,IEG,0)  !ITYPE  
+          IF(ITYP.EQ.5) THEN !FOR FRAME ELEMENT
+              CALL CALLNUMNODE_F (IGM,N1,N2) !CALL FRAME CONNECTIVITY NODE
+              
+               IF (N1.EQ.NODE)THEN
+                  NELEMENT(INDEX) = IGM
+                  INDEX = INDEX + 1
+               ENDIF
+               IF (N2.EQ.NODE)THEN
+                  NELEMENT(INDEX) = IGM
+                  INDEX = INDEX + 1
+               ENDIF
+          ENDIF
+15    ENDDO
+      
+      ENDDO
+      
+      NODE_CHECK(1:NODEGROUP(1,JJ)) = NODEGROUP(2:(NODEGROUP(1,JJ)),JJ) 
+      
+      ! CHECK CONNECTIVITY
+      DO 30 KK = 1,INDEX-1
+          OPT1 = 0.
+          OPT2 = 0.
+         IF (NELEMENT(KK).EQ.-1D0) EXIT
+         CALL CALLNUMNODE_F (NELEMENT(KK),N1,N2) !CALL FRAME CONNECTIVITY NODE
+         DO 20 JK1 = 1,NODEGROUP(1,JJ)
+            IF (N1.EQ.NODE_CHECK(JK1)) OPT1 = 1D0
+            IF (N2.EQ.NODE_CHECK(JK1)) OPT2 = 1D0
+            IF (OPT1.EQ.1D0.AND.OPT2.EQ.1D0) THEN
+            NSOIL_ELEMENT(INDEX_ELEMENT) = NELEMENT(KK)
+            NSOIL_ELEMENT_GROUP(INDEX_ELEMENT) = JJ
+            INDEX_ELEMENT = INDEX_ELEMENT + 1
+               DO JK2 = 1,NODEGROUP(1,JJ) !CLEAR DATA
+                 IF (N1.EQ.NODE_CHECK(JK1)) NODE_CHECK(JK1) = -1
+                 IF (N2.EQ.NODE_CHECK(JK1)) NODE_CHECK(JK1) = -1
+               ENDDO
+            EXIT
+            ENDIF
+20       CONTINUE
+30    CONTINUE
+      
+      
+      ENDDO
+      
+      ! CHANGE INPUT DATA
+      INDEX = 1
+      NNODEA = 0.
+      NPROP  = 0.
+      DO I = 1 ,INDEX_ELEMENT-1
+        OPT1 = 0.
+        OPT2 = 0.
+        CALL CALLNUMNODE_F (NSOIL_ELEMENT(I),N1,N2) !CALL FRAME CONNECTIVITY NODE 
+        NSNODE(1) = N1
+        NSNODE(2) = N2
+        CALL NODEABOVE2 (NSNODE,NODEOUT)
+        NNODEA(INDEX) = NODEOUT
+        NPROP(INDEX)  = NSOIL_ELEMENT_GROUP(I)
+        INDEX = INDEX + 1
+        IF (NODEOUT.EQ.N1) NNODEA(INDEX) = N2
+        IF (NODEOUT.EQ.N2) NNODEA(INDEX) = N1
+        NPROP(INDEX)  = NSOIL_ELEMENT_GROUP(I)
+        INDEX = INDEX + 1  
+      ENDDO
+      END

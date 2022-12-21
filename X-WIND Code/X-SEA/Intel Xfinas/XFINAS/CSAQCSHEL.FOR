@@ -1,0 +1,936 @@
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================
+      SUBROUTINE QSHLOPT1(IEG,IEL,COORD,EDIS,IAX,AAX)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	LTMOPT(1)  WORKING ON MECHANICAL DATA
+C	 0 = NO UPDATE STRESS & MATERIAL STATE
+C	 1 = UPDATE STRESS & MATERIAL STATE
+C	 2 = STIFFNESS ONLY
+
+	COMMON /GASEC/  GAUSP(10,10),GAUSW(10,10)
+
+	DIMENSION COORD(3,1),EDIS(1),IAX(1),AAX(1)
+
+	DIMENSION EPS(8),NPM(10),NPI(10)
+	DIMENSION RRN(4),SSN(4),FJ(4),XJI(4)
+	DIMENSION H(8),HD(2,8),VR(3),VS(3),VT(3)
+	DIMENSION VRN(3),VSN(3),VTN(3)
+	DIMENSION HR(4),HS(4),B(240),BA(4,120)
+	DIMENSION DISD(12),SL(4,2)
+
+
+C	COMMON VARIABLES
+	DIMENSION RS(2,4),TRS(4),SLN(4),RN(4),SN(4),BL(4)
+	DIMENSION FLR(4),FLS(4),FLSS(4),FLRR(4),ANT(4)
+	DIMENSION DWR(12),DWRS(12),DWS(12),DWSR(12),AKBS(300)
+	DIMENSION TT(24,24)
+
+C	BENDING VARIABLES
+	DIMENSION AB1(4,4),AB2(3,3),CB(11,24),ACB(11,24)
+	DIMENSION APB(11)
+	DIMENSION PBPM(11,5),PBPB(11,11)
+
+C	MEMBRANE VARIABLES
+	DIMENSION CM(5,24),ACM(5,24)
+	DIMENSION APM(6)
+	DIMENSION PMPM(5,5),PMPB(5,11)
+
+C	TRANSVERSE SHEAR VARIABLES
+	DIMENSION CS(2,24),CSC(4,24),ACS(2,24),ACSC(4,24)
+	DIMENSION APS(4),PTP(2,2)
+
+C	FOR GEOMETRIC STIFFNESS
+	DIMENSION CG(15,24),ACG(15,24),PFP(15,15)
+
+C	INTERNAL FORCE VECTOR
+	DIMENSION FM(24),FB(24),FS(24),APSH(2),APMT(5)
+	DIMENSION FMB(24),FBM(24)
+	DIMENSION PAPM(5),PAPB(11),PAPSH(2)
+
+C	FOR DRILLING STIFFNESS
+	DIMENSION CD(24),ACD(24)
+
+C	FOR PLASTICITY
+	DIMENSION ANTR(4),ANTS(4),ANTRS(4)
+	DIMENSION ANTRR(4),ANTSS(4),ANTRRS(4),ANTSSR(4),ANTRRSS(4)
+
+      DATA SL /2.5E5,.1334,.1334,.1334,1.E20,19.2,4.00,4.00/
+
+
+
+	ALLOCATABLE IF3(:),AF4(:),AF7(:)
+	ALLOCATABLE REDIS(:),NODEX(:),TEDIS(:)
+	
+C	----------------------------------------
+C	GROUP DATA
+C	----------------------------------------
+	CALL INTFILL('%GRP',ITYPE,1 ,IEG,0) !
+	CALL INTFILL('%GRP',ISTYP,2 ,IEG,0) !
+	CALL INTFILL('%GRP',NELE ,3 ,IEG,0) !
+	CALL INTFILL('%GRP',MPRT ,4 ,IEG,0) ! MAXP
+	CALL INTFILL('%GRP',MGAS ,5 ,IEG,0) !
+	CALL INTFILL('%GRP',MFIB ,6 ,IEG,0) !
+	CALL INTFILL('%GRP',NEF  ,7 ,IEG,0) !
+	CALL INTFILL('%GRP',NNM  ,8 ,IEG,0) !
+	CALL INTFILL('%GRP',NNF  ,9 ,IEG,0) !
+	CALL INTFILL('%GRP',NGR  ,10,IEG,0) !
+	CALL INTFILL('%GRP',NGS  ,11,IEG,0) !
+	CALL INTFILL('%GRP',NGT  ,12,IEG,0) !
+C	GROUP FILE
+	CALL INTFILL('%GRF',N3   ,3 ,IEG,0) !
+	CALL INTFILL('%GRF',N4   ,4 ,IEG,0) !
+	CALL INTFILL('%GRF',N5   ,5 ,IEG,0) !
+	CALL INTFILL('%GRF',N7   ,7 ,IEG,0) !
+
+	CALL INTFILL('%GRF',NDX3 ,13,IEG,0) !
+	CALL INTFILL('%GRF',NDX4 ,14,IEG,0) !
+	CALL INTFILL('%GRF',NDX5 ,15,IEG,0) !
+	CALL INTFILL('%GRF',NDX7 ,17,IEG,0) !
+
+C	----------------------------------------
+	ALLOCATE(IF3(N3),AF4(N4),AF7(N7))
+	ALLOCATE(REDIS(NEF),TEDIS(NEF))
+	NDEX = NNM - 4 + 1
+	ALLOCATE(NODEX(NDEX))
+
+C	CALLING LOPT1
+      CALL INTFILL('%SOL',LOPT1,1,1,0)
+
+C	---------------------------------------------------------
+	NPM(1) = N3
+	NPI(1) = N3
+	CALL CALLINTG(IF3,IAX,NDX3,NPM,NPI,1,'READ') !ELEMENT DATA
+
+	ISEC = IF3(2)     !SECTION SET
+	NPRT = IF3(6)     !NUMBER OF PART
+C	----------------------------------------------------------
+
+	CALL RELFILL('$SSC',THETA,9,ISEC,0)
+	CALL RELFILL('$SSC',GXOPT,10,ISEC,0)
+	LXOPT = INT(GXOPT)
+	CALL SHNEWBV(COORD,VRN,VSN,VTN,THETA,LXOPT)
+
+C	TRANSFER DIRECTLY ELEMENT TOTAL DISPLACEMENT (EDIS) TO ELEMENT PURE DEFORMATION (REDIS)
+      DO I = 1,24
+	REDIS(I)=EDIS(I)
+	ENDDO
+
+C	INITILIZE ARRAY
+	EPS(1:8) = 0.0				!STRAIN
+
+C	-----------------------------------------------
+C	DETERMINE (1)LOCAL CORDINATE VECTORS - VR,VS,VT
+C	          (2)LOCAL NODAL COORDINATES - RS
+C	-----------------------------------------------
+	CALL VRST(COORD,VR,VS,VT,RS,TRS,NNM)
+C	---------------------------------------
+C	FORM TRANSFORMATION MATRIX TRANSPOSE(T)
+C	---------------------------------------
+	DO 30 I = 1,3
+	  TT(1,I)=VR(I)
+	  TT(2,I)=VS(I)
+	  TT(3,I)=VT(I)
+30	CONTINUE
+C	----------------------------------------
+C	ADD RIGID-LINK TERMS FOR WARPED GEOMETRY
+C	----------------------------------------
+	WFAC = 1.0D0
+	IROW = 1
+	ICOL = 4
+	DO 200 I=1,4
+	  DO 220 K=1,3
+	    TT(IROW,  ICOL+K-1)=-TRS(I)*VS(K)*WFAC
+	    TT(IROW+1,ICOL+K-1)=+TRS(I)*VR(K)*WFAC
+220	  CONTINUE
+	  IROW = IROW+6
+	  ICOL = ICOL+6
+200	CONTINUE
+
+C	---------------------------------------------
+C	COMPUTE FOR ELEMENT BOUNDARY 
+C		(1)LENGTHS  - SLN
+C	    (2)NORMALS  - RN
+C	    (3)TANGENTS - SN
+C	    (4)SHEAR DEF PAR, LAMBDA - BL, BLR, BLS
+C	---------------------------------------------
+
+	CALL RELFILL('$SSC',TH  ,1,ISEC,0)           !THICKNESS
+	CALL RELFILL('$SSC',FMAT,2,ISEC,0)           !MAT NO
+	CALL RELFILL('$SSC',FTYP,3,ISEC,0)           !MAT TYPE  0=CONCRETE 1=STEEL
+	MTYP = INT(FTYP)
+	MATN = INT(FMAT)
+
+	IF(MTYP.EQ.0) CALL RELFILL('%FNC',POISN,16,MATN,0) !CONC
+	IF(MTYP.EQ.1) CALL RELFILL('%MSL',POISN,8 ,MATN,0) !STEEL
+
+	CALL LNT(RS,TH,POISN,SLN,RN,SN,BL,BLR,BLS)
+
+
+C	--------------------------
+C	COMPUTE FOR COMMON FACTORS
+C	--------------------------
+	CALL COMFACT(RS,BL,BLR,BLS,SLN,RN,SN,FLR,FLS,FLSS,FLRR,
+	1             DWR,DWRS,DWS,DWSR,ANT)
+	CALL COMFACT2(RS,ANTR,ANTS,ANTRS)
+	CALL COMFACT3(RS,ANTRR,ANTSS,ANTRRS,ANTSSR,ANTRRSS)
+
+
+C	-------------------------------------------------------------
+C	COMPUTE FOR THE FLEXURAL CONTRIBUTION TO THE LINEAR STIFFNESS
+C	-------------------------------------------------------------
+C	Cb FOR BENDING STRAINS - CB
+	CALL CBEND(RS,SLN,RN,SN,BL,BLR,BLS,FLR,FLS,FLRR,FLSS,
+	1                 DWR,DWRS,DWS,DWSR,CB)
+
+
+C	Ab FOR BENDING STRAINS - AB1,AB2
+	CALL ABEND(RS,SLN,RN,SN,AB1,AB2)
+C	MULTIPLY (Ab-1)(Cb)  - ACB
+	CALL ABCB(AB1,AB2,CB,ACB)
+
+C	----------------------------------------------------------
+C	COMP FOR THE MEMBRANE CONTRIBUTION TO THE LINEAR STIFFNESS
+C	----------------------------------------------------------
+C	Cm FOR MEMBRANE STRAINS - CM
+	CALL CMEM20(RS,SLN,RN,SN,CM)
+C	MULTIPLY (Am-1)(Cm)  - ACM
+	CALL ABCM20(AB1,CM,ACM)
+
+C	------------------------------------------------------------------
+C	COMP FOR THE TRANSVERSE SHEAR CONTRIBUTION TO THE LINEAR STIFFNESS
+C	------------------------------------------------------------------
+C	Cs FOR SHEAR STRAINS - CS
+	CALL CSHR(SLN,RN,SN,FLR,FLS,DWR,DWS,CSC,BLR,BLS)
+C	MULTIPLY (As-1)(Cs)  - ACS
+	CALL ABCS(AB1,CSC,VR,VS,VT,ACS,ACSC)
+
+C	-----------------------------------------------------------
+C	COMP FOR THE TORSIONAL CONTRIBUTION TO THE LINEAR STIFFNESS
+C	-----------------------------------------------------------
+C	Cd FOR DRILLING STRAINS - CD
+	CALL CDRILL(ANT,CM,CD)
+C	MULTIPLY (Ad-1)(Cd)  - ACD
+	DO IK=1,19,6
+	  ACD(IK)   = CD(IK  )/AB1(1,1)
+	  ACD(IK+1) = CD(IK+1)/AB1(1,1)
+	  ACD(IK+5) = CD(IK+5)/AB1(1,1)
+	ENDDO
+
+C	--------------------------------
+C	DETERMINE STRAIN PARAMETER ALPHA
+C	--------------------------------
+C	TRANSFORM REDIS TO LOCAL - TEDIS
+	CALL TREDIS(TT,REDIS,TEDIS)
+C	MEMBRANE
+	CALL APHAM20(ACM,TEDIS,APM)
+C	BENDING
+	CALL APHAB(ACB,TEDIS,APB)
+C	TRANSVERSE SHEAR
+	CALL APHAS(ACSC,TEDIS,APS)
+
+C     ----------------------------------------------------------
+C     LOOP OVER NODE TO DET. STIFFNESS & FORCE VECTOR
+C     ----------------------------------------------------------
+	IPT = 0
+      DO 400 II = 1,MGAS
+	IPT = IPT + 1
+
+	NPM(1:2) = [N7,MGAS]
+	NPI(1:2) = [N7,IPT ]
+	CALL CALLREAL(AF7,AAX,NDX7,NPM,NPI,2,'READ') 
+	N7_R = 1           !POINTER OF RIGIDITY
+	N7_S = 1 + 40       !POINTER OF MECHANICAL STRESS
+	N7_N = 1 + 40 + 8   !POINTER OF NON-MECHANICAL STRESS
+
+	N7_V = 1 + 40 + 8 + 8	!2 SET OF BASE VECTOR
+
+
+	N7_DR= 1 + 40 + 8 + 8 + 18            !OLD DRILLING STRAIN
+	N7_DS= 1 + 40 + 8 + 8 + 18 + 1        !OLD DRILLING STRESS
+	N7_D = 1 + 40 + 8 + 8 + 18 + 1 + 1    !DRILLING STRESS
+
+
+	AF7(N7_R:N7_R+40-1) = 0.0D0	!INITIALIZE OF RIGIDITY
+	AF7(N7_S:N7_S+8 -1) = 0.0D0	!INITIALIZE OF MECHANICAL STRESS
+
+C	------------------------
+C     DISPLACEMENT DERIVATIVES
+C	------------------------
+	CALL CLEARA (DISD,12)
+C	COMPONENTS OF MEMBRANE STRAINS
+	DISD(1) =APM(1)+RS(2,II)*APM(2)
+	DISD(2) =APM(3)+RS(1,II)*APM(4)
+	DISD(3) =APM(5)
+	DISD(4) =APM(6)
+C	COMPONENTS OF BENDING STRAINS
+	DISD(5) =APB(1)+APB(2)*RS(1,II)+APB(3)*RS(2,II)+
+	1         APB(4)*RS(1,II)*RS(2,II)
+	DISD(6) =APB(5)+APB(6)*RS(1,II)+APB(7)*RS(2,II)+
+	1         APB(8)*RS(1,II)*RS(2,II)
+	DISD(7) =APB(9)+APB(10)*RS(1,II)+APB(11)*RS(2,II)
+C	COMPONENTS OF TRANSVERSE SHEAR STRAINS
+	DISD(9) =APS(1)
+	DISD(10)=APS(2)
+	DISD(11)=APS(3)
+	DISD(12)=APS(4)
+
+
+
+C     -------------------
+C     LINEAR STRAIN TERMS
+C     -------------------
+      EPS(1) = DISD(1)
+      EPS(2) = DISD(2)
+      EPS(3) = DISD(3)+DISD(4)
+      EPS(4) = DISD(5)
+      EPS(5) = DISD(6)
+      EPS(6) = DISD(7)
+      EPS(7) = DISD(9) +DISD(10)
+      EPS(8) = DISD(11)+DISD(12)
+	
+	DO 300 IPRT = 1,NPRT
+
+	NPM(1:2) = [N4,MPRT]
+	NPI(1:2) = [N4,IPRT]
+	CALL CALLREAL(AF4,AAX,NDX4,NPM,NPI,2,'READ')	
+	IXIST   = INT(AF4(1))   !EXISTING FLAG
+
+	IF (IXIST.EQ. 0) GOTO 300 !PART HAS NEVER EXISTED & CURRENTLY REMOVED
+
+	NPM(1:4) = [N5,MFIB,MGAS,MPRT]
+	NPI(1:4) = [N5,   0,IPT ,IPRT]   !NFIB TO BE MODIFIED IN NEXT SUBRUTINE
+	CALL LAYOPT1(NPM,NPI,ISEC,AF7(N7_R),
+	1			 AF7(N7_S),EPS,LOPT1,AAX,NDX5)
+
+
+300	CONTINUE
+
+C	COMPONENTS OF DRILLING STRESS
+      DRILR = AF7(N7_DR) !OLD DRILLING STRAIN
+      DRILS = AF7(N7_DS) !OLD DRILLING STRESS
+	DRILN = 0.0D0
+	DO IEF = 1,NEF
+	DRILN = DRILN + ACD(IEF)*TEDIS(IEF)
+	ENDDO
+	DRILD = DRILN - DRILR
+	DFAC = 10.0*AB1(1,1)*AF7(N7_R+14)   !AF7(N7_R+14) IS THE RIGIDITY OF IN PLANE SHEAR
+	
+C	AF7(N7_D) = DRILS + DRILD*DFAC     !INCREMENTAL FORM
+	AF7(N7_D) = DRILN*DFAC             !TOTAL FORM
+		 
+	IF(LOPT1.EQ.1) THEN
+	AF7(N7_DR) = DRILN        !BACKUP OLD DRILLING STRAIN IF NEED (LOPT1 = 1)
+	AF7(N7_DS) = AF7(N7_D)    !BACKUP OLD DRILLING STRESS IF NEED (LOPT1 = 1)
+	ENDIF
+
+
+	AF7(N7_V+0 :N7_V+2 ) = VR(1:3) 
+	AF7(N7_V+3 :N7_V+5 ) = VS(1:3) 
+	AF7(N7_V+6 :N7_V+8 ) = VT(1:3)
+	 
+	AF7(N7_V+9 :N7_V+11) = VRN(1:3) 
+	AF7(N7_V+12:N7_V+14) = VSN(1:3) 
+	AF7(N7_V+15:N7_V+17) = VTN(1:3) 
+
+C	--------------------------------
+C	STORE HERE JAN09 LOADCOMB
+C	--------------------------------
+	IC = 0
+	CALL INTFILL('@COM',IC,1,1,0)
+	IF(IC.GT.0) THEN
+
+C	PREVIOUS
+	MS1_P = N7 - 8*11 + 8*(IC-1) + 1
+	MS2_P = N7 - 8*11 + 8*(IC-1) + 8
+C	CURRENT
+	MS1_C = N7 - 8*11 + 8*(11-1) + 1
+	MS2_C = N7 - 8*11 + 8*(11-1) + 8
+
+      IF(IC.EQ.8) THEN !FOR CREEP&SHRINKAGE PRIMARY  STORE DIRECTLY TOTAL NON-MECHANICAL STRESS RESULTANT
+	AF7(MS1_P:MS2_P) = AF7(N7_S:N7_S+8 -1)
+      ELSE
+	AF7(MS1_P:MS2_P) = AF7(MS1_P:MS2_P) + AF7(N7_S:N7_S+8 -1) -
+	1				   AF7(MS1_C:MS2_C)			!BACK UP THE STRESS RESULTANT HERE FOR LOAD COMBINATION
+      ENDIF
+
+	ELSEIF(IC.EQ.-1) THEN
+
+C	CURRENT
+	MS1_C = N7 - 8*11 + 8*(11-1) + 1
+	MS2_C = N7 - 8*11 + 8*(11-1) + 8
+	AF7(MS1_C:MS2_C) = AF7(N7_S:N7_S+8 -1)
+
+	ENDIF
+C	--------------------------------
+
+	NPM(1:2) = [N7,MGAS]
+	NPI(1:2) = [N7,IPT ]
+	CALL CALLREAL(AF7,AAX,NDX7,NPM,NPI,2,'WRIT')   !BACK UP HERE RIGIDITY AND MCHA STRESS
+C     ----------------------------------------------------------
+400	CONTINUE
+C     ----------------------------------------------------------
+
+	DEALLOCATE(IF3,AF4,AF7)
+	DEALLOCATE(REDIS,TEDIS)
+	DEALLOCATE(NODEX)
+
+
+	RETURN
+
+	END
+
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================
+      SUBROUTINE QSHLOPT2(IEG,IEL,IAX,AAX)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+
+C	LTMOPT(2)  WORKING ON NON-MECHANICAL DATA
+C	 0 = NO UPDATE DATA
+C	 1 = UPDATE DATA AT START OF TIME STEP
+C	 2 = UPDATE DATA AT END OF TIME STEP
+C	 3 = UPDATE DATA FOREACH ITERATION STEP
+
+	DIMENSION NPM(10),NPI(10),DATF(2),IAX(1),AAX(1)
+	ALLOCATABLE IF3(:),AF4(:),AF7(:)
+
+C	----------------------------------------
+C	GROUP DATA
+C	----------------------------------------
+	CALL INTFILL('%GRP',ITYPE,1 ,IEG,0) !
+	CALL INTFILL('%GRP',ISTYP,2 ,IEG,0) !
+	CALL INTFILL('%GRP',NELE ,3 ,IEG,0) !
+	CALL INTFILL('%GRP',MPRT ,4 ,IEG,0) ! MAXP
+	CALL INTFILL('%GRP',MGAS ,5 ,IEG,0) !
+	CALL INTFILL('%GRP',MFIB ,6 ,IEG,0) !
+	CALL INTFILL('%GRP',NEF  ,7 ,IEG,0) !
+	CALL INTFILL('%GRP',NNM  ,8 ,IEG,0) !
+	CALL INTFILL('%GRP',NNF  ,9 ,IEG,0) !
+	CALL INTFILL('%GRP',NGR  ,10,IEG,0) !
+	CALL INTFILL('%GRP',NGS  ,11,IEG,0) !
+	CALL INTFILL('%GRP',NGT  ,12,IEG,0) !
+C	GROUP FILE
+	CALL INTFILL('%GRF',N3   ,3 ,IEG,0) !
+	CALL INTFILL('%GRF',N4   ,4 ,IEG,0) !
+	CALL INTFILL('%GRF',N5   ,5 ,IEG,0) !
+	CALL INTFILL('%GRF',N7   ,7 ,IEG,0) !
+
+	CALL INTFILL('%GRF',NDX3 ,13,IEG,0) !
+	CALL INTFILL('%GRF',NDX4 ,14,IEG,0) !
+	CALL INTFILL('%GRF',NDX5 ,15,IEG,0) !
+	CALL INTFILL('%GRF',NDX7 ,17,IEG,0) !
+
+      CALL INTFILL('%SOL',LOPT2,1,2,0)
+
+C	----------------------------------------
+	ALLOCATE(IF3(N3),AF4(N4),AF7(N7))
+
+
+	CALL RELFILL('-SOV',TODAY,1,1,0) !CALL TODAY
+C	---------------------------------------------------------
+C	CALLING SECTION SET NUMBER
+	NPM(1) = N3
+	NPI(1) = N3
+	CALL CALLINTG(IF3,IAX,NDX3,NPM,NPI,1,'READ')
+
+	ISEC = IF3(2)     !SECTION SET
+C	ICRP = IF3(3)     !CREEP INTEGRATION OPTION  !ALREADY CALL IN MATERIAL
+	NPRT = IF3(6)     !NUMBER OF PART
+	
+C     ----------------------------------------------------------
+C     LOOP OVER GAUSS TO DET. STIFFNESS & FORCE VECTOR
+C     ----------------------------------------------------------
+      DO 400 IPT = 1,MGAS
+
+	NPM(1:2) = [N7,MGAS]
+	NPI(1:2) = [N7,IPT ]
+	CALL CALLREAL(AF7,AAX,NDX7,NPM,NPI,2,'READ') 
+	N7_R = 1           !POINTER OF RIGIDITY
+	N7_S = 1 + 40       !POINTER OF MECHANICAL STRESS
+	N7_N = 1 + 40 + 8   !POINTER OF NON-MECHANICAL STRESS
+	AF7(N7_N:N7_N+8-1) = 0.0D0	!INITIALIZE OF NON-MECHANICAL STRESS
+
+
+	DO 300 IPRT = 1,NPRT
+
+
+	NPM(1:2) = [N4,MPRT]
+	NPI(1:2) = [N4,IPRT]
+	CALL CALLREAL(AF4,AAX,NDX4,NPM,NPI,2,'READ')
+	IXIST   = INT(AF4(1))   !EXISTING FLAG
+	DATF(1) = AF4(3)        !CASTING DAY
+	DATF(2) = AF4(4)        !INSTALLATION DAY
+
+
+	IF (IXIST.EQ. 0) GOTO 400 !ELEMENT HAS NEVER EXISTED & CURRENTLY REMOVED
+      AGEC  = 0.0001
+	IF(TODAY-DATF(1).GT.AGEC) AGEC = TODAY-DATF(1)
+      TINC  = TODAY - DATF(2)
+
+	IF(IPT.EQ.MGAS) AF4(4) = TODAY  !BACKUP TODAY TO THIS PART (AT LAST GAUSS)
+	NPM(1:2) = [N4,MPRT]
+	NPI(1:2) = [N4,IPRT]
+	CALL CALLREAL(AF4,AAX,NDX4,NPM,NPI,2,'WRIT')
+
+
+	NPM(1:4) = [N5,MFIB,MGAS,MPRT]
+	NPI(1:4) = [N5,   0,IPT ,IPRT]   !NFIB TO BE MODIFIED IN NEXT SUBRUTINE
+	IF(LOPT2.EQ.1) CALL LAYOPT21(AGEC,TINC,NPM,NPI,ISEC,
+	1							 AF7(N7_N),AAX,NDX5)
+	IF(LOPT2.EQ.2) CALL LAYOPT22(NPM,NPI,ISEC,AAX,NDX5)
+	IF(LOPT2.EQ.3) CALL LAYOPT23(NPM,NPI,ISEC,AF7(N7_N),AAX,NDX5)
+
+300	CONTINUE
+
+
+	NPM(1:2) = [N7,MGAS]
+	NPI(1:2) = [N7,IPT ]
+	CALL CALLREAL(AF7,AAX,NDX7,NPM,NPI,2,'WRIT')  !BACKUP HERE NON-MECHANICAL STRESS
+C     ----------------------------------------------------------
+400	CONTINUE
+C     ----------------------------------------------------------
+
+	DEALLOCATE(IF3,AF4,AF7)
+
+	RETURN
+
+	END
+
+
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================
+      SUBROUTINE QSHLOPT3(IEG,IEL,COORD,S,RE,LSTF,LFOC,IAX,AAX)
+	IMPLICIT REAL*8 (A-H,O-Z)
+      IMPLICIT INTEGER*4 (I-N)
+C	LTMOPT(1)  WORKING ON MECHANICAL DATA
+C	 0 = NO UPDATE STRESS & MATERIAL STATE
+C	 1 = UPDATE STRESS & MATERIAL STATE
+C	 2 = STIFFNESS ONLY
+
+	COMMON /GASEC/  GAUSP(10,10),GAUSW(10,10)
+
+	DIMENSION COORD(3,1),EDIS(1),IAX(1),AAX(1)
+
+	DIMENSION EPS(8),NPM(10),NPI(10)
+	DIMENSION RRN(4),SSN(4),FJ(4),XJI(4)
+	DIMENSION H(8),HD(2,8),VR(3),VS(3),VT(3)
+	DIMENSION HR(4),HS(4),B(240),BA(4,120)
+	DIMENSION DISD(12),SL(4,2)
+	DIMENSION TEDIS(48),RETMP(24),ST(300)
+
+	DIMENSION S(1),DR(8,8),SIGR(8),RE(24)
+
+C	COMMON VARIABLES
+	DIMENSION RS(2,4),TRS(4),SLN(4),RN(4),SN(4),BL(4)
+	DIMENSION FLR(4),FLS(4),FLSS(4),FLRR(4),ANT(4)
+	DIMENSION DWR(12),DWRS(12),DWS(12),DWSR(12),AKBS(300)
+	DIMENSION TT(24,24)
+
+C	BENDING VARIABLES
+	DIMENSION AB1(4,4),AB2(3,3),CB(11,24),ACB(11,24)
+	DIMENSION APB(11)
+	DIMENSION PBPM(11,5),PBPB(11,11)
+
+C	MEMBRANE VARIABLES
+	DIMENSION CM(5,24),ACM(5,24)
+	DIMENSION APM(6)
+	DIMENSION PMPM(5,5),PMPB(5,11)
+
+C	TRANSVERSE SHEAR VARIABLES
+	DIMENSION CS(2,24),CSC(4,24),ACS(2,24),ACSC(4,24)
+	DIMENSION APS(4),PTP(2,2)
+
+C	FOR GEOMETRIC STIFFNESS
+	DIMENSION CG(15,24),ACG(15,24),PFP(15,15)
+
+C	INTERNAL FORCE VECTOR
+	DIMENSION FM(24),FB(24),FS(24),FD(24),APSH(2),APMT(5)
+	DIMENSION FMB(24),FBM(24)
+	DIMENSION PAPM(5),PAPB(11),PAPSH(2)
+
+C	FOR DRILLING STIFFNESS
+	DIMENSION CD(24),ACD(24)
+
+C	FOR PLASTICITY
+	DIMENSION ANTR(4),ANTS(4),ANTRS(4)
+	DIMENSION ANTRR(4),ANTSS(4),ANTRRS(4),ANTSSR(4),ANTRRSS(4)
+
+      DATA SL /2.5E5,.1334,.1334,.1334,1.E20,19.2,4.00,4.00/
+
+
+
+	ALLOCATABLE IF3(:),AF7(:)
+	ALLOCATABLE REDIS(:),NODEX(:)
+C	----------------------------------------
+C	GROUP DATA
+C	----------------------------------------
+	CALL INTFILL('%GRP',ITYPE,1 ,IEG,0) !
+	CALL INTFILL('%GRP',ISTYP,2 ,IEG,0) !
+	CALL INTFILL('%GRP',NELE ,3 ,IEG,0) !
+	CALL INTFILL('%GRP',MPRT ,4 ,IEG,0) ! MAXP
+	CALL INTFILL('%GRP',MGAS ,5 ,IEG,0) !
+	CALL INTFILL('%GRP',MFIB ,6 ,IEG,0) !
+	CALL INTFILL('%GRP',NEF  ,7 ,IEG,0) !
+	CALL INTFILL('%GRP',NNM  ,8 ,IEG,0) !
+	CALL INTFILL('%GRP',NNF  ,9 ,IEG,0) !
+	CALL INTFILL('%GRP',NGR  ,10,IEG,0) !
+	CALL INTFILL('%GRP',NGS  ,11,IEG,0) !
+	CALL INTFILL('%GRP',NGT  ,12,IEG,0) !
+C	GROUP FILE
+	CALL INTFILL('%GRF',N3   ,3 ,IEG,0) !
+	CALL INTFILL('%GRF',N7   ,7 ,IEG,0) !
+
+	CALL INTFILL('%GRF',NDX3 ,13,IEG,0) !
+	CALL INTFILL('%GRF',NDX7 ,17,IEG,0) !
+	
+	CALL INTFILL('%GRF',NFLI ,21,IEG,0) !
+	CALL INTFILL('%GRF',NFLR ,22,IEG,0) !
+	
+	CALL INTFILL('%GRF',LASI ,23,IEG,0) !
+	CALL INTFILL('%GRF',LASR ,24,IEG,0) !
+C	----------------------------------------
+	ALLOCATE(IF3(N3),AF7(N7))
+	ALLOCATE(REDIS(NEF))
+	NDEX = NNM - 4 + 1
+	ALLOCATE(NODEX(NDEX))
+
+C	CALLING LOPT1
+      CALL INTFILL('%SOL',LOPT1,1,1,0)
+      
+C	---------------------------------------------------------
+	NPM(1) = N3
+	NPI(1) = N3
+	CALL CALLINTG(IF3,IAX,NDX3,NPM,NPI,1,'READ') !ELEMENT DATA
+
+	ISEC = IF3(2)     !SECTION SET
+	NPRT = IF3(6)     !NUMBER OF PART
+	
+	IXIST = IF3(4)  !TOTAL EXISTING FLAG 
+	IF(IXIST.EQ.0) GOTO 8000 !NO EXISTED ELEMENT 
+C	----------------------------------------------------------
+
+C	INITILIZE ARRAY
+	S(1:300)		= 0.0D0       !STIFF
+	DR(1:8,1:8)   = 0.0D0       !RIGIDITY
+	SIGR(1:8)		= 0.0D0       !RESULTANT STRESS
+	RE(1:24)		= 0.0D0       !INTERNAL FORCE
+
+C	-----------------------------------------------
+C	DETERMINE (1)LOCAL CORDINATE VECTORS - VR,VS,VT
+C	          (2)LOCAL NODAL COORDINATES - RS
+C	-----------------------------------------------
+	CALL VRST(COORD,VR,VS,VT,RS,TRS,NNM)
+C	---------------------------------------
+C	FORM TRANSFORMATION MATRIX TRANSPOSE(T)
+C	---------------------------------------
+	DO 30 I = 1,3
+	  TT(1,I)=VR(I)
+	  TT(2,I)=VS(I)
+	  TT(3,I)=VT(I)
+30	CONTINUE
+C	----------------------------------------
+C	ADD RIGID-LINK TERMS FOR WARPED GEOMETRY
+C	----------------------------------------
+	WFAC = 1.0D0
+	IROW = 1
+	ICOL = 4
+	DO 200 I=1,4
+	  DO 220 K=1,3
+	    TT(IROW,  ICOL+K-1)=-TRS(I)*VS(K)*WFAC
+	    TT(IROW+1,ICOL+K-1)=+TRS(I)*VR(K)*WFAC
+220	  CONTINUE
+	  IROW = IROW+6
+	  ICOL = ICOL+6
+200	CONTINUE
+
+C	---------------------------------------------
+C	COMPUTE FOR ELEMENT BOUNDARY 
+C		(1)LENGTHS  - SLN
+C	    (2)NORMALS  - RN
+C	    (3)TANGENTS - SN
+C	    (4)SHEAR DEF PAR, LAMBDA - BL, BLR, BLS
+C	---------------------------------------------
+
+	CALL RELFILL('$SSC',TH  ,1,ISEC,0)           !THICKNESS
+	CALL RELFILL('$SSC',FMAT,2,ISEC,0)           !MAT NO
+	CALL RELFILL('$SSC',FTYP,3,ISEC,0)           !MAT TYPE  0=CONCRETE 1=STEEL
+	MTYP = INT(FTYP)
+	MATN = INT(FMAT)
+
+	IF(MTYP.EQ.0) CALL RELFILL('%FNC',POISN,16,MATN,0) !CONC
+	IF(MTYP.EQ.1) CALL RELFILL('%MSL',POISN,8 ,MATN,0) !STEEL
+
+	CALL LNT(RS,TH,POISN,SLN,RN,SN,BL,BLR,BLS)
+
+C	--------------------------
+C	COMPUTE FOR COMMON FACTORS
+C	--------------------------
+	CALL COMFACT(RS,BL,BLR,BLS,SLN,RN,SN,FLR,FLS,FLSS,FLRR,
+	1             DWR,DWRS,DWS,DWSR,ANT)
+	CALL COMFACT2(RS,ANTR,ANTS,ANTRS)
+	CALL COMFACT3(RS,ANTRR,ANTSS,ANTRRS,ANTSSR,ANTRRSS)
+
+C	-------------------------------------------------------------
+C	COMPUTE FOR THE FLEXURAL CONTRIBUTION TO THE LINEAR STIFFNESS
+C	-------------------------------------------------------------
+C	Cb FOR BENDING STRAINS - CB
+	CALL CBEND(RS,SLN,RN,SN,BL,BLR,BLS,FLR,FLS,FLRR,FLSS,
+	1                 DWR,DWRS,DWS,DWSR,CB)
+C	Ab FOR BENDING STRAINS - AB1,AB2
+	CALL ABEND(RS,SLN,RN,SN,AB1,AB2)
+C	MULTIPLY (Ab-1)(Cb)  - ACB
+	CALL ABCB(AB1,AB2,CB,ACB)
+
+C	----------------------------------------------------------
+C	COMP FOR THE MEMBRANE CONTRIBUTION TO THE LINEAR STIFFNESS
+C	----------------------------------------------------------
+C	Cm FOR MEMBRANE STRAINS - CM
+	CALL CMEM20(RS,SLN,RN,SN,CM)
+C	MULTIPLY (Am-1)(Cm)  - ACM
+	CALL ABCM20(AB1,CM,ACM)
+
+C	------------------------------------------------------------------
+C	COMP FOR THE TRANSVERSE SHEAR CONTRIBUTION TO THE LINEAR STIFFNESS
+C	------------------------------------------------------------------
+C	Cs FOR SHEAR STRAINS - CS
+	CALL CSHR(SLN,RN,SN,FLR,FLS,DWR,DWS,CSC,BLR,BLS)
+C	MULTIPLY (As-1)(Cs)  - ACS
+	CALL ABCS(AB1,CSC,VR,VS,VT,ACS,ACSC)
+
+C	-----------------------------------------------------------
+C	COMP FOR THE TORSIONAL CONTRIBUTION TO THE LINEAR STIFFNESS
+C	-----------------------------------------------------------
+C	Cd FOR DRILLING STRAINS - CD
+	CALL CDRILL(ANT,CM,CD)
+C	MULTIPLY (Ad-1)(Cd)  - ACD
+	DO IK=1,19,6
+	  ACD(IK)   = CD(IK  )/AB1(1,1)
+	  ACD(IK+1) = CD(IK+1)/AB1(1,1)
+	  ACD(IK+5) = CD(IK+5)/AB1(1,1)
+	ENDDO
+
+C	--------------------------------
+C	DETERMINE STRAIN PARAMETER ALPHA
+C	--------------------------------
+C	TRANSFORM REDIS TO LOCAL - TEDIS
+	CALL TREDIS(TT,REDIS,TEDIS)
+C	MEMBRANE
+	CALL APHAM20(ACM,TEDIS,APM)
+C	BENDING
+	CALL APHAB(ACB,TEDIS,APB)
+C	TRANSVERSE SHEAR
+	CALL APHAS(ACSC,TEDIS,APS)
+
+C     ----------------------------------------------------------
+C     LOOP OVER NODE TO DET. STIFFNESS & FORCE VECTOR
+C     ----------------------------------------------------------
+	IPT = 0
+      DO 400 II = 1,MGAS
+	IPT = IPT + 1
+
+	DVOL = 1.0D0
+
+	NPM(1:2) = [N7,MGAS]
+	NPI(1:2) = [N7,IPT ]
+	CALL CALLREAL(AF7,AAX,NDX7,NPM,NPI,2,'READ') 
+	
+	N7_R = 1           !POINTER OF RIGIDITY
+	N7_S = 1 + 40       !POINTER OF MECHANICAL STRESS
+	N7_N = 1 + 40 + 8   !POINTER OF NON-MECHANICAL STRESS
+
+	N7_DR= 1 + 40 + 8 + 8 + 18            !OLD DRILLING STRAIN
+	N7_DS= 1 + 40 + 8 + 8 + 18 + 1        !OLD DRILLING STRESS
+	N7_D = 1 + 40 + 8 + 8 + 18 + 1 + 1    !DRILLING STRESS
+C     ----------------------------------------------------
+	IF(LSTF.GT.0) THEN
+	K = 0
+	DO I = 1,6
+	DO J = 1,6
+	K = K + 1
+	DR(I,J) = AF7(K+N7_R-1) !RIGIDITY
+	ENDDO
+	ENDDO
+	DO I = 7,8
+	DO J = 7,8
+	K = K + 1
+	DR(I,J) = AF7(K+N7_R-1) !RIGIDITY
+	ENDDO
+	ENDDO
+	ENDIF
+
+	IF(LFOC.GT.0) THEN
+	SELECTCASE(LFOC)
+
+	CASE(1)
+	DO I = 1,8
+	SIGR(I) = AF7(I+N7_N-1)*DVOL  !NON-MECHA
+	ENDDO
+
+	SIGRD = 0.0D0  !NON-MECHANICAL DRILLING STRESS
+
+	CASE(2)
+	DO I = 1,8
+	SIGR(I) = AF7(I+N7_S-1)*DVOL  !MECHA
+	ENDDO
+
+	SIGRD = AF7(N7_D)  !MECHANICAL DRILLING STRESS
+
+	ENDSELECT
+	ENDIF
+C     ----------------------------------------------------
+
+	CALL PSIGR(IPT,SIGR,ANT(II),ANTR(II),ANTS(II),ANTRS(II),
+	1           PAPM,PAPB,PAPSH)
+	CALL PDRP(IPT,DR,ANT(II),ANTR(II),ANTS(II),ANTRS(II),ANTRR(II),
+	1          ANTSS(II),ANTRRS(II),ANTSSR(II),ANTRRSS(II),
+	2          PMPM,PMPB,PBPB,PTP)
+
+C     ------------------------ 
+
+400	CONTINUE
+
+C	INELASTIC CASE - FILL IN LOWER-TRIANGULAR PART
+C	  MEMBRANE-MEMBRANE - Nm*A*Pm
+	  DO 700 I = 1,5
+	   DO 705 J = I,5
+	    PMPM(J,I) = PMPM(I,J)
+705	   CONTINUE
+700	  CONTINUE
+C	  MEMBRANE-BENDING  - Nm*B*Pb
+C		Determined in the Stress Resultants Routine
+C	  BENDING-MEMBRANE  - Nb*B*Pm
+	  PBPM = TRANSPOSE(PMPB)
+C	  BENDING-BENDING   - Nb*D*Pb
+	  DO 710 I = 1,11
+	   DO 715 J = I,11
+	    PBPB(J,I) = PBPB(I,J)
+715	   CONTINUE
+710	  CONTINUE
+C	  TRANSVERSE SHEAR  - Ns*G*Ps
+	  PTP(2,1) = PTP(1,2)
+
+
+C	========================================================
+	IF(LFOC.GT.0) THEN
+C	INTERNAL FORCE
+
+C	MEMBRANE CONTRIBUTION
+C	---------------------
+	DO 7100 IR = 1,19,6
+	  IS = IR+1
+	  FM(IR) = ACM(1,IR)*PAPM(1)+ACM(2,IR)*PAPM(2)+ACM(5,IR)*PAPM(5)
+	  FM(IS) = ACM(3,IS)*PAPM(3)+ACM(4,IS)*PAPM(4)+ACM(5,IS)*PAPM(5)
+7100	CONTINUE
+C	BENDING CONTRIBUTION
+C	--------------------
+	DO 7200 IR = 3,21,6
+	  IS = IR+1
+	  IT = IR+2
+	  FB(IR) = ACB(1,IR)*PAPB(1)+ACB(2,IR)*PAPB(2)+ACB(3,IR)*PAPB(3)
+     #          +ACB(4,IR)*PAPB(4)+ACB(5,IR)*PAPB(5)+ACB(6,IR)*PAPB(6)
+     #          +ACB(7,IR)*PAPB(7)+ACB(8,IR)*PAPB(8)+ACB(9,IR)*PAPB(9)
+     #          +ACB(10,IR)*PAPB(10)+ACB(11,IR)*PAPB(11)
+	  FB(IS) = ACB(1,IS)*PAPB(1)+ACB(2,IS)*PAPB(2)+ACB(3,IS)*PAPB(3)
+     #          +ACB(4,IS)*PAPB(4)+ACB(5,IS)*PAPB(5)+ACB(6,IS)*PAPB(6)
+     #          +ACB(7,IS)*PAPB(7)+ACB(8,IS)*PAPB(8)+ACB(9,IS)*PAPB(9)
+     #          +ACB(10,IS)*PAPB(10)+ACB(11,IS)*PAPB(11)
+	  FB(IT) = ACB(1,IT)*PAPB(1)+ACB(2,IT)*PAPB(2)+ACB(3,IT)*PAPB(3)
+     #          +ACB(4,IT)*PAPB(4)+ACB(5,IT)*PAPB(5)+ACB(6,IT)*PAPB(6)
+     #          +ACB(7,IT)*PAPB(7)+ACB(8,IT)*PAPB(8)+ACB(9,IT)*PAPB(9)
+     #          +ACB(10,IT)*PAPB(10)+ACB(11,IT)*PAPB(11)
+7200	CONTINUE
+C	TRANSVERSE SHEAR CONTRIBUTION
+C	-----------------------------
+	DO 7300 IR = 3,21,6
+	  IS = IR+1
+	  IT = IR+2
+	  FS(IR) = ACS(1,IR)*PAPSH(1)+ACS(2,IR)*PAPSH(2)
+	  FS(IS) = ACS(1,IS)*PAPSH(1)+ACS(2,IS)*PAPSH(2)
+	  FS(IT) = ACS(1,IT)*PAPSH(1)+ACS(2,IT)*PAPSH(2)
+7300	CONTINUE
+
+C	---------------------------------------
+C	FORCES FROM DRILLING DOF 
+	FD = 0.0D0
+	DO IEF = 1,NEF
+	FD(IEF) = FD(IEF) + ACD(IEF)*SIGRD
+	ENDDO
+
+C	---------------------------------------
+
+C	SUM CONTRIBUTIONS
+C	-----------------
+	  DO 333 IDF = 1,NEF
+333	    RETMP(IDF) = FM(IDF)+FB(IDF)+FS(IDF)+FD(IDF)
+
+
+C	TRANSFORM TO GLOBAL
+C	-------------------
+	DO 9017 I = 1,22,3
+	  IX = I+1
+	  IY = I+2
+	  RE(I)  = TT(1,1)*RETMP(I)+TT(2,1)*RETMP(IX)+TT(3,1)*RETMP(IY)
+	  RE(IX) = TT(1,2)*RETMP(I)+TT(2,2)*RETMP(IX)+TT(3,2)*RETMP(IY)
+	  RE(IY) = TT(1,3)*RETMP(I)+TT(2,3)*RETMP(IX)+TT(3,3)*RETMP(IY)
+9017	CONTINUE
+	DO 9018 I = 4,22,6
+	  IX = I+1
+	  IY = I+2
+	  IZ = I-3
+	  IW = I-2
+	  RE(I ) = RE(I )+TT(IZ,I )*RETMP(IZ)+TT(IW,I )*RETMP(IW)
+	  RE(IX) = RE(IX)+TT(IZ,IX)*RETMP(IZ)+TT(IW,IX)*RETMP(IW)
+	  RE(IY) = RE(IY)+TT(IZ,IY)*RETMP(IZ)+TT(IW,IY)*RETMP(IW)
+9018	CONTINUE
+
+	ENDIF
+C	========================================================
+
+C	========================================================
+	IF(LSTF.GT.0) THEN
+
+7000	ST = 0.0D0
+
+C	ADD FLEXURAL PART OF STIFFNESS MATRIX - S
+	 CALL KBEND(ACB,PBPB,ST)
+C	ADD MEMBRANE PART OF STIFFNESS MATRIX - S
+	 CALL KMEM20(ACM,PMPM,ST)
+C	ADD TRANS SHEAR PART OF STIFFNESS MATRIX - S
+	 CALL KSHR(ACS,PTP,ST)
+
+C	ADD TORSION PART OF THS STIFFNESS MATRIX K2 - DRILLING STRAIN
+	DFAC = 10.0*DR(3,3)*AB1(1,1)
+	CALL KDRLL(ACD,DFAC,ST)
+
+C	ADD TORSION PART OF THS STIFFNESS MATRIX K3 - SOFT SPRING
+	SFAC=DMIN1(DR(3,3),DR(4,4)/(AB1(1,1)/4.0)) 
+	DFAC=AB1(1,1)*SFAC*1.E-6
+	ST(111) = ST(111)+DFAC
+	ST(210) = ST(210)+DFAC
+	ST(273) = ST(273)+DFAC
+	ST(300) = ST(300)+DFAC
+C	---------------------------------------
+
+	CALL KGLOBAL(ST,TT,S)
+
+	ENDIF
+C	========================================================
+
+8000	DEALLOCATE(IF3,AF7)
+	DEALLOCATE(REDIS)
+	DEALLOCATE(NODEX)	
+
+
+	RETURN
+
+	END
+
+C	=======================================================================
+C	=== CONSTRUCTION ANALYSIS =============== SONGSAK NOV2007 =============
+C	=======================================================================
