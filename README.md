@@ -11,12 +11,21 @@ https://drive.google.com/file/d/1EnIycNjleFvzA3FD5cznewVUL2SnXxpA/view?usp=shari
 X-WIND Manual (.chm) available here:
 https://drive.google.com/file/d/1kB3dybjb96M9AM_HRu5iK2a6aZGn-oV_/view?usp=sharing
 
+# Infomation
+1) All users can use X-WIND by getting the brief information of free license during installation process. (from XFIASIT: Dr. Ki-Du kim:  kimkd@konkuk.ac.kr,  Dr. Pasin Pasin Plodpradit:  P_tuay@hotmail.com ). 
+2) X-Wind information will get from www.xfinas.com. 
+3) User can get the free license for every 3 Months. 
+4) The version can not be used for commercial purpose. For commercial purpose keep in touch with XFIASIT. 
+5) The new version of Nemoh (2022) that has a second order force will be implemented in the next version.
+6) In OpenFAST and Nemph, without changing the main algorithm, we modified input and output subroutine for easy use of post-processing.   
+7) Whenever XFINASIT upgrades the new installer, XFINASIT will upload in GiTHUB. 
+
+<a href="https://freeimage.host/i/HzBsu5l"><img src="https://iili.io/HzBsu5l.md.jpg" alt="HzBsu5l.md.jpg" border="0"></a><br /><a target='_blank' href='https://freeimage.host/'></a><br />
+
 # Installation Guild line
 1) Installed AutoCAD 2020 version above (2020,2021, 2022 and 2023 (most optimal)) and always installed on drive C: directory. 
 2) X-Wind Installer will be uploaded whenever XFINASIT upgrades the X-Wind. The old version will be deleted.
-3) All users can use X-WIND by getting the brief information of free license during installation process. (from XFIASIT: Dr. Ki-Du kim:  kimkd@konkuk.ac.kr,  Dr. Pasin Plodpradit:  P_tuay@hotmail.com).
-4) Full inslallation guild line is get from https://drive.google.com/file/d/1kB3dybjb96M9AM_HRu5iK2a6aZGn-oV_/view?usp=sharing or www.xfinas.com. 
-5) User can get the free license at every 3 Months.
+3) Full inslallation guild line is get from https://drive.google.com/file/d/1kB3dybjb96M9AM_HRu5iK2a6aZGn-oV_/view?usp=sharing or www.xfinas.com. 
 
 # Documentation
 The full documentation is available at https://drive.google.com/file/d/1kB3dybjb96M9AM_HRu5iK2a6aZGn-oV_/view?usp=sharing
