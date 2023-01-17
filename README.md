@@ -5,11 +5,20 @@ The Solution of X-WIND AutoCAD program is specialized in offshore projects, incl
 
 The X-WIND is AutoCAD embeded software which the Pre/Postprocessor of X-WIND is integrated with the "ADD IN" function of AutoCAD. Through interactive approach of AutoCAD, the finite element calculation make users obtain calculation results and report with visualization of post-processing in AutoCAD environment.
 
-X-WIND Installer Version2.01n (x64) available here:
-https://drive.google.com/file/d/1EnIycNjleFvzA3FD5cznewVUL2SnXxpA/view?usp=sharing
+X-WIND Installer Version2.01o (x64) available here:
+https://drive.google.com/file/d/19Mzvk7390Og8JcZf__ScLe0cK3R-OgPI/view?usp=sharing
 
 X-WIND Manual (.chm) available here:
 https://drive.google.com/file/d/1kB3dybjb96M9AM_HRu5iK2a6aZGn-oV_/view?usp=sharing
+
+Infomation Update!
+- Fixed overlap frame section storage.
+- Fixed text description.
+- Improved copy/paste functionality in OpenFAST analysis.
+
+Pevious version 
+X-WIND Installer Version2.01n (x64)
+https://drive.google.com/file/d/1EnIycNjleFvzA3FD5cznewVUL2SnXxpA/view?usp=sharing
 
 # Infomation
 1) All users can use X-WIND by getting the brief information of free license during installation process. (from XFIASIT: Dr. Ki-Du kim:  kimkd@konkuk.ac.kr,  Dr. Pasin Pasin Plodpradit:  P_tuay@hotmail.com ). 
