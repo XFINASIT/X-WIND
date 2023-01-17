@@ -16,8 +16,8 @@ Infomation Update!
 - Fixed text description.
 - Improved copy/paste functionality in OpenFAST analysis.
 
-Pevious version 
-X-WIND Installer Version2.01n (x64)
+Pevious version of 
+X-WIND Installer Version 2.01n (x64)
 https://drive.google.com/file/d/1EnIycNjleFvzA3FD5cznewVUL2SnXxpA/view?usp=sharing
 
 # Infomation
