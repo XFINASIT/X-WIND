@@ -31,16 +31,18 @@ https://drive.google.com/file/d/1EnIycNjleFvzA3FD5cznewVUL2SnXxpA/view?usp=shari
 
 <a href="https://freeimage.host/i/HzBsu5l"><img src="https://iili.io/HzBsu5l.md.jpg" alt="HzBsu5l.md.jpg" border="0"></a><br /><a target='_blank' href='https://freeimage.host/'></a><br />
 
-# Installation Guild line
-1) Installed AutoCAD 2020 version above (2020,2021, 2022 and 2023 (most optimal)) and always installed on drive C: directory. 
-2) X-Wind Installer will be uploaded whenever XFINASIT upgrades the X-Wind. The old version will be deleted.
-3) Full inslallation guild line is get from https://drive.google.com/file/d/19Mzvk7390Og8JcZf__ScLe0cK3R-OgPI/view?usp=sharing or www.xfinas.com. 
+# Installation Guide line and Tutorials 
+1) AutoCAD (2020,2021, 2022 and 2023 (most optimal)) must be installed on drive C: directory.
+2) X-Wind Installer will be uploaded whenever XFINASIT upgrades the X-Wind. The old version will be deleted in sequence.
+3) Document of installation guide line can be downloaded in the following link. 
+https://drive.google.com/file/d/19Mzvk7390Og8JcZf__ScLe0cK3R-OgPI/view?usp=sharing or www.xfinas.com.
 
-X-WIND Installation Guideline (Video):
+4) X-WIND Installation Guideline (Video) is obtained in the following link :   
 https://www.youtube.com/watch?v=UkByx9cUkuU
 
-Visit X-WIND channel link
+5) Some examples of tutorial and useful video is obtained in the following X-WIND channel link: 
 https://www.youtube.com/channel/UCylClRmApsvrVzBorYnxsYQ
+Continuously the examples of tutorial will be uploaded. 
 
 # Documentation
 The full documentation is available at https://drive.google.com/file/d/1kB3dybjb96M9AM_HRu5iK2a6aZGn-oV_/view?usp=sharing
