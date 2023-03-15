@@ -11,7 +11,7 @@ https://drive.google.com/file/d/1pdj_F1oyuyYZNr1Ad4uZcz6cy2xCTBZq/view?usp=shari
 X-WIND Manual (.chm) available here:
 !will be release soon
 
-Infomation Update!
+Information Update!
 - Extended storage size to handle a huge structure modelling.
 - Improved display infomation of X-OpenFAST.
 - Fixed reading error "Default" as consider still water level in X-OpenFAST.
