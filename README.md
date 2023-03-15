@@ -12,10 +12,11 @@ X-WIND Manual (.chm) available here:
 !will be release soon
 
 Infomation Update!
-- Extended storage size to handle huge structure modelling.
+- Extended storage size to handle a huge structure modelling.
 - Improved display infomation of X-OpenFAST.
 - Fixed reading error "Default" as consider still water level in X-OpenFAST.
 - Mapping a pressure panel into shell element model.
+- Nemoh V3.01,2nd wave.
 - Inertia reliefed (Testing procedure).
 
 Pevious version of 
