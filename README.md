@@ -5,8 +5,8 @@ The Solution of X-WIND AutoCAD program is specialized in offshore projects, incl
 
 The X-WIND is AutoCAD embeded software which the Pre/Postprocessor of X-WIND is integrated with the "ADD IN" function of AutoCAD. Through interactive approach of AutoCAD, the finite element calculation make users obtain calculation results and report with visualization of post-processing in AutoCAD environment.
 
-X-WIND Installer Version2.01p (x64) available here:
-https://drive.google.com/file/d/1pdj_F1oyuyYZNr1Ad4uZcz6cy2xCTBZq/view?usp=sharing
+X-WIND Installer Version 2.01s (x64) available here:
+https://drive.google.com/file/d/1lqTFspddLq3fZPSFPVumkywXvDRXQfq5/view?usp=sharing
 
 X-WIND Manual (.chm) available here:
 !will be release soon
@@ -14,14 +14,15 @@ X-WIND Manual (.chm) available here:
 Information Update!
 - Extended storage size to handle a huge structure modelling.
 - Improved display infomation of X-OpenFAST.
-- Fixed reading error "Default" as consider still water level in X-OpenFAST.
 - Mapping a pressure panel into shell element model.
 - Nemoh V3.01,2nd wave.
-- Inertia reliefed (Testing procedure).
+- Inertia reliefed
+- RADIS solution
+- FEAST Eigenvalue solver (Intel MKL)
 
 Pevious version of 
-X-WIND Installer Version2.01o (x64):
-https://drive.google.com/file/d/19Mzvk7390Og8JcZf__ScLe0cK3R-OgPI/view?usp=sharing
+X-WIND Installer Version2.01p (x64):
+https://drive.google.com/file/d/1pdj_F1oyuyYZNr1Ad4uZcz6cy2xCTBZq/view?usp=sharing
 
 X-WIND Manual (.chm) (X-WIND Installer Version 2.01n):
 https://drive.google.com/file/d/1kB3dybjb96M9AM_HRu5iK2a6aZGn-oV_/view?usp=sharing
@@ -40,15 +41,19 @@ https://drive.google.com/file/d/1kB3dybjb96M9AM_HRu5iK2a6aZGn-oV_/view?usp=shari
 # Installation Guideline and Tutorials 
 1) AutoCAD (2020,2021, 2022 and 2023 (most optimal)) must be installed on drive C: directory.
 2) X-Wind Installer will be uploaded whenever XFINASIT upgrades the X-Wind. The old version will be deleted in sequence.
-3) Document of installation guideline can be downloaded in the following link. 
-https://drive.google.com/file/d/19Mzvk7390Og8JcZf__ScLe0cK3R-OgPI/view?usp=sharing or www.xfinas.com.
+3) Document of installation guideline can be downloaded in the following link.
+https://drive.google.com/file/d/19Mzvk7390Og8JcZf__ScLe0cK3R-OgPI/view?usp=sharing
 
-4) X-WIND Installation Guideline (Video) is obtained in the following link :   
+5) X-WIND Installation Guideline (Video) is obtained in the following link :   
 https://www.youtube.com/watch?v=UkByx9cUkuU
 
-5) Some examples of tutorial and useful video is obtained in the following X-WIND channel link: 
+6) Some examples of tutorial and useful video is obtained in the following X-WIND channel link: 
 https://www.youtube.com/channel/UCylClRmApsvrVzBorYnxsYQ
+
 Continuously the examples of tutorial will be uploaded. 
+Chapter 4- OpenFAST Solution-
+https://drive.google.com/file/d/1QKsrWQ16mPu3nvjvzbBNnKqrmYu7VREQ/view?usp=sharing
+
 
 # Documentation
 The full documentation is available at https://drive.google.com/file/d/1kB3dybjb96M9AM_HRu5iK2a6aZGn-oV_/view?usp=sharing
