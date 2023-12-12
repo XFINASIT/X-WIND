@@ -51,7 +51,7 @@ https://www.youtube.com/watch?v=UkByx9cUkuU
 https://www.youtube.com/channel/UCylClRmApsvrVzBorYnxsYQ
 
 Continuously the examples of tutorial will be uploaded. 
-Chapter 4- OpenFAST Solution-
+- Chapter 4 - OpenFAST Solution
 https://drive.google.com/file/d/1QKsrWQ16mPu3nvjvzbBNnKqrmYu7VREQ/view?usp=sharing
 
 
