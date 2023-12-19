@@ -8,9 +8,6 @@ The X-WIND is AutoCAD embeded software which the Pre/Postprocessor of X-WIND is 
 X-WIND Installer Version 2.01s (x64) available here:
 https://drive.google.com/file/d/1lqTFspddLq3fZPSFPVumkywXvDRXQfq5/view?usp=sharing
 
-X-WIND Manual (.chm) available here:
-!will be release soon
-
 Information Update!
 - Extended storage size to handle a huge structure modelling.
 - Improved display infomation of X-OpenFAST.
@@ -19,11 +16,7 @@ Information Update!
 - Inertia reliefed
 - RADIS solution
 - FEAST Eigenvalue solver (Intel MKL)
-
-Pevious version of 
-X-WIND Installer Version2.01p (x64):
-https://drive.google.com/file/d/1pdj_F1oyuyYZNr1Ad4uZcz6cy2xCTBZq/view?usp=sharing
-
+- 
 X-WIND Manual (.chm) (X-WIND Installer Version 2.01n):
 https://drive.google.com/file/d/1kB3dybjb96M9AM_HRu5iK2a6aZGn-oV_/view?usp=sharing
 
@@ -51,8 +44,8 @@ https://www.youtube.com/watch?v=UkByx9cUkuU
 https://www.youtube.com/channel/UCylClRmApsvrVzBorYnxsYQ
 
 Continuously the examples of tutorial will be uploaded. 
-- Chapter 4 - OpenFAST Solution
-https://drive.google.com/file/d/1QKsrWQ16mPu3nvjvzbBNnKqrmYu7VREQ/view?usp=sharing
+- Tutorial Manual of X-WIND Based On IEC61400 (Chapter 4 - OpenFAST Solution)
+https://drive.google.com/file/d/13bG_P8W4sXYL9gPvsEXRxr4jOTzjNoj8/view?usp=sharing
 
 
 # Documentation
