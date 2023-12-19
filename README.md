@@ -41,7 +41,7 @@ https://www.youtube.com/watch?v=UkByx9cUkuU
 # Documentation and Tutorials 
 The full documentation is available at https://drive.google.com/file/d/1kB3dybjb96M9AM_HRu5iK2a6aZGn-oV_/view?usp=sharing
 
-5) Some examples of tutorial and useful video is obtained in the following X-WIND channel link: 
+Some examples of tutorial and useful video is obtained in the following X-WIND channel link: 
 https://www.youtube.com/channel/UCylClRmApsvrVzBorYnxsYQ
 
 Continuously the examples of tutorial will be uploaded. 
