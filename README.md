@@ -16,7 +16,7 @@ Information Update!
 - Inertia reliefed
 - RADIS solution
 - FEAST Eigenvalue solver (Intel MKL)
-- 
+
 X-WIND Manual (.chm) (X-WIND Installer Version 2.01n):
 https://drive.google.com/file/d/1kB3dybjb96M9AM_HRu5iK2a6aZGn-oV_/view?usp=sharing
 
@@ -35,7 +35,7 @@ https://drive.google.com/file/d/1kB3dybjb96M9AM_HRu5iK2a6aZGn-oV_/view?usp=shari
 1) AutoCAD (2020,2021, 2022 and 2023 (most optimal)) must be installed on drive C: directory.
 2) X-Wind Installer will be uploaded whenever XFINASIT upgrades the X-Wind. The old version will be deleted in sequence.
 3) Document of installation guideline can be downloaded in the following #Documentation topic.
-4) X-WIND Installation Guideline (Video) is obtained in the following link :   
+4) X-WIND Installation Guideline (Video) is obtained in the following link : 
 https://www.youtube.com/watch?v=UkByx9cUkuU
 
 # Documentation and Tutorials 
