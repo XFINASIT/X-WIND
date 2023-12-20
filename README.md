@@ -8,6 +8,9 @@ The X-WIND is AutoCAD embeded software which the Pre/Postprocessor of X-WIND is 
 X-WIND Installer Version 2.01s (x64) available here:
 https://drive.google.com/file/d/1lqTFspddLq3fZPSFPVumkywXvDRXQfq5/view?usp=sharing
 
+X-WIND Application Version 2.01s(x64):
+https://drive.google.com/file/d/1ykma2zVBj2sBBhzuaJveL3k9bZDBVYq2/view?usp=sharing
+
 Information Update!
 - Extended storage size to handle a huge structure modelling.
 - Improved display infomation of X-OpenFAST.
@@ -19,6 +22,7 @@ Information Update!
 
 X-WIND Manual (.chm) (X-WIND Installer Version 2.01n):
 https://drive.google.com/file/d/1kB3dybjb96M9AM_HRu5iK2a6aZGn-oV_/view?usp=sharing
+
 
 # Infomation
 1) All users can use X-WIND by getting the brief information of free license during installation process. (from XFIASIT: Dr. Ki-Du kim:  kimkd@konkuk.ac.kr,  Dr. Pasin Pasin Plodpradit:  P_tuay@hotmail.com ). 
